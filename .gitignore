@@ -1,0 +1,35 @@
+# Go and Wails
+build/bin/
+*.exe
+*.app
+*.dmg
+
+# Frontend
+frontend/node_modules/
+frontend/dist/*
+!frontend/dist/.gitkeep
+frontend/coverage/
+frontend/package.json.md5
+
+# Local application data
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+generated-resumes/
+
+# Environment and credentials
+.env
+.env.*
+!.env.example
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+tmp/
