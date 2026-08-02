@@ -10,13 +10,25 @@ export function DeleteEducation(arg1:string):Promise<void>;
 
 export function DeleteProject(arg1:string):Promise<void>;
 
+export function DeleteResumeTemplate(arg1:string):Promise<void>;
+
+export function CompileLatex(arg1:string):Promise<domain.CompileResult>;
+
+export function ExportCompiledPDF():Promise<domain.FileResult>;
+
+export function ExportLatexSource(arg1:string):Promise<domain.FileResult>;
+
 export function ExportProfileBackup():Promise<domain.BackupResult>;
 
 export function GetProfile():Promise<domain.Profile>;
 
+export function GetSelectedResumeTemplateID():Promise<string>;
+
 export function ImportProfileBackup():Promise<domain.BackupResult>;
 
 export function ImportGitHubProjects():Promise<domain.GitHubImportResult>;
+
+export function ImportResumeTemplate():Promise<domain.ResumeTemplate>;
 
 export function ListExperiences():Promise<Array<domain.Experience>>;
 
@@ -24,10 +36,18 @@ export function ListEducations():Promise<Array<domain.Education>>;
 
 export function ListProjects():Promise<Array<domain.Project>>;
 
+export function ListResumeTemplates():Promise<Array<domain.ResumeTemplate>>;
+
+export function RenderResumeTemplate(arg1:string,arg2:Array<string>):Promise<string>;
+
 export function SaveExperience(arg1:domain.ExperienceInput):Promise<domain.Experience>;
 
 export function SaveEducation(arg1:domain.EducationInput):Promise<domain.Education>;
 
 export function SaveProject(arg1:domain.ProjectInput):Promise<domain.Project>;
 
+export function SaveResumeTemplate(arg1:domain.ResumeTemplateInput):Promise<domain.ResumeTemplate>;
+
 export function SaveProfile(arg1:domain.ProfileInput):Promise<domain.Profile>;
+
+export function SelectResumeTemplate(arg1:string):Promise<domain.ResumeTemplate>;

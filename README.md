@@ -14,7 +14,9 @@ TailorCV is in its foundation stage. The first vertical slice provides:
 - Reviewable projects with skills, source links, eligibility, and ordered evidence.
 - Education records with validated study dates and live resume-preview rendering.
 - Profile skill management and basic job-description skill matching.
-- A dark split workspace with persistent resume preview, project selection, LaTeX editing, and AI-provider entry points.
+- A dark split workspace with project selection, editable LaTeX source, and compiled PDF preview.
+- Read-only Jake-style and Classic ATS templates, plus persistent user-imported `.tex` templates.
+- Local Tectonic compilation with isolated workspaces, untrusted mode, time and output limits, and native `.tex`/`.pdf` export.
 - Versioned JSON backup and atomic restore for all currently supported profile data.
 - Public GitHub repository sync with review-gated resume eligibility.
 - Clear service boundaries for GitHub import, resume generation, templates, and PDF compilation.
@@ -35,6 +37,7 @@ See [PLAN.md](PLAN.md) for the product architecture and delivery milestones.
 - Node.js 20 or newer
 - pnpm
 - Wails v2 CLI
+- Tectonic available on `PATH` for PDF compilation
 - Linux development packages required by Wails, or the corresponding Windows/macOS toolchain
 
 Install the Wails CLI:
@@ -90,6 +93,8 @@ wails build -tags webkit2_41
 The desktop application stores its SQLite database below the current operating system's user configuration directory in a `tailorcv` folder. Development and test databases, generated resumes, credentials, and user PDFs must not be committed.
 
 Use **Backup & restore** in the application sidebar to export a portable JSON snapshot. Imports are fully validated before replacing local data in one transaction. Provider credentials, generated PDFs, compiler caches, and local model data are intentionally excluded.
+
+Custom templates are stored locally in the same SQLite database. Use **Templates → Import .tex** for complete, single-file LaTeX documents. Imported files compile as-is; TailorCV data markers are optional and documented in the Templates screen. Built-in templates are read-only, and editing one creates a user-owned copy.
 
 ## Repository layout
 

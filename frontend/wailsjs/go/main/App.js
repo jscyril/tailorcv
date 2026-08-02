@@ -18,6 +18,22 @@ export function DeleteProject(arg1) {
   return window['go']['main']['App']['DeleteProject'](arg1);
 }
 
+export function DeleteResumeTemplate(arg1) {
+  return window['go']['main']['App']['DeleteResumeTemplate'](arg1);
+}
+
+export function CompileLatex(arg1) {
+  return window['go']['main']['App']['CompileLatex'](arg1);
+}
+
+export function ExportCompiledPDF() {
+  return window['go']['main']['App']['ExportCompiledPDF']();
+}
+
+export function ExportLatexSource(arg1) {
+  return window['go']['main']['App']['ExportLatexSource'](arg1);
+}
+
 export function ExportProfileBackup() {
   return window['go']['main']['App']['ExportProfileBackup']();
 }
@@ -26,12 +42,20 @@ export function GetProfile() {
   return window['go']['main']['App']['GetProfile']();
 }
 
+export function GetSelectedResumeTemplateID() {
+  return window['go']['main']['App']['GetSelectedResumeTemplateID']();
+}
+
 export function ImportProfileBackup() {
   return window['go']['main']['App']['ImportProfileBackup']();
 }
 
 export function ImportGitHubProjects() {
   return window['go']['main']['App']['ImportGitHubProjects']();
+}
+
+export function ImportResumeTemplate() {
+  return window['go']['main']['App']['ImportResumeTemplate']();
 }
 
 export function ListExperiences() {
@@ -46,6 +70,14 @@ export function ListProjects() {
   return window['go']['main']['App']['ListProjects']();
 }
 
+export function ListResumeTemplates() {
+  return window['go']['main']['App']['ListResumeTemplates']();
+}
+
+export function RenderResumeTemplate(arg1, arg2) {
+  return window['go']['main']['App']['RenderResumeTemplate'](arg1, arg2);
+}
+
 export function SaveExperience(arg1) {
   return window['go']['main']['App']['SaveExperience'](arg1);
 }
@@ -58,6 +90,14 @@ export function SaveProject(arg1) {
   return window['go']['main']['App']['SaveProject'](arg1);
 }
 
+export function SaveResumeTemplate(arg1) {
+  return window['go']['main']['App']['SaveResumeTemplate'](arg1);
+}
+
 export function SaveProfile(arg1) {
   return window['go']['main']['App']['SaveProfile'](arg1);
+}
+
+export function SelectResumeTemplate(arg1) {
+  return window['go']['main']['App']['SelectResumeTemplate'](arg1);
 }

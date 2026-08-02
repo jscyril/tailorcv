@@ -1,4 +1,66 @@
 export namespace domain {
+	export class CompileResult {
+	    pdfBase64: string;
+	    engine: string;
+	    durationMs: number;
+	    log: string;
+
+	    static createFrom(source: any = {}) { return new CompileResult(source); }
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pdfBase64 = source["pdfBase64"];
+	        this.engine = source["engine"];
+	        this.durationMs = source["durationMs"];
+	        this.log = source["log"];
+	    }
+	}
+	export class FileResult {
+	    path: string;
+	    cancelled: boolean;
+
+	    static createFrom(source: any = {}) { return new FileResult(source); }
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.cancelled = source["cancelled"];
+	    }
+	}
+	export class ResumeTemplate {
+	    id: string;
+	    name: string;
+	    description: string;
+	    source: string;
+	    builtIn: boolean;
+	    createdAt: string;
+	    updatedAt: string;
+
+	    static createFrom(source: any = {}) { return new ResumeTemplate(source); }
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.description = source["description"];
+	        this.source = source["source"];
+	        this.builtIn = source["builtIn"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
+	export class ResumeTemplateInput {
+	    id: string;
+	    name: string;
+	    description: string;
+	    source: string;
+
+	    static createFrom(source: any = {}) { return new ResumeTemplateInput(source); }
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.description = source["description"];
+	        this.source = source["source"];
+	    }
+	}
 	export class BackupResult {
 	    path: string;
 	    cancelled: boolean;

@@ -208,7 +208,34 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .skill-chip-grid > span { display: inline-flex; align-items: center; gap: 6px; background: #c8e86b12; color: var(--accent); }
 .skill-chip-grid button { padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 12px; line-height: 1; }
 
+.templates-workspace .panel-header .primary-button { display: inline-flex; align-items: center; gap: 7px; }
+.template-guidance { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 13px; margin: 18px 24px 0; padding: 14px; border: 1px solid #c8e86b33; border-radius: 10px; background: #182014; }
+.template-guidance .empty-icon { width: 40px; height: 40px; margin: 0; }
+.template-guidance strong { font-size: 13px; }
+.template-guidance p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.template-guidance code { padding: 2px 4px; border-radius: 4px; background: #0b0d0c; color: var(--secondary); font: 10px "SFMono-Regular", Consolas, monospace; }
+.template-grid { display: grid; gap: 12px; padding: 18px 24px 28px; }
+.template-card { min-width: 0; display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 15px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #0d100e; transition: border-color .15s, background .15s; }
+.template-card:hover { border-color: #4b554f; }
+.template-card.selected { border-color: #a9ce4670; background: #182014; box-shadow: inset 3px 0 var(--accent); }
+.template-paper { width: 70px; aspect-ratio: 8.5 / 11; display: flex; flex-direction: column; gap: 5px; padding: 10px 8px; border-radius: 3px; background: #f7f6f0; color: #151815; box-shadow: 0 7px 18px #0007; }
+.template-paper span { margin-bottom: 2px; font: 700 8px Georgia, serif; text-align: center; }
+.template-paper i { display: block; height: 2px; border-radius: 2px; background: #4f5550; opacity: .65; }
+.template-paper i.short { width: 68%; }
+.template-card-copy { min-width: 0; }
+.template-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.template-title strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.template-title span { padding: 3px 6px; border-radius: 999px; background: var(--elevated); color: var(--accent); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.template-card-copy p { margin: 7px 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.template-card-copy small { color: var(--secondary); font-size: 11px; }
+.template-actions { grid-column: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.template-actions .primary-button, .template-actions .secondary-button { min-height: 32px; }
+.template-actions .danger-button { margin-left: auto; }
+
 .latex-workspace { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; overflow: hidden; }
+.latex-workspace .panel-header { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
+.latex-workspace .panel-actions { flex-wrap: wrap; margin-top: 13px; }
+.latex-actions .text-button { min-height: 36px; padding-inline: 4px; }
 .editor-tabs { display: flex; align-items: center; gap: 3px; padding: 0 16px; border-bottom: 1px solid var(--line); background: #0c0e0d; }
 .editor-tabs span { margin-left: auto; color: var(--muted); font-size: 8px; }
 .code-editor { min-height: 0; display: grid; grid-template-columns: 42px minmax(0, 1fr); overflow: hidden; background: #090b0a; }
@@ -272,6 +299,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .preview-controls button { width: 24px; height: 24px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--elevated); color: var(--secondary); }
 .preview-controls i { width: 1px; height: 18px; margin: 0 4px; background: var(--line); }
 .preview-stage { min-height: 0; overflow: auto; display: grid; justify-items: center; align-items: start; padding: 28px; background-color: #080908; background-image: radial-gradient(#30342f 0.65px, transparent 0.65px); background-size: 12px 12px; scrollbar-color: #3a423d transparent; scrollbar-width: thin; }
+.preview-stage.compiled { display: block; padding: 18px; overflow: hidden; }
+.preview-stage.compiled iframe { width: 100%; height: 100%; border: 0; border-radius: 4px; background: var(--paper); box-shadow: 0 18px 55px #000a; }
 .resume-paper { width: min(100%, 560px); aspect-ratio: 8.5 / 11; min-height: 650px; padding: 7.5% 8%; background: var(--paper); color: var(--paper-ink); box-shadow: 0 18px 55px #000a; font-family: Arial, Helvetica, sans-serif; }
 .resume-header { padding-bottom: 10px; border-bottom: 1.5px solid #1b201d; text-align: center; }
 .resume-header h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(20px, 2vw, 29px); letter-spacing: .025em; text-transform: uppercase; }

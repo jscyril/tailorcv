@@ -125,6 +125,24 @@ var migrations = []migration{
 			`CREATE INDEX educations_position_idx ON educations(position, created_at)`,
 		},
 	},
+	{
+		version: 5,
+		statements: []string{
+			`CREATE TABLE resume_templates (
+				id TEXT PRIMARY KEY,
+				name TEXT NOT NULL,
+				description TEXT NOT NULL DEFAULT '',
+				source TEXT NOT NULL,
+				created_at TEXT NOT NULL,
+				updated_at TEXT NOT NULL
+			)`,
+			`CREATE INDEX resume_templates_name_idx ON resume_templates(name COLLATE NOCASE)`,
+			`CREATE TABLE app_settings (
+				key TEXT PRIMARY KEY,
+				value TEXT NOT NULL
+			)`,
+		},
+	},
 }
 
 func (s *Store) applyMigrations(ctx context.Context) error {

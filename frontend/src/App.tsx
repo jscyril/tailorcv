@@ -1,20 +1,30 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   AnalyzeJobDescription,
+  CompileLatex,
   DeleteEducation,
   DeleteExperience,
   DeleteProject,
+  DeleteResumeTemplate,
+  ExportCompiledPDF,
+  ExportLatexSource,
   ExportProfileBackup,
   GetProfile,
+  GetSelectedResumeTemplateID,
   ImportGitHubProjects,
   ImportProfileBackup,
+  ImportResumeTemplate,
   ListEducations,
   ListExperiences,
   ListProjects,
+  ListResumeTemplates,
+  RenderResumeTemplate,
   SaveEducation,
   SaveExperience,
   SaveProject,
   SaveProfile,
+  SaveResumeTemplate,
+  SelectResumeTemplate,
 } from "../wailsjs/go/main/App";
 import { domain } from "../wailsjs/go/models";
 import {
@@ -51,7 +61,7 @@ import {
   profileCompletion,
 } from "./lib/profile";
 
-type View = "overview" | "profile" | "experience" | "projects" | "education" | "skills" | "latex" | "job" | "ai" | "data";
+type View = "overview" | "profile" | "experience" | "projects" | "education" | "skills" | "templates" | "latex" | "job" | "ai" | "data";
 
 type AIProvider = "Ollama" | "Gemini" | "Claude" | "OpenAI";
 
@@ -118,6 +128,11 @@ export default function App() {
   const [error, setError] = useState("");
   const [selectedProjectKeys, setSelectedProjectKeys] = useState<string[]>([]);
   const [latexSource, setLatexSource] = useState(DEFAULT_LATEX);
+  const [templates, setTemplates] = useState<domain.ResumeTemplate[]>([]);
+  const [selectedTemplateID, setSelectedTemplateID] = useState("");
+  const [templateBusyKey, setTemplateBusyKey] = useState("");
+  const [compileBusy, setCompileBusy] = useState(false);
+  const [compileResult, setCompileResult] = useState<domain.CompileResult | null>(null);
   const [aiProvider, setAIProvider] = useState<AIProvider>("Ollama");
   const [chatDraft, setChatDraft] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
@@ -125,7 +140,7 @@ export default function App() {
   ]);
 
   const loadWorkspaceData = async () => {
-    const [result, savedExperiences, savedProjects, savedEducations] = await Promise.all([GetProfile(), ListExperiences(), ListProjects(), ListEducations()]);
+    const [result, savedExperiences, savedProjects, savedEducations, savedTemplates, savedTemplateID] = await Promise.all([GetProfile(), ListExperiences(), ListProjects(), ListEducations(), ListResumeTemplates(), GetSelectedResumeTemplateID()]);
     const loaded = { ...emptyProfile, ...result } as Profile;
     loaded.skills ??= [];
     setProfile(loaded);
@@ -133,8 +148,14 @@ export default function App() {
     setExperiences((savedExperiences as unknown as Experience[]).map(experienceToDraft));
     const projectDrafts = (savedProjects as unknown as Project[]).map(projectToDraft);
     setProjects(projectDrafts);
-    setSelectedProjectKeys(projectDrafts.filter((project) => project.resumeEligible).slice(0, 3).map((project) => project.key));
+    const selectedKeys = projectDrafts.filter((project) => project.resumeEligible).slice(0, 3).map((project) => project.key);
+    setSelectedProjectKeys(selectedKeys);
     setEducations((savedEducations as unknown as Education[]).map(educationToDraft));
+    setTemplates(savedTemplates);
+    setSelectedTemplateID(savedTemplateID);
+    const rendered = await RenderResumeTemplate(savedTemplateID, selectedKeys.filter((key) => !key.startsWith("new-project-")));
+    setLatexSource(rendered);
+    setCompileResult(null);
   };
 
   useEffect(() => {
@@ -405,14 +426,168 @@ export default function App() {
     }
   };
 
+  const selectedSavedProjectIDs = () => selectedProjectKeys
+    .map((key) => projects.find((project) => project.key === key)?.id ?? "")
+    .filter(Boolean);
+
+  const useResumeTemplate = async (templateID: string, openEditor = false) => {
+    setTemplateBusyKey(templateID);
+    setError("");
+    setMessage("");
+    try {
+      const template = await SelectResumeTemplate(templateID);
+      const rendered = await RenderResumeTemplate(templateID, selectedSavedProjectIDs());
+      setSelectedTemplateID(templateID);
+      setLatexSource(rendered);
+      setCompileResult(null);
+      setMessage(`${template.name} loaded with your saved resume data.`);
+      if (openEditor) setView("latex");
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setTemplateBusyKey("");
+    }
+  };
+
+  const importResumeTemplate = async () => {
+    setTemplateBusyKey("import");
+    setError("");
+    setMessage("");
+    try {
+      const imported = await ImportResumeTemplate();
+      if (!imported.id) return;
+      const refreshed = await ListResumeTemplates();
+      setTemplates(refreshed);
+      await SelectResumeTemplate(imported.id);
+      setSelectedTemplateID(imported.id);
+      setLatexSource(await RenderResumeTemplate(imported.id, selectedSavedProjectIDs()));
+      setCompileResult(null);
+      setMessage(`${imported.name} imported into your local template library.`);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setTemplateBusyKey("");
+    }
+  };
+
+  const duplicateResumeTemplate = async (template: domain.ResumeTemplate) => {
+    setTemplateBusyKey(template.id);
+    setError("");
+    setMessage("");
+    try {
+      const saved = await SaveResumeTemplate(new domain.ResumeTemplateInput({
+        id: "",
+        name: `${template.name} Copy`,
+        description: `Editable copy of ${template.name}.`,
+        source: template.source,
+      }));
+      setTemplates(await ListResumeTemplates());
+      setMessage(`${saved.name} added to your template library.`);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setTemplateBusyKey("");
+    }
+  };
+
+  const saveCurrentTemplate = async () => {
+    const active = templates.find((template) => template.id === selectedTemplateID);
+    if (!active) return;
+    setTemplateBusyKey(active.id);
+    setError("");
+    setMessage("");
+    try {
+      const saved = await SaveResumeTemplate(new domain.ResumeTemplateInput({
+        id: active.builtIn ? "" : active.id,
+        name: active.builtIn ? `${active.name} Copy` : active.name,
+        description: active.builtIn ? `Editable copy of ${active.name}.` : active.description,
+        source: latexSource,
+      }));
+      await SelectResumeTemplate(saved.id);
+      setSelectedTemplateID(saved.id);
+      setTemplates(await ListResumeTemplates());
+      setMessage(active.builtIn ? `${saved.name} created and selected.` : `${saved.name} updated.`);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setTemplateBusyKey("");
+    }
+  };
+
+  const deleteResumeTemplate = async (template: domain.ResumeTemplate) => {
+    if (template.builtIn || !window.confirm(`Delete the template ${template.name}?`)) return;
+    setTemplateBusyKey(template.id);
+    setError("");
+    setMessage("");
+    try {
+      await DeleteResumeTemplate(template.id);
+      const refreshed = await ListResumeTemplates();
+      setTemplates(refreshed);
+      if (selectedTemplateID === template.id) {
+        const fallbackID = await GetSelectedResumeTemplateID();
+        setSelectedTemplateID(fallbackID);
+        setLatexSource(await RenderResumeTemplate(fallbackID, selectedSavedProjectIDs()));
+        setCompileResult(null);
+      }
+      setMessage(`${template.name} deleted.`);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setTemplateBusyKey("");
+    }
+  };
+
+  const updateLatexSource = (source: string) => {
+    setLatexSource(source);
+    setCompileResult(null);
+    setMessage("");
+  };
+
+  const compileLatex = async () => {
+    setCompileBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await CompileLatex(latexSource);
+      setCompileResult(result);
+      setMessage(`Compiled with ${result.engine} in ${result.durationMs} ms.`);
+    } catch (reason) {
+      setCompileResult(null);
+      setError(errorMessage(reason));
+    } finally {
+      setCompileBusy(false);
+    }
+  };
+
+  const exportCompiledPDF = async () => {
+    setError("");
+    try {
+      const result = await ExportCompiledPDF();
+      if (!result.cancelled) setMessage(`PDF exported to ${result.path}`);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    }
+  };
+
+  const exportLatexSource = async () => {
+    setError("");
+    try {
+      const result = await ExportLatexSource(latexSource);
+      if (!result.cancelled) setMessage(`LaTeX source exported to ${result.path}`);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    }
+  };
+
   const selectedProjects = projects.filter((project) => selectedProjectKeys.includes(project.key));
+  const activeTemplate = templates.find((template) => template.id === selectedTemplateID);
   const hasProfileData = Boolean(profile.name || profile.email || profile.headline || profile.phone || profile.location || profile.website || profile.githubUsername || profile.linkedInUrl || profile.summary || profile.skills.length);
   const showOnboarding = !busy && !onboardingDismissed && !hasProfileData && experiences.length === 0 && projects.length === 0 && educations.length === 0;
 
   return (
     <div className="studio-shell">
       {showOnboarding && <Onboarding profile={profile} skillsText={skillsText} busy={busy} onChange={updateProfile} onSkillsChange={setSkillsText} onSubmit={saveProfile} onSkip={() => setOnboardingDismissed(true)} />}
-      <TopToolbar profile={profile} />
+      <TopToolbar profile={profile} templateName={activeTemplate?.name ?? "Resume template"} compiling={compileBusy} canExport={Boolean(compileResult)} onCompile={compileLatex} onExport={exportCompiledPDF} />
 
       <div className="studio-body">
         <aside className="studio-sidebar">
@@ -429,6 +604,7 @@ export default function App() {
             <NavButton active={view === "education"} label="Education" icon="education" badge={educations.length || undefined} onClick={() => setView("education")} />
             <NavButton active={view === "skills"} label="Skills" icon="sparkles" badge={profile.skills.length || undefined} onClick={() => setView("skills")} />
             <p className="nav-section-label nav-section-spaced">Tailor</p>
+            <NavButton active={view === "templates"} label="Templates" icon="template" badge={templates.length || undefined} onClick={() => setView("templates")} />
             <NavButton active={view === "latex"} label="LaTeX source" icon="code" onClick={() => setView("latex")} />
             <NavButton active={view === "job"} label="Job match" icon="target" badge={analysis ? `${analysis.score}%` : undefined} onClick={() => setView("job")} />
             <NavButton active={view === "ai"} label="AI assistant" icon="chat" badge="Setup" onClick={() => setView("ai")} />
@@ -454,13 +630,14 @@ export default function App() {
             {view === "projects" && <ProjectWorkspace projects={projects} selectedKeys={selectedProjectKeys} busyKey={projectBusyKey} githubUsername={profile.githubUsername} githubBusy={githubBusy} onToggle={toggleProject} onAdd={addProject} onUpdate={updateProject} onSave={saveProject} onDelete={deleteProject} onSyncGitHub={syncGitHubProjects} onOpenProfile={() => setView("profile")} />}
             {view === "education" && <EducationWorkspace educations={educations} busyKey={educationBusyKey} onAdd={addEducation} onUpdate={updateEducation} onSave={saveEducation} onDelete={deleteEducation} />}
             {view === "skills" && <SkillsWorkspace skillsText={skillsText} busy={busy} message={message} onChange={setSkillsText} onSubmit={saveProfile} />}
-            {view === "latex" && <LatexWorkspace source={latexSource} onChange={setLatexSource} />}
+            {view === "templates" && <TemplatesWorkspace templates={templates} selectedID={selectedTemplateID} busyKey={templateBusyKey} onImport={importResumeTemplate} onUse={(id) => useResumeTemplate(id)} onEdit={(id) => useResumeTemplate(id, true)} onDuplicate={duplicateResumeTemplate} onDelete={deleteResumeTemplate} />}
+            {view === "latex" && <LatexWorkspace source={latexSource} template={activeTemplate} busy={templateBusyKey !== ""} compiling={compileBusy} onChange={updateLatexSource} onSave={saveCurrentTemplate} onReload={() => useResumeTemplate(selectedTemplateID)} onCompile={compileLatex} onExport={exportLatexSource} />}
             {view === "job" && <JobTailor description={jobDescription} analysis={analysis} busy={busy} hasSkills={profile.skills.length > 0} onDescriptionChange={setJobDescription} onSubmit={analyzeJob} onProfile={() => setView("skills")} />}
             {view === "ai" && <AIWorkspace provider={aiProvider} draft={chatDraft} messages={chatMessages} onProviderChange={setAIProvider} onDraftChange={setChatDraft} onSubmit={sendChatMessage} />}
             {view === "data" && <DataWorkspace profile={profile} experiences={experiences} projects={projects} educations={educations} busy={backupBusy} lastResult={lastBackupResult} onExport={exportBackup} onImport={importBackup} />}
           </div>
 
-          <ResumePreview profile={profile} experiences={experiences} projects={selectedProjects} educations={educations} />
+          <ResumePreview profile={profile} experiences={experiences} projects={selectedProjects} educations={educations} compileResult={compileResult} />
         </main>
       </div>
     </div>
@@ -477,7 +654,7 @@ function NavButton({ active, label, icon, badge, onClick }: { active: boolean; l
   );
 }
 
-type IconName = "home" | "user" | "briefcase" | "folder" | "education" | "sparkles" | "code" | "target" | "chat" | "download" | "refresh" | "check" | "search" | "database";
+type IconName = "home" | "user" | "briefcase" | "folder" | "education" | "sparkles" | "template" | "code" | "target" | "chat" | "download" | "refresh" | "check" | "search" | "database";
 
 const iconPaths: Record<IconName, React.ReactNode> = {
   home: <><path d="m3 10 9-7 9 7" /><path d="M5 9v11h14V9" /><path d="M9 20v-6h6v6" /></>,
@@ -486,6 +663,7 @@ const iconPaths: Record<IconName, React.ReactNode> = {
   folder: <><path d="M3 6h7l2 2h9v11H3z" /><path d="M3 10h18" /></>,
   education: <><path d="m2 9 10-5 10 5-10 5z" /><path d="M6 11v5c3 2 9 2 12 0v-5M22 9v7" /></>,
   sparkles: <><path d="m12 2 1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z" /><path d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" /></>,
+  template: <><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 7h8M8 11h8M8 15h5" /></>,
   code: <><path d="m8 5-6 7 6 7M16 5l6 7-6 7M14 3l-4 18" /></>,
   target: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="4" /><path d="M12 3v3M21 12h-3M12 21v-3M3 12h3" /></>,
   chat: <><path d="M4 4h16v13H8l-4 4z" /><path d="M8 9h8M8 13h5" /></>,
@@ -500,15 +678,15 @@ function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
   return <svg className="icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{iconPaths[name]}</svg>;
 }
 
-function TopToolbar({ profile }: { profile: Profile }) {
+function TopToolbar({ profile, templateName, compiling, canExport, onCompile, onExport }: { profile: Profile; templateName: string; compiling: boolean; canExport: boolean; onCompile: () => void; onExport: () => void }) {
   return <header className="top-toolbar">
     <div className="toolbar-brand"><span className="brand-mark">T</span><strong>TailorCV</strong></div>
     <span className="toolbar-divider" />
-    <div className="document-title"><strong>{profile.headline || "Backend Engineer Resume"}</strong><small>Layout draft · profile saved locally</small></div>
+    <div className="document-title"><strong>{profile.headline || "Backend Engineer Resume"}</strong><small>{templateName} · profile saved locally</small></div>
     <div className="toolbar-spacer" />
-    <div className="ats-pill"><span className="status-dot muted" /> Draft preview</div>
-    <button className="toolbar-button" disabled title="LaTeX compilation is not connected yet"><Icon name="refresh" size={16} />Compile</button>
-    <button className="export-button" disabled title="PDF export is available after compilation is implemented"><Icon name="download" size={16} />Export PDF</button>
+    <div className="ats-pill"><span className={`status-dot ${canExport ? "" : "muted"}`} /> {canExport ? "PDF ready" : "Source draft"}</div>
+    <button className="toolbar-button" disabled={compiling} onClick={onCompile}><Icon name="refresh" size={16} />{compiling ? "Compiling…" : "Compile"}</button>
+    <button className="export-button" disabled={!canExport || compiling} title={canExport ? "Export the latest compiled PDF" : "Compile the current source before exporting"} onClick={onExport}><Icon name="download" size={16} />Export PDF</button>
     <button className="icon-button" aria-label="More document options">•••</button>
   </header>;
 }
@@ -586,8 +764,24 @@ function SkillsWorkspace({ skillsText, busy, message, onChange, onSubmit }: { sk
   return <section className="workspace-panel scroll-panel"><PanelHeader eyebrow="Capabilities" title="Skills" description="A normalized vocabulary for matching and evidence selection." /><form className="compact-form skills-workspace" onSubmit={onSubmit}><FormBlock title="Skill inventory" description="Separate skills with commas. Duplicates are removed automatically."><label className="field"><span>Skills</span><textarea rows={6} value={skillsText} onChange={(event) => onChange(event.target.value)} placeholder="Go, TypeScript, PostgreSQL, Docker" /></label><div className="skill-chip-grid">{skills.map((skill) => <span key={skill}>{skill}<button type="button" aria-label={`Remove ${skill}`} onClick={() => onChange(skills.filter((item) => item !== skill).join(", "))}>×</button></span>)}</div></FormBlock><div className="sticky-form-actions"><span>{message}</span><button className="primary-button" disabled={busy}>{busy ? "Saving…" : "Save skills"}</button></div></form></section>;
 }
 
-function LatexWorkspace({ source, onChange }: { source: string; onChange: (value: string) => void }) {
-  return <section className="workspace-panel latex-workspace"><PanelHeader eyebrow="Source editor" title="LaTeX" description="Edit the draft template directly. Compilation is not connected yet." /><div className="editor-tabs"><button className="active">resume.tex</button><button disabled title="Custom template files are not implemented yet">template.cls</button><span>Draft · unsaved</span></div><div className="code-editor"><div className="line-numbers">{source.split("\n").map((_, index) => <span key={index}>{index + 1}</span>)}</div><textarea spellCheck={false} value={source} onChange={(event) => onChange(event.target.value)} aria-label="LaTeX source" /></div><footer className="editor-status"><span>UTF-8</span><span>LaTeX draft</span><span>{source.split("\n").length} lines</span></footer></section>;
+function TemplatesWorkspace({ templates, selectedID, busyKey, onImport, onUse, onEdit, onDuplicate, onDelete }: { templates: domain.ResumeTemplate[]; selectedID: string; busyKey: string; onImport: () => void; onUse: (id: string) => void; onEdit: (id: string) => void; onDuplicate: (template: domain.ResumeTemplate) => void; onDelete: (template: domain.ResumeTemplate) => void }) {
+  return <section className="workspace-panel scroll-panel templates-workspace">
+    <PanelHeader eyebrow="Document system" title="Templates" description="Choose a built-in layout or import a complete, single-file LaTeX template." action={<button className="primary-button" disabled={busyKey !== ""} onClick={onImport}><Icon name="download" size={16} />{busyKey === "import" ? "Importing…" : "Import .tex"}</button>} />
+    <div className="template-guidance"><span className="empty-icon"><Icon name="template" size={22} /></span><div><strong>Optional TailorCV markers</strong><p>Imported documents compile as-is. Add markers such as <code>{"{{TAILORCV_NAME}}"}</code>, <code>{"{{TAILORCV_EXPERIENCE_SECTION}}"}</code>, or <code>{"{{TAILORCV_PROJECTS_SECTION}}"}</code> to populate saved profile data when the template is selected.</p></div></div>
+    <div className="template-grid">{templates.map((template) => {
+      const selected = template.id === selectedID;
+      const busy = busyKey === template.id;
+      return <article className={`template-card ${selected ? "selected" : ""}`} key={template.id}>
+        <div className="template-paper"><span>{template.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</span><i /><i /><i /><i className="short" /></div>
+        <div className="template-card-copy"><div className="template-title"><strong>{template.name}</strong><span>{template.builtIn ? "Built in" : "Custom"}</span></div><p>{template.description || "User-owned LaTeX resume template."}</p><small>{selected ? "Currently selected" : template.builtIn ? "Read-only · duplicate to customize" : "Stored locally"}</small></div>
+        <div className="template-actions"><button className={selected ? "primary-button" : "secondary-button"} disabled={busy || selected} onClick={() => onUse(template.id)}>{selected ? "Selected" : busy ? "Loading…" : "Use"}</button><button className="text-button" disabled={busy} onClick={() => onEdit(template.id)}>Edit source</button><button className="text-button" disabled={busy} onClick={() => onDuplicate(template)}>Duplicate</button>{!template.builtIn && <button className="danger-button" disabled={busy} onClick={() => onDelete(template)}>Delete</button>}</div>
+      </article>;
+    })}</div>
+  </section>;
+}
+
+function LatexWorkspace({ source, template, busy, compiling, onChange, onSave, onReload, onCompile, onExport }: { source: string; template?: domain.ResumeTemplate; busy: boolean; compiling: boolean; onChange: (value: string) => void; onSave: () => void; onReload: () => void; onCompile: () => void; onExport: () => void }) {
+  return <section className="workspace-panel latex-workspace"><PanelHeader eyebrow="Source editor" title="LaTeX" description={`Editing the rendered source from ${template?.name ?? "the selected template"}. Compile runs locally with Tectonic.`} action={<div className="panel-actions latex-actions"><button className="text-button" disabled={busy || compiling || !template} onClick={onReload}>Reload data</button><button className="secondary-button" disabled={busy || compiling || !template} onClick={onSave}>{template?.builtIn ? "Save editable copy" : "Save template"}</button><button className="secondary-button" disabled={compiling} onClick={onExport}>Export .tex</button><button className="primary-button" disabled={compiling} onClick={onCompile}>{compiling ? "Compiling…" : "Compile PDF"}</button></div>} /><div className="editor-tabs"><button className="active">resume.tex</button><span>{template?.builtIn ? "Built-in source · edits are draft-only" : "Custom template · local"}</span></div><div className="code-editor"><div className="line-numbers">{source.split("\n").map((_, index) => <span key={index}>{index + 1}</span>)}</div><textarea spellCheck={false} value={source} onChange={(event) => onChange(event.target.value)} aria-label="LaTeX source" /></div><footer className="editor-status"><span>UTF-8</span><span>{template?.name ?? "LaTeX draft"}</span><span>{source.split("\n").length} lines</span></footer></section>;
 }
 
 function AIWorkspace({ provider, draft, messages, onProviderChange, onDraftChange, onSubmit }: { provider: AIProvider; draft: string; messages: ChatMessage[]; onProviderChange: (provider: AIProvider) => void; onDraftChange: (value: string) => void; onSubmit: (event: FormEvent) => void }) {
@@ -600,17 +794,17 @@ function DataWorkspace({ profile, experiences, projects, educations, busy, lastR
   return <section className="workspace-panel scroll-panel data-workspace"><PanelHeader eyebrow="Local data" title="Backup & restore" description="Keep a portable, versioned copy of your complete TailorCV profile." /><div className="backup-content"><section className="backup-summary"><header><span className="empty-icon"><Icon name="database" size={22} /></span><div><h2>Current local profile</h2><p>Everything listed here is included in one JSON backup.</p></div></header><div className="backup-stat-grid"><div><strong>{profile.name ? "1" : "0"}</strong><span>profile</span></div><div><strong>{experiences.length}</strong><span>roles</span></div><div><strong>{projects.length}</strong><span>projects</span></div><div><strong>{educations.length}</strong><span>education</span></div><div><strong>{profile.skills.length}</strong><span>skills</span></div><div><strong>{evidenceCount}</strong><span>evidence</span></div></div></section><section className="backup-action-card"><div><span className="backup-action-icon"><Icon name="download" size={20} /></span><h2>Export backup</h2><p>Write an owner-readable JSON snapshot using a native save dialog. IDs, ordering, verification state, and timestamps are preserved.</p></div><button className="primary-button" disabled={busy !== ""} onClick={onExport}>{busy === "export" ? "Exporting…" : "Choose destination"}</button></section><section className="backup-action-card restore"><div><span className="backup-action-icon"><Icon name="refresh" size={20} /></span><h2>Restore backup</h2><p>The entire file is validated before a single transaction replaces current data. Invalid or unsupported backups leave this profile untouched.</p></div><button className="secondary-button" disabled={busy !== ""} onClick={onImport}>{busy === "import" ? "Restoring…" : "Choose backup"}</button></section>{lastResult && <section className="backup-result"><span className="status-dot" /><div><strong>Last operation completed</strong><p>{lastResult.experienceCount} roles · {lastResult.projectCount} projects · {lastResult.educationCount} education records</p><small>{lastResult.path}</small></div></section>}<div className="backup-safety"><strong>Backup format v1</strong><p>Backups never include provider credentials, generated PDFs, compiler caches, or local model data.</p></div></div></section>;
 }
 
-function ResumePreview({ profile, experiences, projects, educations }: { profile: Profile; experiences: ExperienceDraft[]; projects: ProjectDraft[]; educations: EducationDraft[] }) {
+function ResumePreview({ profile, experiences, projects, educations, compileResult }: { profile: Profile; experiences: ExperienceDraft[]; projects: ProjectDraft[]; educations: EducationDraft[]; compileResult: domain.CompileResult | null }) {
   const visibleExperiences = experiences.slice(0, 2);
   const visibleProjects = projects.slice(0, 3);
-  return <aside className="preview-pane"><header className="preview-toolbar"><div><strong>Layout preview</strong><small>Draft · not compiled</small></div><div className="preview-controls"><button aria-label="Zoom out" disabled>−</button><span>Fit</span><button aria-label="Zoom in" disabled>+</button><i /><span>1 page</span></div></header><div className="preview-stage"><article className="resume-paper">
+  return <aside className="preview-pane"><header className="preview-toolbar"><div><strong>{compileResult ? "Compiled PDF" : "Layout preview"}</strong><small>{compileResult ? `${compileResult.engine} · ${compileResult.durationMs} ms` : "Draft · compile to verify"}</small></div><div className="preview-controls"><button aria-label="Zoom out" disabled>−</button><span>Fit</span><button aria-label="Zoom in" disabled>+</button><i /><span>{compileResult ? "PDF" : "Draft"}</span></div></header>{compileResult ? <div className="preview-stage compiled"><iframe title="Compiled resume PDF" src={`data:application/pdf;base64,${compileResult.pdfBase64}#toolbar=0&navpanes=0&view=FitH`} /></div> : <div className="preview-stage"><article className="resume-paper">
     <header className="resume-header"><h1>{profile.name || "Your Name"}</h1><p>{profile.headline || "Backend Engineer"}</p><small>{[profile.email || "your@email.com", profile.phone, profile.location, profile.website].filter(Boolean).join("  ·  ")}</small></header>
     {profile.summary && <ResumeSection title="Summary"><p className="resume-summary">{profile.summary}</p></ResumeSection>}
     <ResumeSection title="Experience">{visibleExperiences.length ? visibleExperiences.map((experience) => <div className="resume-entry" key={experience.key}><div><strong>{experience.title || "Role"} · {experience.company || "Company"}</strong><span>{experience.startDate} — {experience.current ? "Present" : experience.endDate}</span></div>{experience.location && <em>{experience.location}</em>}<ul>{experience.bullets.slice(0, 3).map((bullet, index) => <li key={bullet.id || index}>{bullet.text}</li>)}</ul></div>) : <ResumePlaceholder text="Add experience and evidence bullets" />}</ResumeSection>
     <ResumeSection title="Projects">{visibleProjects.length ? visibleProjects.map((project) => <div className="resume-entry project" key={project.key}><div><strong>{project.name || "Project"}</strong><span>{project.skills.slice(0, 3).join(" · ")}</span></div>{project.description && <p>{project.description}</p>}<ul>{project.bullets.slice(0, 2).map((bullet, index) => <li key={bullet.id || index}>{bullet.text}</li>)}</ul></div>) : <ResumePlaceholder text="Select projects to include them" />}</ResumeSection>
     {educations.length > 0 && <ResumeSection title="Education">{educations.slice(0, 2).map((education) => <div className="resume-entry education" key={education.key}><div><strong>{education.degree}{education.fieldOfStudy ? `, ${education.fieldOfStudy}` : ""}</strong><span>{education.startDate}{education.startDate && (education.current || education.endDate) ? " — " : ""}{education.current ? "Present" : education.endDate}</span></div><em>{education.institution}{education.location ? ` · ${education.location}` : ""}</em>{education.details && <p>{education.details}</p>}</div>)}</ResumeSection>}
     <ResumeSection title="Skills"><p className="resume-skills">{profile.skills.length ? profile.skills.join("  ·  ") : "Add skills to your profile"}</p></ResumeSection>
-  </article></div></aside>;
+  </article></div>}</aside>;
 }
 
 function ResumeSection({ title, children }: { title: string; children: React.ReactNode }) {
