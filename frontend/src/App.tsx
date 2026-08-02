@@ -1,9 +1,23 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   AnalyzeJobDescription,
+  DeleteExperience,
   GetProfile,
+  ListExperiences,
+  SaveExperience,
   SaveProfile,
 } from "../wailsjs/go/main/App";
+import { domain } from "../wailsjs/go/models";
+import {
+  EvidenceBullet,
+  Experience,
+  ExperienceDraft,
+  experienceToDraft,
+  moveItem,
+  newEvidenceBullet,
+  newExperienceDraft,
+  toExperienceInput,
+} from "./lib/experience";
 import {
   emptyProfile,
   parseSkills,
@@ -29,20 +43,23 @@ function errorMessage(error: unknown): string {
 export default function App() {
   const [view, setView] = useState<View>("home");
   const [profile, setProfile] = useState<Profile>(emptyProfile);
+  const [experiences, setExperiences] = useState<ExperienceDraft[]>([]);
   const [skillsText, setSkillsText] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [analysis, setAnalysis] = useState<JobAnalysis | null>(null);
   const [busy, setBusy] = useState(true);
+  const [experienceBusyKey, setExperienceBusyKey] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
-    GetProfile()
-      .then((result) => {
+    Promise.all([GetProfile(), ListExperiences()])
+      .then(([result, savedExperiences]) => {
         const loaded = { ...emptyProfile, ...result } as Profile;
         loaded.skills ??= [];
         setProfile(loaded);
         setSkillsText(loaded.skills.join(", "));
+        setExperiences((savedExperiences as unknown as Experience[]).map(experienceToDraft));
       })
       .catch((reason) => setError(errorMessage(reason)))
       .finally(() => setBusy(false));
@@ -91,6 +108,54 @@ export default function App() {
     }
   };
 
+  const addExperience = () => {
+    setExperiences((current) => [...current, newExperienceDraft()]);
+    setMessage("");
+  };
+
+  const updateExperience = (key: string, next: ExperienceDraft) => {
+    setExperiences((current) => current.map((experience) => experience.key === key ? next : experience));
+    setMessage("");
+  };
+
+  const saveExperience = async (event: FormEvent, draft: ExperienceDraft) => {
+    event.preventDefault();
+    setExperienceBusyKey(draft.key);
+    setError("");
+    setMessage("");
+    try {
+      const saved = await SaveExperience(new domain.ExperienceInput(toExperienceInput(draft)));
+      const normalized = experienceToDraft(saved as unknown as Experience);
+      setExperiences((current) => current.map((experience) => experience.key === draft.key ? normalized : experience));
+      setMessage("Experience saved locally.");
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setExperienceBusyKey("");
+    }
+  };
+
+  const deleteExperience = async (draft: ExperienceDraft) => {
+    if (draft.id && !window.confirm(`Delete ${draft.title || "this role"} at ${draft.company || "this company"}?`)) {
+      return;
+    }
+    if (!draft.id) {
+      setExperiences((current) => current.filter((experience) => experience.key !== draft.key));
+      return;
+    }
+    setExperienceBusyKey(draft.key);
+    setError("");
+    try {
+      await DeleteExperience(draft.id);
+      setExperiences((current) => current.filter((experience) => experience.key !== draft.key));
+      setMessage("Experience deleted.");
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setExperienceBusyKey("");
+    }
+  };
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -135,12 +200,18 @@ export default function App() {
         {view === "profile" && (
           <ProfileEditor
             profile={profile}
+            experiences={experiences}
             skillsText={skillsText}
             busy={busy}
+            experienceBusyKey={experienceBusyKey}
             message={message}
             onChange={updateProfile}
             onSkillsChange={setSkillsText}
             onSubmit={saveProfile}
+            onAddExperience={addExperience}
+            onUpdateExperience={updateExperience}
+            onSaveExperience={saveExperience}
+            onDeleteExperience={deleteExperience}
           />
         )}
         {view === "tailor" && (
@@ -213,14 +284,34 @@ function Overview({ profile, completion, onProfile, onTailor }: { profile: Profi
   );
 }
 
-function ProfileEditor({ profile, skillsText, busy, message, onChange, onSkillsChange, onSubmit }: {
+function ProfileEditor({
+  profile,
+  experiences,
+  skillsText,
+  busy,
+  experienceBusyKey,
+  message,
+  onChange,
+  onSkillsChange,
+  onSubmit,
+  onAddExperience,
+  onUpdateExperience,
+  onSaveExperience,
+  onDeleteExperience,
+}: {
   profile: Profile;
+  experiences: ExperienceDraft[];
   skillsText: string;
   busy: boolean;
+  experienceBusyKey: string;
   message: string;
   onChange: (field: keyof Profile, value: string) => void;
   onSkillsChange: (value: string) => void;
   onSubmit: (event: FormEvent) => void;
+  onAddExperience: () => void;
+  onUpdateExperience: (key: string, experience: ExperienceDraft) => void;
+  onSaveExperience: (event: FormEvent, experience: ExperienceDraft) => void;
+  onDeleteExperience: (experience: ExperienceDraft) => void;
 }) {
   return (
     <section className="page form-page">
@@ -261,7 +352,134 @@ function ProfileEditor({ profile, skillsText, busy, message, onChange, onSkillsC
           <button className="primary-button" disabled={busy} type="submit">{busy ? "Saving…" : "Save profile"}</button>
         </div>
       </form>
+      <ExperienceSection
+        experiences={experiences}
+        busyKey={experienceBusyKey}
+        onAdd={onAddExperience}
+        onUpdate={onUpdateExperience}
+        onSave={onSaveExperience}
+        onDelete={onDeleteExperience}
+      />
     </section>
+  );
+}
+
+function ExperienceSection({ experiences, busyKey, onAdd, onUpdate, onSave, onDelete }: {
+  experiences: ExperienceDraft[];
+  busyKey: string;
+  onAdd: () => void;
+  onUpdate: (key: string, experience: ExperienceDraft) => void;
+  onSave: (event: FormEvent, experience: ExperienceDraft) => void;
+  onDelete: (experience: ExperienceDraft) => void;
+}) {
+  return (
+    <section className="experience-section">
+      <div className="experience-heading">
+        <div>
+          <p className="eyebrow">Career evidence</p>
+          <h2>Experience and outcomes</h2>
+          <p>Record factual bullets with their origin and review state. Their order becomes the default resume order.</p>
+        </div>
+        <button className="secondary-button" type="button" onClick={onAdd}>Add experience</button>
+      </div>
+      {experiences.length === 0 ? (
+        <div className="experience-empty">
+          <strong>No experience entries yet.</strong>
+          <p>Add a role and the concrete work or outcomes you can support.</p>
+          <button className="primary-button" type="button" onClick={onAdd}>Add your first role</button>
+        </div>
+      ) : experiences.map((experience) => (
+        <ExperienceCard
+          key={experience.key}
+          experience={experience}
+          busy={busyKey === experience.key}
+          onUpdate={(next) => onUpdate(experience.key, next)}
+          onSave={(event) => onSave(event, experience)}
+          onDelete={() => onDelete(experience)}
+        />
+      ))}
+    </section>
+  );
+}
+
+function ExperienceCard({ experience, busy, onUpdate, onSave, onDelete }: {
+  experience: ExperienceDraft;
+  busy: boolean;
+  onUpdate: (experience: ExperienceDraft) => void;
+  onSave: (event: FormEvent) => void;
+  onDelete: () => void;
+}) {
+  const updateField = <K extends keyof ExperienceDraft>(field: K, value: ExperienceDraft[K]) => {
+    onUpdate({ ...experience, [field]: value });
+  };
+  const updateBullet = (index: number, patch: Partial<EvidenceBullet>) => {
+    updateField("bullets", experience.bullets.map((bullet, bulletIndex) => bulletIndex === index ? { ...bullet, ...patch } : bullet));
+  };
+  const removeBullet = (index: number) => {
+    updateField("bullets", experience.bullets.filter((_, bulletIndex) => bulletIndex !== index));
+  };
+
+  return (
+    <form className="experience-card" onSubmit={onSave}>
+      <div className="experience-card-heading">
+        <div>
+          <span>{experience.id ? "Saved role" : "New role"}</span>
+          <strong>{experience.title || "Untitled role"}{experience.company ? ` · ${experience.company}` : ""}</strong>
+        </div>
+        <button className="danger-button" type="button" disabled={busy} onClick={onDelete}>Delete role</button>
+      </div>
+      <div className="field-grid three">
+        <Field label="Company" value={experience.company} onChange={(value) => updateField("company", value)} placeholder="Example Systems" required />
+        <Field label="Job title" value={experience.title} onChange={(value) => updateField("title", value)} placeholder="Senior Software Engineer" required />
+        <Field label="Location" value={experience.location} onChange={(value) => updateField("location", value)} placeholder="Remote" />
+        <Field label="Start month" type="month" value={experience.startDate} onChange={(value) => updateField("startDate", value)} placeholder="YYYY-MM" required />
+        <Field label="End month" type="month" value={experience.endDate} onChange={(value) => updateField("endDate", value)} placeholder="YYYY-MM" disabled={experience.current} />
+        <label className="checkbox-field">
+          <input type="checkbox" checked={experience.current} onChange={(event) => updateField("current", event.target.checked)} />
+          <span>I currently work here</span>
+        </label>
+      </div>
+
+      <div className="evidence-heading">
+        <div><strong>Evidence bullets</strong><span>Use specific, defensible work and outcomes.</span></div>
+        <button className="text-button" type="button" onClick={() => updateField("bullets", [...experience.bullets, newEvidenceBullet()])}>+ Add bullet</button>
+      </div>
+      <div className="evidence-list">
+        {experience.bullets.length === 0 && <p className="evidence-empty">No evidence bullets. The role can still be saved.</p>}
+        {experience.bullets.map((bullet, index) => (
+          <div className="evidence-row" key={bullet.id || `new-bullet-${index}`}>
+            <div className="evidence-order" aria-label={`Reorder evidence bullet ${index + 1}`}>
+              <span>{index + 1}</span>
+              <button type="button" aria-label="Move bullet up" disabled={index === 0} onClick={() => updateField("bullets", moveItem(experience.bullets, index, index - 1))}>↑</button>
+              <button type="button" aria-label="Move bullet down" disabled={index === experience.bullets.length - 1} onClick={() => updateField("bullets", moveItem(experience.bullets, index, index + 1))}>↓</button>
+            </div>
+            <div className="evidence-fields">
+              <label className="field full">
+                <span>Claim or outcome</span>
+                <textarea rows={3} maxLength={1200} value={bullet.text} onChange={(event) => updateBullet(index, { text: event.target.value })} placeholder="Reduced deployment time by 40% by replacing manual release steps with an audited pipeline." />
+                <small>{bullet.text.length}/1200</small>
+              </label>
+              <div className="evidence-metadata">
+                <label className="field">
+                  <span>Review state</span>
+                  <select value={bullet.verification} onChange={(event) => updateBullet(index, { verification: event.target.value as EvidenceBullet["verification"] })}>
+                    <option value="unverified">Needs review</option>
+                    <option value="verified">Verified</option>
+                  </select>
+                </label>
+                <Field label="Source URL (optional)" type="url" value={bullet.sourceUrl} onChange={(value) => updateBullet(index, { sourceUrl: value })} placeholder="https://github.com/…" />
+                <div className="provenance-field"><span>Origin</span><strong>{bullet.provenance}</strong></div>
+                <button className="remove-button" type="button" onClick={() => removeBullet(index)}>Remove</button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="experience-actions">
+        <small>{experience.updatedAt ? `Last saved ${new Date(experience.updatedAt).toLocaleString()}` : "Not saved yet"}</small>
+        <button className="primary-button" disabled={busy} type="submit">{busy ? "Saving…" : "Save experience"}</button>
+      </div>
+    </form>
   );
 }
 
@@ -269,8 +487,8 @@ function FormSection({ title, description, children }: { title: string; descript
   return <section className="form-section"><div className="section-copy"><h2>{title}</h2><p>{description}</p></div><div className="section-fields">{children}</div></section>;
 }
 
-function Field({ label, value, placeholder, type = "text", prefix, onChange }: { label: string; value: string; placeholder: string; type?: string; prefix?: string; onChange: (value: string) => void }) {
-  return <label className="field"><span>{label}</span><div className={prefix ? "prefixed-input" : ""}>{prefix && <em>{prefix}</em>}<input type={type} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} /></div></label>;
+function Field({ label, value, placeholder, type = "text", prefix, disabled = false, required = false, onChange }: { label: string; value: string; placeholder: string; type?: string; prefix?: string; disabled?: boolean; required?: boolean; onChange: (value: string) => void }) {
+  return <label className="field"><span>{label}</span><div className={prefix ? "prefixed-input" : ""}>{prefix && <em>{prefix}</em>}<input type={type} value={value} placeholder={placeholder} disabled={disabled} required={required} onChange={(event) => onChange(event.target.value)} /></div></label>;
 }
 
 function JobTailor({ description, analysis, busy, hasSkills, onDescriptionChange, onSubmit, onProfile }: {

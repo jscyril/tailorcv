@@ -10,6 +10,7 @@ TailorCV is in its foundation stage. The first vertical slice provides:
 
 - A Wails desktop shell with a React interface.
 - A locally persisted career profile backed by SQLite.
+- Manual experience records with ordered, provenance-aware evidence bullets.
 - Profile skill management and basic job-description skill matching.
 - Clear service boundaries for GitHub import, resume generation, templates, and PDF compilation.
 

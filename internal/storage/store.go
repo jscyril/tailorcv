@@ -51,7 +51,7 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) initialize(ctx context.Context) error {
-	statements := []string{
+	for _, statement := range []string{
 		`PRAGMA foreign_keys = ON`,
 		`PRAGMA journal_mode = WAL`,
 		`PRAGMA busy_timeout = 5000`,
@@ -59,31 +59,12 @@ func (s *Store) initialize(ctx context.Context) error {
 			version INTEGER PRIMARY KEY,
 			applied_at TEXT NOT NULL
 		)`,
-		`CREATE TABLE IF NOT EXISTS profiles (
-			id INTEGER PRIMARY KEY CHECK (id = 1),
-			name TEXT NOT NULL DEFAULT '',
-			headline TEXT NOT NULL DEFAULT '',
-			email TEXT NOT NULL DEFAULT '',
-			phone TEXT NOT NULL DEFAULT '',
-			location TEXT NOT NULL DEFAULT '',
-			website TEXT NOT NULL DEFAULT '',
-			github_username TEXT NOT NULL DEFAULT '',
-			linkedin_url TEXT NOT NULL DEFAULT '',
-			summary TEXT NOT NULL DEFAULT '',
-			updated_at TEXT NOT NULL
-		)`,
-		`CREATE TABLE IF NOT EXISTS profile_skills (
-			position INTEGER PRIMARY KEY,
-			name TEXT NOT NULL COLLATE NOCASE UNIQUE
-		)`,
-		`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (1, CURRENT_TIMESTAMP)`,
-	}
-	for _, statement := range statements {
+	} {
 		if _, err := s.db.ExecContext(ctx, statement); err != nil {
 			return fmt.Errorf("initialize database: %w", err)
 		}
 	}
-	return nil
+	return s.applyMigrations(ctx)
 }
 
 func (s *Store) GetProfile(ctx context.Context) (domain.Profile, error) {

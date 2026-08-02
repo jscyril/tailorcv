@@ -4,6 +4,12 @@ import {domain} from '../models';
 
 export function AnalyzeJobDescription(arg1:domain.JobAnalysisInput):Promise<domain.JobAnalysis>;
 
+export function DeleteExperience(arg1:string):Promise<void>;
+
 export function GetProfile():Promise<domain.Profile>;
+
+export function ListExperiences():Promise<Array<domain.Experience>>;
+
+export function SaveExperience(arg1:domain.ExperienceInput):Promise<domain.Experience>;
 
 export function SaveProfile(arg1:domain.ProfileInput):Promise<domain.Profile>;

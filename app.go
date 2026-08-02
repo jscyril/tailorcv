@@ -58,6 +58,36 @@ func (a *App) SaveProfile(input domain.ProfileInput) (domain.Profile, error) {
 	return a.store.SaveProfile(a.appContext(), profile)
 }
 
+// ListExperiences returns manually entered and imported career evidence in its
+// user-defined order.
+func (a *App) ListExperiences() ([]domain.Experience, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	return a.store.ListExperiences(a.appContext())
+}
+
+// SaveExperience validates an experience and atomically replaces its ordered
+// evidence bullets while preserving their stable identifiers.
+func (a *App) SaveExperience(input domain.ExperienceInput) (domain.Experience, error) {
+	if err := a.ready(); err != nil {
+		return domain.Experience{}, err
+	}
+	experience, err := input.Validate()
+	if err != nil {
+		return domain.Experience{}, err
+	}
+	return a.store.SaveExperience(a.appContext(), experience)
+}
+
+// DeleteExperience removes an experience and its evidence bullets.
+func (a *App) DeleteExperience(id string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return a.store.DeleteExperience(a.appContext(), id)
+}
+
 // AnalyzeJobDescription performs the deterministic first-stage comparison.
 // Later embedding and LLM providers will enrich this result, not replace it.
 func (a *App) AnalyzeJobDescription(input domain.JobAnalysisInput) (domain.JobAnalysis, error) {
