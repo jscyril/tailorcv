@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterProjects, newProjectDraft, reconcileSelectedProjectKeys, removeSelectedProjectKey, toProjectInput } from "./project";
+import { filterProjects, isProjectSelectable, newProjectDraft, reconcileSelectedProjectKeys, removeSelectedProjectKey, toProjectInput, toggleProjectLanguage } from "./project";
 
 describe("toProjectInput", () => {
   it("normalizes skills and clears the end date for ongoing projects", () => {
@@ -29,5 +29,16 @@ describe("toProjectInput", () => {
     expect(filterProjects(projects, "incremental rust")).toEqual([compiler]);
     expect(filterProjects(projects, "   ")).toBe(projects);
     expect(filterProjects(projects, "python")).toEqual([]);
+  });
+
+  it("toggles a detected language without losing unrelated skills", () => {
+    expect(toggleProjectLanguage("React, Go", "Rust")).toBe("React, Go, Rust");
+    expect(toggleProjectLanguage("React, Go, Rust", "go")).toBe("React, Rust");
+  });
+
+  it("requires GitHub projects to be reviewed and eligible before selection", () => {
+    expect(isProjectSelectable({ provenance: "github", verification: "unverified", resumeEligible: true })).toBe(false);
+    expect(isProjectSelectable({ provenance: "github", verification: "verified", resumeEligible: true })).toBe(true);
+    expect(isProjectSelectable({ provenance: "manual", verification: "unverified", resumeEligible: true })).toBe(true);
   });
 });

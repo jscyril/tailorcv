@@ -174,10 +174,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .project-select-card { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; padding: 15px; border: 1px solid var(--line-soft); border-radius: 10px; background: var(--elevated); transition: border-color .15s, background .15s; }
 .project-select-card:hover { border-color: #465048; background: #1a1e1b; }
 .project-select-card.selected { border-color: #a9ce4655; background: #192015; }
-.project-select-card.locked { opacity: .72; }
+.project-select-card.locked { border-color: #806d3f88; background: #18160f; }
 .project-check { width: 19px; height: 19px; display: grid; place-items: center; margin-top: 1px; padding: 0; border: 1px solid #535d57; border-radius: 5px; background: transparent; color: #12170e; }
 .project-select-card.selected .project-check { border-color: var(--accent); background: var(--accent); }
 .project-check:disabled { border-style: dashed; background: #121512; }
+.project-check.review { border-color: #a88b4b; background: #2a2415; color: #e3c77e; font-size: 12px; font-weight: 900; }
 .project-card-copy { min-width: 0; }
 .project-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .project-title-row strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
@@ -186,6 +187,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .tag-row { display: flex; flex-wrap: wrap; gap: 5px; }
 .tag-row span, .skill-chip-grid > span { padding: 4px 7px; border-radius: 999px; background: #242925; color: var(--secondary); font-size: 8px; font-weight: 650; }
 .project-card-copy > small { display: block; margin-top: 9px; color: #6f7972; font-size: 8px; }
+.review-project-link { margin-top: 10px; padding: 0; border: 0; background: transparent; color: #e3c77e; font-size: 11px; font-weight: 750; }
+.review-project-link:hover { color: #f4d993; }
 .panel-empty { display: grid; justify-items: center; padding: 44px 28px; border: 1px dashed var(--line); border-radius: 12px; color: var(--secondary); text-align: center; }
 .panel-empty.tall { margin: 24px; padding-block: 80px; }
 .empty-icon { display: grid; place-items: center; width: 46px; height: 46px; margin-bottom: 12px; border-radius: 12px; background: var(--elevated); color: var(--accent); }
@@ -338,11 +341,25 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .danger-button, .remove-button { border: 0; background: transparent; color: var(--danger); font-size: 8px; font-weight: 700; }
 .experience-card > .field-grid, .project-fields { padding: 16px; border-bottom: 1px solid var(--line-soft); }
 .project-fields { display: grid; gap: 14px; }
+.project-card { scroll-margin-top: 16px; }
+.language-picker { overflow: hidden; border: 1px solid var(--line); border-radius: 9px; background: #0b0d0c; }
+.language-picker > header { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 11px 13px; border-bottom: 1px solid var(--line-soft); background: var(--elevated); }
+.language-picker > header strong { font-size: 12px; }
+.language-picker > header p { margin: 3px 0 0; color: var(--muted); font-size: 11px; }
+.language-picker > header > span { flex: 0 0 auto; color: var(--accent); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.language-picker > div { display: flex; flex-wrap: wrap; gap: 7px; padding: 12px; }
+.language-picker button { min-height: 31px; display: inline-flex; align-items: center; gap: 9px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--elevated); color: var(--muted); font-size: 11px; }
+.language-picker button > span { display: inline-flex; align-items: center; gap: 5px; }
+.language-picker button small { color: inherit; font-size: 10px; }
+.language-picker button.selected { border-color: #a9ce4666; background: #1b2515; color: var(--accent); }
 .checkbox-field { align-self: end; display: flex; align-items: center; gap: 7px; min-height: 36px; color: var(--secondary); font-size: 9px; font-weight: 700; }
 .checkbox-field input { width: 14px; height: 14px; accent-color: var(--accent); }
 .eligible-field { justify-self: start; }
 .review-fields { display: grid; grid-template-columns: 150px 70px 1fr; align-items: end; gap: 12px; padding: 11px; border-radius: 8px; background: var(--elevated); }
 .review-fields p { align-self: center; margin: 15px 0 0; color: #d7b46c; font-size: 8px; }
+.review-guidance { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.review-guidance p { margin: 0; }
+.review-guidance .secondary-button { min-height: 32px; padding-inline: 10px; }
 .evidence-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 15px 16px 10px; }
 .evidence-heading > div { display: grid; gap: 2px; }
 .evidence-heading strong { font-size: 10px; }

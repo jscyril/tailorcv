@@ -34,3 +34,12 @@ func TestProjectInputValidateRejectsInvalidMetadata(t *testing.T) {
 		t.Fatal("Validate() expected date error")
 	}
 }
+
+func TestGitHubProjectMustBeReviewedBeforeResumeEligibility(t *testing.T) {
+	if _, err := (ProjectInput{Name: "Imported", Provenance: ProvenanceGitHub, Verification: VerificationUnverified, ResumeEligible: true}).Validate(); err == nil {
+		t.Fatal("Validate() accepted an unreviewed resume-eligible GitHub project")
+	}
+	if _, err := (ProjectInput{Name: "Imported", Provenance: ProvenanceGitHub, Verification: VerificationVerified, ResumeEligible: true}).Validate(); err != nil {
+		t.Fatalf("Validate() rejected a reviewed GitHub project: %v", err)
+	}
+}

@@ -18,7 +18,7 @@ TailorCV is in its foundation stage. The first vertical slice provides:
 - Read-only Jake-style and Classic ATS templates, plus persistent user-imported `.tex` templates.
 - Local Tectonic compilation with isolated workspaces, untrusted mode, time and output limits, and native `.tex`/`.pdf` export.
 - Versioned JSON backup and atomic restore for all currently supported profile data.
-- Public GitHub repository sync with review-gated resume eligibility.
+- Public GitHub repository sync with complete language detection, user-controlled language selection, and an explicit review gate before resume eligibility.
 - Clear service boundaries for GitHub import, resume generation, templates, and PDF compilation.
 
 See [PLAN.md](PLAN.md) for the product architecture and delivery milestones.

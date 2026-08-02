@@ -134,7 +134,7 @@ func (backup ProfileBackup) Validate() (ProfileBackup, error) {
 			}
 			bulletInputs[bulletIndex] = EvidenceBulletInput{ID: bullet.ID, Text: bullet.Text, Provenance: bullet.Provenance, SourceURL: bullet.SourceURL, Verification: bullet.Verification}
 		}
-		validated, err := (ProjectInput{ID: source.ID, Name: source.Name, Role: source.Role, Description: source.Description, URL: source.URL, RepositoryURL: source.RepositoryURL, StartDate: source.StartDate, EndDate: source.EndDate, Ongoing: source.Ongoing, Provenance: source.Provenance, Verification: source.Verification, ResumeEligible: source.ResumeEligible, Skills: source.Skills, Bullets: bulletInputs}).Validate()
+		validated, err := (ProjectInput{ID: source.ID, Name: source.Name, Role: source.Role, Description: source.Description, URL: source.URL, RepositoryURL: source.RepositoryURL, StartDate: source.StartDate, EndDate: source.EndDate, Ongoing: source.Ongoing, Provenance: source.Provenance, Verification: source.Verification, ResumeEligible: source.ResumeEligible, Skills: source.Skills, DetectedLanguages: source.DetectedLanguages, Bullets: bulletInputs}).Validate()
 		if err != nil {
 			return ProfileBackup{}, fmt.Errorf("project %d: %w", index+1, err)
 		}

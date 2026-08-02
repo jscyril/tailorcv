@@ -67,6 +67,11 @@ func (s *Store) ListProjects(ctx context.Context) ([]domain.Project, error) {
 			return nil, err
 		}
 		projects[index].Skills = skills
+		languages, err := s.listProjectDetectedLanguages(ctx, projects[index].ID)
+		if err != nil {
+			return nil, err
+		}
+		projects[index].DetectedLanguages = languages
 		bullets, err := s.listProjectBullets(ctx, projects[index].ID)
 		if err != nil {
 			return nil, err
@@ -74,6 +79,26 @@ func (s *Store) ListProjects(ctx context.Context) ([]domain.Project, error) {
 		projects[index].Bullets = bullets
 	}
 	return projects, nil
+}
+
+func (s *Store) listProjectDetectedLanguages(ctx context.Context, projectID string) ([]domain.RepositoryLanguage, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT name, code_bytes FROM project_detected_languages WHERE project_id = ? ORDER BY position`, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("list project detected languages: %w", err)
+	}
+	defer rows.Close()
+	languages := make([]domain.RepositoryLanguage, 0)
+	for rows.Next() {
+		var language domain.RepositoryLanguage
+		if err := rows.Scan(&language.Name, &language.Bytes); err != nil {
+			return nil, fmt.Errorf("scan project detected language: %w", err)
+		}
+		languages = append(languages, language)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate project detected languages: %w", err)
+	}
+	return languages, nil
 }
 
 func (s *Store) listProjectSkills(ctx context.Context, projectID string) ([]string, error) {
@@ -213,6 +238,14 @@ func (s *Store) SaveProject(ctx context.Context, project domain.Project) (domain
 	for index, skill := range project.Skills {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO project_skills(project_id, position, name) VALUES (?, ?, ?)`, project.ID, index, skill); err != nil {
 			return domain.Project{}, fmt.Errorf("write project skill: %w", err)
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM project_detected_languages WHERE project_id = ?`, project.ID); err != nil {
+		return domain.Project{}, fmt.Errorf("replace project detected languages: %w", err)
+	}
+	for index, language := range project.DetectedLanguages {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO project_detected_languages(project_id, position, name, code_bytes) VALUES (?, ?, ?, ?)`, project.ID, index, language.Name, language.Bytes); err != nil {
+			return domain.Project{}, fmt.Errorf("write project detected language: %w", err)
 		}
 	}
 

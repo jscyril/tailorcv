@@ -148,6 +148,7 @@ export namespace domain {
 	    imported: number;
 	    updated: number;
 	    skipped: number;
+	    languageFallbacks: number;
 
 	    static createFrom(source: any = {}) {
 	        return new GitHubImportResult(source);
@@ -159,6 +160,18 @@ export namespace domain {
 	        this.imported = source["imported"];
 	        this.updated = source["updated"];
 	        this.skipped = source["skipped"];
+	        this.languageFallbacks = source["languageFallbacks"];
+	    }
+	}
+	export class RepositoryLanguage {
+	    name: string;
+	    bytes: number;
+
+	    static createFrom(source: any = {}) { return new RepositoryLanguage(source); }
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.bytes = source["bytes"];
 	    }
 	}
 
@@ -307,6 +320,7 @@ export namespace domain {
 	    resumeEligible: boolean;
 	    position: number;
 	    skills: string[];
+	    detectedLanguages: RepositoryLanguage[];
 	    bullets: EvidenceBullet[];
 	    createdAt: string;
 	    updatedAt: string;
@@ -331,6 +345,7 @@ export namespace domain {
 	        this.resumeEligible = source["resumeEligible"];
 	        this.position = source["position"];
 	        this.skills = source["skills"];
+	        this.detectedLanguages = this.convertValues(source["detectedLanguages"], RepositoryLanguage);
 	        this.bullets = this.convertValues(source["bullets"], EvidenceBullet);
 	        this.createdAt = source["createdAt"];
 	        this.updatedAt = source["updatedAt"];
@@ -363,6 +378,7 @@ export namespace domain {
 	    verification: string;
 	    resumeEligible: boolean;
 	    skills: string[];
+	    detectedLanguages: RepositoryLanguage[];
 	    bullets: EvidenceBulletInput[];
 
 	    static createFrom(source: any = {}) {
@@ -384,6 +400,7 @@ export namespace domain {
 	        this.verification = source["verification"];
 	        this.resumeEligible = source["resumeEligible"];
 	        this.skills = source["skills"];
+	        this.detectedLanguages = this.convertValues(source["detectedLanguages"], RepositoryLanguage);
 	        this.bullets = this.convertValues(source["bullets"], EvidenceBulletInput);
 	    }
 

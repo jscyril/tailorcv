@@ -62,3 +62,52 @@ func TestListPublicRepositoriesReportsNotFoundAndRateLimit(t *testing.T) {
 		}
 	}
 }
+
+func TestListPublicRepositoriesFetchesCompleteLanguages(t *testing.T) {
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		var data []byte
+		if request.URL.Path == "/users/example/repos" {
+			data, _ = json.Marshal([]repositoryResponse{{Name: "polyglot", HTMLURL: "https://github.com/example/polyglot", Language: "Go"}})
+		} else if request.URL.Path == "/repos/example/polyglot/languages" {
+			data = []byte(`{"TypeScript":120,"Go":900,"Shell":45}`)
+		} else {
+			t.Fatalf("unexpected request path %q", request.URL.Path)
+		}
+		return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(bytes.NewReader(data)), Header: make(http.Header)}, nil
+	})}
+	client := NewClient(httpClient)
+	client.baseURL = "https://api.github.test"
+
+	repositories, err := client.ListPublicRepositories(context.Background(), "example")
+	if err != nil {
+		t.Fatalf("ListPublicRepositories() error = %v", err)
+	}
+	if len(repositories) != 1 || !repositories[0].LanguagesComplete || len(repositories[0].Languages) != 3 {
+		t.Fatalf("repository languages = %#v", repositories)
+	}
+	if repositories[0].Languages[0].Name != "Go" || repositories[0].Languages[1].Name != "TypeScript" {
+		t.Fatalf("languages are not sorted by byte count: %#v", repositories[0].Languages)
+	}
+}
+
+func TestListPublicRepositoriesFallsBackAfterLanguageRateLimit(t *testing.T) {
+	requests := 0
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		requests++
+		if request.URL.Path == "/users/example/repos" {
+			data, _ := json.Marshal([]repositoryResponse{{Name: "one", Language: "Go"}, {Name: "two", Language: "Rust"}})
+			return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(bytes.NewReader(data)), Header: make(http.Header)}, nil
+		}
+		return &http.Response{StatusCode: http.StatusForbidden, Status: "403 Forbidden", Body: io.NopCloser(bytes.NewReader(nil)), Header: make(http.Header)}, nil
+	})}
+	client := NewClient(httpClient)
+	client.baseURL = "https://api.github.test"
+
+	repositories, err := client.ListPublicRepositories(context.Background(), "example")
+	if err != nil {
+		t.Fatalf("ListPublicRepositories() error = %v", err)
+	}
+	if len(repositories) != 2 || repositories[0].LanguagesComplete || repositories[1].LanguagesComplete || requests != 2 {
+		t.Fatalf("fallback repositories = %#v, requests = %d", repositories, requests)
+	}
+}

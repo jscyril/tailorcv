@@ -143,6 +143,19 @@ var migrations = []migration{
 			)`,
 		},
 	},
+	{
+		version: 6,
+		statements: []string{
+			`CREATE TABLE project_detected_languages (
+				project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+				position INTEGER NOT NULL,
+				name TEXT NOT NULL COLLATE NOCASE,
+				code_bytes INTEGER NOT NULL DEFAULT 0 CHECK (code_bytes >= 0),
+				PRIMARY KEY (project_id, position),
+				UNIQUE (project_id, name)
+			)`,
+		},
+	},
 }
 
 func (s *Store) applyMigrations(ctx context.Context) error {

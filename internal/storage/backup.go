@@ -126,6 +126,11 @@ func (s *Store) ReplaceProfileFromBackup(ctx context.Context, source domain.Prof
 				return fmt.Errorf("import project skill: %w", err)
 			}
 		}
+		for position, language := range project.DetectedLanguages {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO project_detected_languages(project_id, position, name, code_bytes) VALUES (?, ?, ?, ?)`, project.ID, position, language.Name, language.Bytes); err != nil {
+				return fmt.Errorf("import project detected language: %w", err)
+			}
+		}
 		for _, bullet := range project.Bullets {
 			bulletCreatedAt := timestampOr(bullet.CreatedAt, createdAt)
 			bulletUpdatedAt := timestampOr(bullet.UpdatedAt, bulletCreatedAt)

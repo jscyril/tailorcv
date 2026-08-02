@@ -262,6 +262,9 @@ func (a *App) ImportGitHubProjects() (domain.GitHubImportResult, error) {
 			result.Skipped++
 			continue
 		}
+		if !repository.LanguagesComplete {
+			result.LanguageFallbacks++
+		}
 		var existing *domain.Project
 		if project, found := existingByRepository[strings.ToLower(repository.HTMLURL)]; found {
 			if project.Provenance != domain.ProvenanceGitHub {

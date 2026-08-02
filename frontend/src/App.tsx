@@ -48,10 +48,12 @@ import {
   Project,
   ProjectDraft,
   filterProjects,
+  isProjectSelectable,
   newProjectDraft,
   projectToDraft,
   reconcileSelectedProjectKeys,
   removeSelectedProjectKey,
+  toggleProjectLanguage,
   toProjectInput,
 } from "./lib/project";
 import {
@@ -148,7 +150,7 @@ export default function App() {
     setExperiences((savedExperiences as unknown as Experience[]).map(experienceToDraft));
     const projectDrafts = (savedProjects as unknown as Project[]).map(projectToDraft);
     setProjects(projectDrafts);
-    const selectedKeys = projectDrafts.filter((project) => project.resumeEligible).slice(0, 3).map((project) => project.key);
+    const selectedKeys = projectDrafts.filter(isProjectSelectable).slice(0, 3).map((project) => project.key);
     setSelectedProjectKeys(selectedKeys);
     setEducations((savedEducations as unknown as Education[]).map(educationToDraft));
     setTemplates(savedTemplates);
@@ -260,7 +262,7 @@ export default function App() {
 
   const updateProject = (key: string, next: ProjectDraft) => {
     setProjects((current) => current.map((project) => project.key === key ? next : project));
-    if (!next.resumeEligible) {
+    if (!isProjectSelectable(next)) {
       setSelectedProjectKeys((current) => current.filter((item) => item !== key));
     }
     setMessage("");
@@ -275,7 +277,7 @@ export default function App() {
       const saved = await SaveProject(new domain.ProjectInput(toProjectInput(draft)));
       const normalized = projectToDraft(saved as unknown as Project);
       setProjects((current) => current.map((project) => project.key === draft.key ? normalized : project));
-      setSelectedProjectKeys((current) => reconcileSelectedProjectKeys(current, draft.key, normalized.key, normalized.resumeEligible));
+      setSelectedProjectKeys((current) => reconcileSelectedProjectKeys(current, draft.key, normalized.key, isProjectSelectable(normalized)));
       setMessage("Project saved locally.");
     } catch (reason) {
       setError(errorMessage(reason));
@@ -356,7 +358,7 @@ export default function App() {
   };
 
   const toggleProject = (key: string) => {
-    if (!projects.some((project) => project.key === key && project.resumeEligible)) return;
+    if (!projects.some((project) => project.key === key && isProjectSelectable(project))) return;
     setSelectedProjectKeys((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
   };
 
@@ -417,8 +419,9 @@ export default function App() {
       const savedProjects = await ListProjects();
       const projectDrafts = (savedProjects as unknown as Project[]).map(projectToDraft);
       setProjects(projectDrafts);
-      setSelectedProjectKeys((current) => current.filter((key) => projectDrafts.some((project) => project.key === key && project.resumeEligible)));
-      setMessage(`GitHub sync complete: ${result.imported} imported, ${result.updated} refreshed, ${result.skipped} skipped.`);
+      setSelectedProjectKeys((current) => current.filter((key) => projectDrafts.some((project) => project.key === key && isProjectSelectable(project))));
+      const fallbackNote = result.languageFallbacks ? ` ${result.languageFallbacks} repositories used primary-language fallback because GitHub language details were unavailable.` : "";
+      setMessage(`GitHub sync complete: ${result.imported} imported, ${result.updated} refreshed, ${result.skipped} skipped.${fallbackNote}`);
     } catch (reason) {
       setError(errorMessage(reason));
     } finally {
@@ -730,7 +733,16 @@ function FormBlock({ title, description, children }: { title: string; descriptio
 function ProjectWorkspace({ projects, selectedKeys, busyKey, githubUsername, githubBusy, onToggle, onAdd, onUpdate, onSave, onDelete, onSyncGitHub, onOpenProfile }: { projects: ProjectDraft[]; selectedKeys: string[]; busyKey: string; githubUsername: string; githubBusy: boolean; onToggle: (key: string) => void; onAdd: () => void; onUpdate: (key: string, project: ProjectDraft) => void; onSave: (event: FormEvent, project: ProjectDraft) => void; onDelete: (project: ProjectDraft) => void; onSyncGitHub: () => void; onOpenProfile: () => void }) {
   const [tab, setTab] = useState<"select" | "manage">("select");
   const [query, setQuery] = useState("");
+  const [reviewKey, setReviewKey] = useState("");
   const filteredProjects = filterProjects(projects, query);
+  useEffect(() => {
+    if (tab !== "manage" || !reviewKey) return;
+    window.requestAnimationFrame(() => document.getElementById(`project-review-${reviewKey}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }, [tab, reviewKey]);
+  const openReview = (key: string) => {
+    setReviewKey(key);
+    setTab("manage");
+  };
   return <section className="workspace-panel scroll-panel">
     <PanelHeader eyebrow="Selected work" title="Projects" description="Choose the strongest evidence for this resume." action={<div className="panel-actions"><button className="secondary-button" onClick={githubUsername ? onSyncGitHub : onOpenProfile} disabled={githubBusy}>{githubBusy ? "Syncing…" : githubUsername ? "Sync GitHub" : "Connect GitHub"}</button><button className="secondary-button" onClick={() => { onAdd(); setTab("manage"); }}>Add project</button></div>} />
     <div className="panel-tabs"><button className={tab === "select" ? "active" : ""} onClick={() => setTab("select")}>Select for resume <span>{selectedKeys.length}</span></button><button className={tab === "manage" ? "active" : ""} onClick={() => setTab("manage")}>Manage evidence</button></div>
@@ -740,10 +752,10 @@ function ProjectWorkspace({ projects, selectedKeys, busyKey, githubUsername, git
       <div className="selection-note"><span className="status-dot" /><div><strong>{selectedKeys.length} projects selected</strong><p>The preview updates as you select evidence.</p></div></div>
       {projects.length === 0 ? <div className="panel-empty"><span className="empty-icon"><Icon name="folder" size={22} /></span><strong>No projects yet</strong><p>Add a project with evidence bullets, technologies, and a review state.</p><button className="primary-button" onClick={() => { onAdd(); setTab("manage"); }}>Add first project</button></div> : filteredProjects.length === 0 ? <div className="panel-empty search-empty"><span className="empty-icon"><Icon name="search" size={22} /></span><strong>No matching projects</strong><p>Try a project name, role, description, or technology.</p><button className="text-button" onClick={() => setQuery("")}>Clear search</button></div> : filteredProjects.map((project) => {
         const selected = selectedKeys.includes(project.key);
-        const selectable = project.resumeEligible;
+        const selectable = isProjectSelectable(project);
         return <article className={`project-select-card ${selected ? "selected" : ""} ${!selectable ? "locked" : ""}`} key={project.key}>
-          <button className="project-check" disabled={!selectable} aria-label={selectable ? `${selected ? "Remove" : "Add"} ${project.name || "project"} ${selected ? "from" : "to"} resume` : `${project.name || "Project"} must be reviewed before selection`} onClick={() => onToggle(project.key)}>{selected && <Icon name="check" size={14} />}</button>
-          <div className="project-card-copy"><div className="project-title-row"><strong>{project.name || "Untitled project"}</strong><span>{selectable ? selected ? "Selected" : "Available" : "Review required"}</span></div><p>{project.description || "Add a concise description of the problem, your contribution, and the outcome."}</p><div className="tag-row">{project.skills.slice(0, 4).map((skill) => <span key={skill}>{skill}</span>)}{project.skills.length === 0 && <span>Skills not added</span>}</div><small>{project.verification === "verified" ? "Verified evidence" : "Needs review"} · {project.bullets.length} bullets</small></div>
+          <button className={`project-check ${!selectable ? "review" : ""}`} aria-label={selectable ? `${selected ? "Remove" : "Add"} ${project.name || "project"} ${selected ? "from" : "to"} resume` : `Review ${project.name || "project"} before selection`} onClick={() => selectable ? onToggle(project.key) : openReview(project.key)}>{selected ? <Icon name="check" size={14} /> : !selectable ? "!" : null}</button>
+          <div className="project-card-copy"><div className="project-title-row"><strong>{project.name || "Untitled project"}</strong><span>{selectable ? selected ? "Selected" : "Available" : "Review required"}</span></div><p>{project.description || "Add a concise description of the problem, your contribution, and the outcome."}</p><div className="tag-row">{project.skills.slice(0, 4).map((skill) => <span key={skill}>{skill}</span>)}{project.skills.length === 0 && <span>Skills not added</span>}</div><small>{project.verification === "verified" ? "Verified evidence" : "Needs review"} · {project.bullets.length} bullets</small>{!selectable && <button className="review-project-link" onClick={() => openReview(project.key)}>Review details and enable selection →</button>}</div>
         </article>;
       })}
     </div> : <ProjectSection projects={projects} busyKey={busyKey} onAdd={onAdd} onUpdate={onUpdate} onSave={onSave} onDelete={onDelete} />}
@@ -1088,9 +1100,12 @@ function ProjectCard({ project, busy, onUpdate, onSave, onDelete }: {
   const updateField = <K extends keyof ProjectDraft>(field: K, value: ProjectDraft[K]) => {
     onUpdate({ ...project, [field]: value });
   };
+  const selectedSkills = parseSkills(project.skillsText);
+  const totalLanguageBytes = project.detectedLanguages.reduce((sum, language) => sum + language.bytes, 0);
+  const approveGitHubProject = () => onUpdate({ ...project, verification: "verified", resumeEligible: true });
 
   return (
-    <form className="experience-card project-card" onSubmit={onSave}>
+    <form className="experience-card project-card" id={`project-review-${project.key}`} onSubmit={onSave}>
       <div className="experience-card-heading">
         <div>
           <span>{project.id ? `${project.provenance} project` : "New project"}</span>
@@ -1127,6 +1142,11 @@ function ProjectCard({ project, busy, onUpdate, onSave, onDelete }: {
           <textarea rows={2} value={project.skillsText} onChange={(event) => updateField("skillsText", event.target.value)} placeholder="Go, React, SQLite, Docker" />
           <small>Separate skills with commas. Duplicates are removed when saved.</small>
         </label>
+        {project.detectedLanguages.length > 0 && <section className="language-picker"><header><div><strong>Languages detected by GitHub</strong><p>Choose which languages should appear in this project's resume skills.</p></div><span>{project.detectedLanguages.length} detected</span></header><div>{project.detectedLanguages.map((language) => {
+          const selected = selectedSkills.some((skill) => skill.toLocaleLowerCase() === language.name.toLocaleLowerCase());
+          const percentage = totalLanguageBytes > 0 ? Math.max(0.1, language.bytes / totalLanguageBytes * 100) : 0;
+          return <button className={selected ? "selected" : ""} type="button" aria-pressed={selected} key={language.name} onClick={() => updateField("skillsText", toggleProjectLanguage(project.skillsText, language.name))}><span>{selected && <Icon name="check" size={13} />}{language.name}</span>{totalLanguageBytes > 0 && <small>{percentage.toFixed(percentage >= 10 ? 0 : 1)}%</small>}</button>;
+        })}</div></section>}
         <div className="review-fields">
           <label className="field">
             <span>Project review state</span>
@@ -1136,7 +1156,7 @@ function ProjectCard({ project, busy, onUpdate, onSave, onDelete }: {
             </select>
           </label>
           <div className="provenance-field"><span>Origin</span><strong>{project.provenance}</strong></div>
-          {!project.resumeEligible && <p>Excluded from resume selection until you mark it eligible.</p>}
+          {project.provenance === "github" && !isProjectSelectable(project) ? <div className="review-guidance"><p>Review the imported details and language choices, then approve this project.</p><button className="secondary-button" type="button" onClick={approveGitHubProject}>Approve for resume</button></div> : !project.resumeEligible && <p>Excluded from resume selection until you mark it eligible.</p>}
         </div>
       </div>
       <EvidenceEditor bullets={project.bullets} emptyLabel="The project can still be saved." onChange={(bullets) => updateField("bullets", bullets)} />

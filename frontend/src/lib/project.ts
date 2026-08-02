@@ -16,9 +16,15 @@ export type Project = {
   resumeEligible: boolean;
   position?: number;
   skills: string[];
+  detectedLanguages: RepositoryLanguage[];
   bullets: EvidenceBullet[];
   createdAt?: string;
   updatedAt?: string;
+};
+
+export type RepositoryLanguage = {
+  name: string;
+  bytes: number;
 };
 
 export type ProjectDraft = Project & { key: string; skillsText: string };
@@ -43,6 +49,7 @@ export function newProjectDraft(): ProjectDraft {
     resumeEligible: true,
     skills: [],
     skillsText: "",
+    detectedLanguages: [],
     bullets: [],
   };
 }
@@ -54,6 +61,7 @@ export function projectToDraft(project: Project): ProjectDraft {
     key: project.id,
     skills,
     skillsText: skills.join(", "),
+    detectedLanguages: project.detectedLanguages ?? [],
     bullets: project.bullets ?? [],
   };
 }
@@ -73,6 +81,7 @@ export function toProjectInput(draft: ProjectDraft) {
     verification: draft.verification,
     resumeEligible: draft.resumeEligible,
     skills: parseSkills(draft.skillsText),
+    detectedLanguages: draft.detectedLanguages,
     bullets: draft.bullets.map(({ id, text, provenance, sourceUrl, verification }) => ({
       id,
       text,
@@ -81,6 +90,15 @@ export function toProjectInput(draft: ProjectDraft) {
       verification,
     })),
   };
+}
+
+export function toggleProjectLanguage(skillsText: string, language: string): string {
+  const skills = parseSkills(skillsText);
+  const matchingIndex = skills.findIndex((skill) => skill.toLocaleLowerCase() === language.toLocaleLowerCase());
+  if (matchingIndex >= 0) {
+    return skills.filter((_, index) => index !== matchingIndex).join(", ");
+  }
+  return [...skills, language].join(", ");
 }
 
 export function reconcileSelectedProjectKeys(selectedKeys: string[], previousKey: string, savedKey: string, resumeEligible: boolean): string[] {
@@ -93,6 +111,10 @@ export function reconcileSelectedProjectKeys(selectedKeys: string[], previousKey
 
 export function removeSelectedProjectKey(selectedKeys: string[], key: string): string[] {
   return selectedKeys.filter((selectedKey) => selectedKey !== key);
+}
+
+export function isProjectSelectable(project: Pick<Project, "provenance" | "verification" | "resumeEligible">): boolean {
+  return project.resumeEligible && (project.provenance !== "github" || project.verification === "verified");
 }
 
 export function filterProjects(projects: ProjectDraft[], query: string): ProjectDraft[] {

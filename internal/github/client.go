@@ -3,15 +3,19 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/jscyril/tailorcv/internal/domain"
 )
+
+var errRateLimit = errors.New("GitHub rate limit reached")
 
 const (
 	defaultBaseURL  = "https://api.github.com"
@@ -49,6 +53,7 @@ func (c *Client) ListPublicRepositories(ctx context.Context, username string) ([
 		return nil, fmt.Errorf("GitHub username is required")
 	}
 	repositories := make([]domain.GitHubRepository, 0)
+	languageRequestsAvailable := true
 	for page := 1; page <= maxPages; page++ {
 		endpoint, err := url.Parse(c.baseURL + "/users/" + url.PathEscape(username) + "/repos")
 		if err != nil {
@@ -78,17 +83,74 @@ func (c *Client) ListPublicRepositories(ctx context.Context, username string) ([
 			return nil, err
 		}
 		for _, repository := range pageRepositories {
-			repositories = append(repositories, domain.GitHubRepository{
+			item := domain.GitHubRepository{
 				Name: repository.Name, Description: repository.Description, HTMLURL: repository.HTMLURL,
 				Homepage: repository.Homepage, Language: repository.Language, Topics: repository.Topics,
 				Fork: repository.Fork, Archived: repository.Archived,
-			})
+			}
+			if !repository.Fork && !repository.Archived && repository.Language != "" && languageRequestsAvailable {
+				languages, err := c.listRepositoryLanguages(ctx, username, repository.Name)
+				if err == nil {
+					item.Languages = languages
+					item.LanguagesComplete = true
+				} else if errors.Is(err, errRateLimit) {
+					languageRequestsAvailable = false
+				} else if ctx.Err() != nil {
+					return nil, ctx.Err()
+				}
+			}
+			repositories = append(repositories, item)
 		}
 		if len(pageRepositories) < 100 {
 			return repositories, nil
 		}
 	}
 	return repositories, nil
+}
+
+func (c *Client) listRepositoryLanguages(ctx context.Context, owner, repository string) ([]domain.RepositoryLanguage, error) {
+	endpoint := c.baseURL + "/repos/" + url.PathEscape(owner) + "/" + url.PathEscape(repository) + "/languages"
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create GitHub languages request: %w", err)
+	}
+	request.Header.Set("Accept", "application/vnd.github+json")
+	request.Header.Set("X-GitHub-Api-Version", apiVersion)
+	request.Header.Set("User-Agent", "TailorCV/0.1")
+	response, err := c.httpClient.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("fetch GitHub repository languages: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode == http.StatusForbidden || response.StatusCode == http.StatusTooManyRequests {
+		return nil, errRateLimit
+	}
+	if response.StatusCode != http.StatusOK {
+		message, _ := io.ReadAll(io.LimitReader(response.Body, 1024))
+		return nil, fmt.Errorf("GitHub languages returned %s: %s", response.Status, strings.TrimSpace(string(message)))
+	}
+	data, err := io.ReadAll(io.LimitReader(response.Body, maxResponseSize+1))
+	if err != nil {
+		return nil, fmt.Errorf("read GitHub languages response: %w", err)
+	}
+	if len(data) > maxResponseSize {
+		return nil, fmt.Errorf("GitHub languages response exceeded the size limit")
+	}
+	var responseLanguages map[string]int64
+	if err := json.Unmarshal(data, &responseLanguages); err != nil {
+		return nil, fmt.Errorf("decode GitHub repository languages: %w", err)
+	}
+	languages := make([]domain.RepositoryLanguage, 0, len(responseLanguages))
+	for name, bytes := range responseLanguages {
+		languages = append(languages, domain.RepositoryLanguage{Name: name, Bytes: bytes})
+	}
+	sort.Slice(languages, func(left, right int) bool {
+		if languages[left].Bytes == languages[right].Bytes {
+			return languages[left].Name < languages[right].Name
+		}
+		return languages[left].Bytes > languages[right].Bytes
+	})
+	return languages, nil
 }
 
 func decodeRepositoryResponse(response *http.Response) ([]repositoryResponse, error) {
@@ -99,7 +161,7 @@ func decodeRepositoryResponse(response *http.Response) ([]repositoryResponse, er
 			return nil, fmt.Errorf("GitHub user was not found")
 		}
 		if response.StatusCode == http.StatusForbidden || response.StatusCode == http.StatusTooManyRequests {
-			return nil, fmt.Errorf("GitHub rate limit reached; try again later")
+			return nil, fmt.Errorf("%w; try again later", errRateLimit)
 		}
 		return nil, fmt.Errorf("GitHub returned %s: %s", response.Status, strings.TrimSpace(string(message)))
 	}
