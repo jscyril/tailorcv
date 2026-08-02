@@ -35,7 +35,14 @@ import {
   profileCompletion,
 } from "./lib/profile";
 
-type View = "home" | "profile" | "tailor";
+type View = "overview" | "profile" | "experience" | "projects" | "education" | "skills" | "latex" | "job" | "ai";
+
+type AIProvider = "Ollama" | "Gemini" | "Claude" | "OpenAI";
+
+type ChatMessage = {
+  role: "assistant" | "user";
+  text: string;
+};
 
 type JobAnalysis = {
   score: number;
@@ -44,6 +51,27 @@ type JobAnalysis = {
   explanation: string;
 };
 
+const DEFAULT_LATEX = String.raw`\documentclass[10pt]{article}
+\usepackage[margin=0.55in]{geometry}
+\usepackage[hidelinks]{hyperref}
+\setlength{\parindent}{0pt}
+
+\begin{document}
+\begin{center}
+  {\LARGE \textbf{Your Name}}\\
+  Backend Engineer $\cdot$ your@email.com $\cdot$ github.com/you
+\end{center}
+
+\section*{Experience}
+% TailorCV inserts approved, evidence-backed bullets here.
+
+\section*{Projects}
+% Selected projects are rendered here.
+
+\section*{Skills}
+% Skills from your career profile are rendered here.
+\end{document}`;
+
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
@@ -51,7 +79,7 @@ function errorMessage(error: unknown): string {
 }
 
 export default function App() {
-  const [view, setView] = useState<View>("home");
+  const [view, setView] = useState<View>("projects");
   const [profile, setProfile] = useState<Profile>(emptyProfile);
   const [experiences, setExperiences] = useState<ExperienceDraft[]>([]);
   const [projects, setProjects] = useState<ProjectDraft[]>([]);
@@ -63,6 +91,13 @@ export default function App() {
   const [projectBusyKey, setProjectBusyKey] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [selectedProjectKeys, setSelectedProjectKeys] = useState<string[]>([]);
+  const [latexSource, setLatexSource] = useState(DEFAULT_LATEX);
+  const [aiProvider, setAIProvider] = useState<AIProvider>("Ollama");
+  const [chatDraft, setChatDraft] = useState("");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+    { role: "assistant", text: "I can tighten bullets, compare evidence to a role, or explain what changed. I will not invent facts." },
+  ]);
 
   useEffect(() => {
     Promise.all([GetProfile(), ListExperiences(), ListProjects()])
@@ -72,7 +107,9 @@ export default function App() {
         setProfile(loaded);
         setSkillsText(loaded.skills.join(", "));
         setExperiences((savedExperiences as unknown as Experience[]).map(experienceToDraft));
-        setProjects((savedProjects as unknown as Project[]).map(projectToDraft));
+        const projectDrafts = (savedProjects as unknown as Project[]).map(projectToDraft);
+        setProjects(projectDrafts);
+        setSelectedProjectKeys(projectDrafts.filter((project) => project.resumeEligible).slice(0, 3).map((project) => project.key));
       })
       .catch((reason) => setError(errorMessage(reason)))
       .finally(() => setBusy(false));
@@ -217,92 +254,215 @@ export default function App() {
     }
   };
 
+  const toggleProject = (key: string) => {
+    setSelectedProjectKeys((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
+  };
+
+  const sendChatMessage = (event: FormEvent) => {
+    event.preventDefault();
+    const text = chatDraft.trim();
+    if (!text) return;
+    setChatMessages((current) => [
+      ...current,
+      { role: "user", text },
+      { role: "assistant", text: `${aiProvider} is not connected yet. This workspace is ready for the provider adapter; your message has not left this device.` },
+    ]);
+    setChatDraft("");
+  };
+
+  const selectedProjects = projects.filter((project) => selectedProjectKeys.includes(project.key));
+
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <button className="brand" onClick={() => setView("home")}>
-          <span className="brand-mark">T</span>
-          <span>
-            TailorCV
-            <small>Local resume studio</small>
-          </span>
-        </button>
+    <div className="studio-shell">
+      <TopToolbar
+        profile={profile}
+        onCompile={() => setMessage("Compile tooling will be connected in the templates milestone.")}
+        onExport={() => setMessage("PDF export becomes available after the first successful compile.")}
+      />
 
-        <nav aria-label="Main navigation">
-          <NavButton active={view === "home"} label="Overview" icon="⌂" onClick={() => setView("home")} />
-          <NavButton active={view === "profile"} label="Career profile" icon="◎" onClick={() => setView("profile")} />
-          <NavButton active={view === "tailor"} label="Tailor a resume" icon="✦" onClick={() => setView("tailor")} />
-        </nav>
-
-        <div className="privacy-note">
-          <span className="privacy-dot" />
-          <div>
-            <strong>Local first</strong>
-            <p>Your profile is stored on this device.</p>
+      <div className="studio-body">
+        <aside className="studio-sidebar">
+          <div className="sidebar-intro">
+            <span>Workspace</span>
+            <p>Build once. Tailor precisely.</p>
           </div>
-        </div>
-      </aside>
+          <nav aria-label="Resume sections">
+            <p className="nav-section-label">Build</p>
+            <NavButton active={view === "overview"} label="Overview" icon="home" onClick={() => setView("overview")} />
+            <NavButton active={view === "profile"} label="Profile" icon="user" onClick={() => setView("profile")} />
+            <NavButton active={view === "experience"} label="Experience" icon="briefcase" badge={experiences.length || undefined} onClick={() => setView("experience")} />
+            <NavButton active={view === "projects"} label="Projects" icon="folder" badge={selectedProjectKeys.length || undefined} onClick={() => setView("projects")} />
+            <NavButton active={view === "education"} label="Education" icon="education" onClick={() => setView("education")} />
+            <NavButton active={view === "skills"} label="Skills" icon="sparkles" badge={profile.skills.length || undefined} onClick={() => setView("skills")} />
+            <p className="nav-section-label nav-section-spaced">Tailor</p>
+            <NavButton active={view === "latex"} label="LaTeX source" icon="code" onClick={() => setView("latex")} />
+            <NavButton active={view === "job"} label="Job match" icon="target" badge={analysis ? `${analysis.score}%` : undefined} onClick={() => setView("job")} />
+            <NavButton active={view === "ai"} label="AI assistant" icon="chat" badge="New" onClick={() => setView("ai")} />
+          </nav>
 
-      <main>
-        {error && (
-          <div className="notice error" role="alert">
-            {error}
-            <button aria-label="Dismiss error" onClick={() => setError("")}>×</button>
+          <button className="provider-status" onClick={() => setView("ai")}>
+            <span className="status-dot" />
+            <span><strong>Local AI ready</strong><small>{aiProvider} · provider setup</small></span>
+            <span aria-hidden="true">›</span>
+          </button>
+        </aside>
+
+        <main className="studio-workspace">
+          {error && <div className="notice error" role="alert">{error}<button aria-label="Dismiss error" onClick={() => setError("")}>×</button></div>}
+          {message && <div className="notice success" role="status">{message}<button aria-label="Dismiss message" onClick={() => setMessage("")}>×</button></div>}
+
+          <div className="editor-pane">
+            {view === "overview" && <WorkspaceOverview profile={profile} completion={completion} experiences={experiences} projects={projects} onOpen={setView} />}
+            {view === "profile" && <ProfileWorkspace profile={profile} busy={busy} message={message} onChange={updateProfile} onSubmit={saveProfile} />}
+            {view === "experience" && <section className="workspace-panel scroll-panel"><PanelHeader eyebrow="Career evidence" title="Experience" description="Keep every claim factual, ordered, and reviewable." action={<button className="secondary-button" onClick={addExperience}>Add role</button>} /><ExperienceSection experiences={experiences} busyKey={experienceBusyKey} onAdd={addExperience} onUpdate={updateExperience} onSave={saveExperience} onDelete={deleteExperience} /></section>}
+            {view === "projects" && <ProjectWorkspace projects={projects} selectedKeys={selectedProjectKeys} busyKey={projectBusyKey} onToggle={toggleProject} onAdd={addProject} onUpdate={updateProject} onSave={saveProject} onDelete={deleteProject} />}
+            {view === "education" && <EducationWorkspace />}
+            {view === "skills" && <SkillsWorkspace skillsText={skillsText} busy={busy} message={message} onChange={setSkillsText} onSubmit={saveProfile} />}
+            {view === "latex" && <LatexWorkspace source={latexSource} onChange={setLatexSource} />}
+            {view === "job" && <JobTailor description={jobDescription} analysis={analysis} busy={busy} hasSkills={profile.skills.length > 0} onDescriptionChange={setJobDescription} onSubmit={analyzeJob} onProfile={() => setView("skills")} />}
+            {view === "ai" && <AIWorkspace provider={aiProvider} draft={chatDraft} messages={chatMessages} onProviderChange={setAIProvider} onDraftChange={setChatDraft} onSubmit={sendChatMessage} />}
           </div>
-        )}
-        {view === "home" && (
-          <Overview
-            profile={profile}
-            completion={completion}
-            onProfile={() => setView("profile")}
-            onTailor={() => setView("tailor")}
-          />
-        )}
-        {view === "profile" && (
-          <ProfileEditor
-            profile={profile}
-            experiences={experiences}
-            projects={projects}
-            skillsText={skillsText}
-            busy={busy}
-            experienceBusyKey={experienceBusyKey}
-            projectBusyKey={projectBusyKey}
-            message={message}
-            onChange={updateProfile}
-            onSkillsChange={setSkillsText}
-            onSubmit={saveProfile}
-            onAddExperience={addExperience}
-            onUpdateExperience={updateExperience}
-            onSaveExperience={saveExperience}
-            onDeleteExperience={deleteExperience}
-            onAddProject={addProject}
-            onUpdateProject={updateProject}
-            onSaveProject={saveProject}
-            onDeleteProject={deleteProject}
-          />
-        )}
-        {view === "tailor" && (
-          <JobTailor
-            description={jobDescription}
-            analysis={analysis}
-            busy={busy}
-            hasSkills={profile.skills.length > 0}
-            onDescriptionChange={setJobDescription}
-            onSubmit={analyzeJob}
-            onProfile={() => setView("profile")}
-          />
-        )}
-      </main>
+
+          <ResumePreview profile={profile} experiences={experiences} projects={selectedProjects} />
+        </main>
+      </div>
     </div>
   );
 }
 
-function NavButton({ active, label, icon, onClick }: { active: boolean; label: string; icon: string; onClick: () => void }) {
+function NavButton({ active, label, icon, badge, onClick }: { active: boolean; label: string; icon: IconName; badge?: string | number; onClick: () => void }) {
   return (
     <button className={`nav-button ${active ? "active" : ""}`} onClick={onClick}>
-      <span>{icon}</span>{label}
+      <Icon name={icon} />
+      <span className="nav-button-label">{label}</span>
+      {badge !== undefined && <span className="nav-badge">{badge}</span>}
     </button>
   );
+}
+
+type IconName = "home" | "user" | "briefcase" | "folder" | "education" | "sparkles" | "code" | "target" | "chat" | "download" | "refresh" | "check" | "search";
+
+const iconPaths: Record<IconName, React.ReactNode> = {
+  home: <><path d="m3 10 9-7 9 7" /><path d="M5 9v11h14V9" /><path d="M9 20v-6h6v6" /></>,
+  user: <><circle cx="12" cy="8" r="4" /><path d="M4 21c.8-4.2 3.5-6 8-6s7.2 1.8 8 6" /></>,
+  briefcase: <><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8 7V4h8v3M3 12h18M10 12v2h4v-2" /></>,
+  folder: <><path d="M3 6h7l2 2h9v11H3z" /><path d="M3 10h18" /></>,
+  education: <><path d="m2 9 10-5 10 5-10 5z" /><path d="M6 11v5c3 2 9 2 12 0v-5M22 9v7" /></>,
+  sparkles: <><path d="m12 2 1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z" /><path d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" /></>,
+  code: <><path d="m8 5-6 7 6 7M16 5l6 7-6 7M14 3l-4 18" /></>,
+  target: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="4" /><path d="M12 3v3M21 12h-3M12 21v-3M3 12h3" /></>,
+  chat: <><path d="M4 4h16v13H8l-4 4z" /><path d="M8 9h8M8 13h5" /></>,
+  download: <><path d="M12 3v12M7 10l5 5 5-5M4 21h16" /></>,
+  refresh: <><path d="M20 7V3h-4M4 17v4h4" /><path d="M19 10a7 7 0 0 0-12-4L4 9M5 14a7 7 0 0 0 12 4l3-3" /></>,
+  check: <path d="m5 12 4 4L19 6" />,
+  search: <><circle cx="10" cy="10" r="6" /><path d="m15 15 5 5" /></>,
+};
+
+function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
+  return <svg className="icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{iconPaths[name]}</svg>;
+}
+
+function TopToolbar({ profile, onCompile, onExport }: { profile: Profile; onCompile: () => void; onExport: () => void }) {
+  return <header className="top-toolbar">
+    <div className="toolbar-brand"><span className="brand-mark">T</span><strong>TailorCV</strong></div>
+    <span className="toolbar-divider" />
+    <div className="document-title"><strong>{profile.headline || "Backend Engineer Resume"}</strong><small>resume.tex · saved locally</small></div>
+    <div className="toolbar-spacer" />
+    <div className="ats-pill"><span className="status-dot" /> ATS ready</div>
+    <button className="toolbar-button" onClick={onCompile}><Icon name="refresh" size={16} />Compile</button>
+    <button className="export-button" onClick={onExport}><Icon name="download" size={16} />Export PDF</button>
+    <button className="icon-button" aria-label="More document options">•••</button>
+  </header>;
+}
+
+function PanelHeader({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: React.ReactNode }) {
+  return <header className="panel-header"><div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p>{description}</p></div>{action}</header>;
+}
+
+function WorkspaceOverview({ profile, completion, experiences, projects, onOpen }: { profile: Profile; completion: number; experiences: ExperienceDraft[]; projects: ProjectDraft[]; onOpen: (view: View) => void }) {
+  return <section className="workspace-panel scroll-panel">
+    <PanelHeader eyebrow="Your workspace" title={profile.name ? `Welcome back, ${profile.name.split(" ")[0]}.` : "Build your source of truth."} description="Keep one reliable career profile, then tailor the evidence for each role." action={<button className="primary-button" onClick={() => onOpen("job")}>Match a job</button>} />
+    <div className="metric-grid">
+      <article className="metric-card accent"><span>Profile readiness</span><strong>{completion}%</strong><div className="progress"><i style={{ width: `${completion}%` }} /></div><button onClick={() => onOpen("profile")}>Complete profile →</button></article>
+      <article className="metric-card"><span>Evidence</span><strong>{experiences.reduce((sum, item) => sum + item.bullets.length, 0)}</strong><small>reviewable career claims</small></article>
+      <article className="metric-card"><span>Projects</span><strong>{projects.length}</strong><small>{projects.filter((project) => project.resumeEligible).length} resume eligible</small></article>
+    </div>
+    <div className="overview-callout"><span className="callout-index">01</span><div><p className="eyebrow">Recommended next step</p><h2>{completion < 70 ? "Finish the profile foundation" : "Select evidence for your next application"}</h2><p>{completion < 70 ? "Add your identity, positioning, and core skills before tailoring." : "Choose projects and experience that directly support the target role."}</p></div><button className="secondary-button" onClick={() => onOpen(completion < 70 ? "profile" : "projects")}>Open workspace</button></div>
+  </section>;
+}
+
+function ProfileWorkspace({ profile, busy, message, onChange, onSubmit }: { profile: Profile; busy: boolean; message: string; onChange: (field: keyof Profile, value: string) => void; onSubmit: (event: FormEvent) => void }) {
+  return <section className="workspace-panel scroll-panel">
+    <PanelHeader eyebrow="Career profile" title="Profile" description="Identity and positioning used across every resume." />
+    <form className="compact-form" onSubmit={onSubmit}>
+      <FormBlock title="Identity" description="Shown in the resume header."><div className="field-grid two"><Field label="Full name" value={profile.name} onChange={(value) => onChange("name", value)} placeholder="Ada Lovelace" /><Field label="Headline" value={profile.headline} onChange={(value) => onChange("headline", value)} placeholder="Backend engineer" /><Field label="Email" type="email" value={profile.email} onChange={(value) => onChange("email", value)} placeholder="ada@example.com" /><Field label="Phone" value={profile.phone} onChange={(value) => onChange("phone", value)} placeholder="+91 98765 43210" /><Field label="Location" value={profile.location} onChange={(value) => onChange("location", value)} placeholder="Bengaluru, India" /><Field label="Website" type="url" value={profile.website} onChange={(value) => onChange("website", value)} placeholder="https://example.com" /></div></FormBlock>
+      <FormBlock title="Presence" description="Professional links and repository identity."><div className="field-grid two"><Field label="GitHub username" value={profile.githubUsername} onChange={(value) => onChange("githubUsername", value)} placeholder="octocat" prefix="github.com/" /><Field label="LinkedIn URL" type="url" value={profile.linkedInUrl} onChange={(value) => onChange("linkedInUrl", value)} placeholder="https://linkedin.com/in/..." /></div></FormBlock>
+      <FormBlock title="Positioning" description="A factual summary, never generated without evidence."><label className="field"><span>Professional summary</span><textarea rows={7} maxLength={2400} value={profile.summary} onChange={(event) => onChange("summary", event.target.value)} placeholder="Summarize your experience, strengths, and outcomes." /><small>{profile.summary.length}/2400</small></label></FormBlock>
+      <div className="sticky-form-actions"><span>{message}</span><button className="primary-button" disabled={busy}>{busy ? "Saving…" : "Save profile"}</button></div>
+    </form>
+  </section>;
+}
+
+function FormBlock({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+  return <section className="form-block"><header><h2>{title}</h2><p>{description}</p></header><div>{children}</div></section>;
+}
+
+function ProjectWorkspace({ projects, selectedKeys, busyKey, onToggle, onAdd, onUpdate, onSave, onDelete }: { projects: ProjectDraft[]; selectedKeys: string[]; busyKey: string; onToggle: (key: string) => void; onAdd: () => void; onUpdate: (key: string, project: ProjectDraft) => void; onSave: (event: FormEvent, project: ProjectDraft) => void; onDelete: (project: ProjectDraft) => void }) {
+  const [tab, setTab] = useState<"select" | "manage">("select");
+  return <section className="workspace-panel scroll-panel">
+    <PanelHeader eyebrow="Selected work" title="Projects" description="Choose the strongest evidence for this resume." action={<button className="secondary-button" onClick={() => { onAdd(); setTab("manage"); }}>Add project</button>} />
+    <div className="panel-tabs"><button className={tab === "select" ? "active" : ""} onClick={() => setTab("select")}>Select for resume <span>{selectedKeys.length}</span></button><button className={tab === "manage" ? "active" : ""} onClick={() => setTab("manage")}>Manage evidence</button></div>
+    {tab === "select" ? <div className="project-selector">
+      <label className="search-field"><Icon name="search" size={16} /><input aria-label="Search projects" placeholder="Search projects or technologies" /></label>
+      <div className="selection-note"><span className="status-dot" /><div><strong>{selectedKeys.length} projects selected</strong><p>The preview updates as you select evidence.</p></div></div>
+      {projects.length === 0 ? <div className="panel-empty"><span className="empty-icon"><Icon name="folder" size={22} /></span><strong>No projects yet</strong><p>Add a project with evidence bullets, technologies, and a review state.</p><button className="primary-button" onClick={() => { onAdd(); setTab("manage"); }}>Add first project</button></div> : projects.map((project, index) => {
+        const selected = selectedKeys.includes(project.key);
+        const score = Math.max(67, 94 - index * 7);
+        return <article className={`project-select-card ${selected ? "selected" : ""}`} key={project.key}>
+          <button className="project-check" aria-label={`${selected ? "Remove" : "Add"} ${project.name || "project"} ${selected ? "from" : "to"} resume`} onClick={() => onToggle(project.key)}>{selected && <Icon name="check" size={14} />}</button>
+          <div className="project-card-copy"><div className="project-title-row"><strong>{project.name || "Untitled project"}</strong><span>{score}% match</span></div><p>{project.description || "Add a concise description of the problem, your contribution, and the outcome."}</p><div className="tag-row">{project.skills.slice(0, 4).map((skill) => <span key={skill}>{skill}</span>)}{project.skills.length === 0 && <span>Skills not added</span>}</div><small>{project.verification === "verified" ? "Verified evidence" : "Needs review"} · {project.bullets.length} bullets</small></div>
+        </article>;
+      })}
+    </div> : <ProjectSection projects={projects} busyKey={busyKey} onAdd={onAdd} onUpdate={onUpdate} onSave={onSave} onDelete={onDelete} />}
+  </section>;
+}
+
+function EducationWorkspace() {
+  return <section className="workspace-panel scroll-panel"><PanelHeader eyebrow="Background" title="Education" description="Academic history that supports your application." action={<button className="secondary-button" disabled>Add education</button>} /><div className="panel-empty tall"><span className="empty-icon"><Icon name="education" size={24} /></span><strong>Education records are next</strong><p>The workspace is designed and ready; persistence will be added with the education domain model.</p></div></section>;
+}
+
+function SkillsWorkspace({ skillsText, busy, message, onChange, onSubmit }: { skillsText: string; busy: boolean; message: string; onChange: (value: string) => void; onSubmit: (event: FormEvent) => void }) {
+  const skills = parseSkills(skillsText);
+  return <section className="workspace-panel scroll-panel"><PanelHeader eyebrow="Capabilities" title="Skills" description="A normalized vocabulary for matching and evidence selection." /><form className="compact-form skills-workspace" onSubmit={onSubmit}><FormBlock title="Skill inventory" description="Separate skills with commas. Duplicates are removed automatically."><label className="field"><span>Skills</span><textarea rows={6} value={skillsText} onChange={(event) => onChange(event.target.value)} placeholder="Go, TypeScript, PostgreSQL, Docker" /></label><div className="skill-chip-grid">{skills.map((skill) => <span key={skill}>{skill}<button type="button" aria-label={`Remove ${skill}`} onClick={() => onChange(skills.filter((item) => item !== skill).join(", "))}>×</button></span>)}</div></FormBlock><div className="sticky-form-actions"><span>{message}</span><button className="primary-button" disabled={busy}>{busy ? "Saving…" : "Save skills"}</button></div></form></section>;
+}
+
+function LatexWorkspace({ source, onChange }: { source: string; onChange: (value: string) => void }) {
+  return <section className="workspace-panel latex-workspace"><PanelHeader eyebrow="Source editor" title="LaTeX" description="Edit the trusted template directly. Compilation remains sandboxed." /><div className="editor-tabs"><button className="active">resume.tex</button><button>template.cls</button><span>Plain text mode</span></div><div className="code-editor"><div className="line-numbers">{source.split("\n").map((_, index) => <span key={index}>{index + 1}</span>)}</div><textarea spellCheck={false} value={source} onChange={(event) => onChange(event.target.value)} aria-label="LaTeX source" /></div><footer className="editor-status"><span>UTF-8</span><span>LaTeX</span><span>{source.split("\n").length} lines</span></footer></section>;
+}
+
+function AIWorkspace({ provider, draft, messages, onProviderChange, onDraftChange, onSubmit }: { provider: AIProvider; draft: string; messages: ChatMessage[]; onProviderChange: (provider: AIProvider) => void; onDraftChange: (value: string) => void; onSubmit: (event: FormEvent) => void }) {
+  const providers: AIProvider[] = ["Ollama", "Gemini", "Claude", "OpenAI"];
+  return <section className="workspace-panel ai-workspace"><PanelHeader eyebrow="Evidence-aware assistant" title="AI assistant" description="Use local or cloud models without letting them invent facts." /><div className="provider-picker">{providers.map((item) => <button key={item} className={provider === item ? "active" : ""} onClick={() => onProviderChange(item)}><span className="provider-logo">{item.slice(0, 2).toUpperCase()}</span><span><strong>{item}</strong><small>{item === "Ollama" ? "Local · private" : "Cloud · setup required"}</small></span>{provider === item && <Icon name="check" size={15} />}</button>)}</div><div className="chat-thread">{messages.map((item, index) => <div className={`chat-message ${item.role}`} key={`${item.role}-${index}`}><span>{item.role === "assistant" ? "AI" : "You"}</span><p>{item.text}</p></div>)}</div><form className="chat-composer" onSubmit={onSubmit}><textarea rows={3} value={draft} onChange={(event) => onDraftChange(event.target.value)} placeholder="Ask for a tighter bullet or compare selected evidence…" /><div><small>Only selected evidence will be shared.</small><button className="primary-button" type="submit">Send</button></div></form></section>;
+}
+
+function ResumePreview({ profile, experiences, projects }: { profile: Profile; experiences: ExperienceDraft[]; projects: ProjectDraft[] }) {
+  const visibleExperiences = experiences.slice(0, 2);
+  const visibleProjects = projects.slice(0, 3);
+  return <aside className="preview-pane"><header className="preview-toolbar"><div><strong>Resume preview</strong><small>ATS · one page</small></div><div className="preview-controls"><button aria-label="Zoom out">−</button><span>92%</span><button aria-label="Zoom in">+</button><i /><span>1 / 1</span></div></header><div className="preview-stage"><article className="resume-paper">
+    <header className="resume-header"><h1>{profile.name || "Your Name"}</h1><p>{profile.headline || "Backend Engineer"}</p><small>{[profile.email || "your@email.com", profile.phone, profile.location, profile.website].filter(Boolean).join("  ·  ")}</small></header>
+    {profile.summary && <ResumeSection title="Summary"><p className="resume-summary">{profile.summary}</p></ResumeSection>}
+    <ResumeSection title="Experience">{visibleExperiences.length ? visibleExperiences.map((experience) => <div className="resume-entry" key={experience.key}><div><strong>{experience.title || "Role"} · {experience.company || "Company"}</strong><span>{experience.startDate} — {experience.current ? "Present" : experience.endDate}</span></div>{experience.location && <em>{experience.location}</em>}<ul>{experience.bullets.slice(0, 3).map((bullet, index) => <li key={bullet.id || index}>{bullet.text}</li>)}</ul></div>) : <ResumePlaceholder text="Add experience and evidence bullets" />}</ResumeSection>
+    <ResumeSection title="Projects">{visibleProjects.length ? visibleProjects.map((project) => <div className="resume-entry project" key={project.key}><div><strong>{project.name || "Project"}</strong><span>{project.skills.slice(0, 3).join(" · ")}</span></div>{project.description && <p>{project.description}</p>}<ul>{project.bullets.slice(0, 2).map((bullet, index) => <li key={bullet.id || index}>{bullet.text}</li>)}</ul></div>) : <ResumePlaceholder text="Select projects to include them" />}</ResumeSection>
+    <ResumeSection title="Skills"><p className="resume-skills">{profile.skills.length ? profile.skills.join("  ·  ") : "Add skills to your profile"}</p></ResumeSection>
+  </article></div></aside>;
+}
+
+function ResumeSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return <section className="resume-section"><h2>{title}</h2>{children}</section>;
+}
+
+function ResumePlaceholder({ text }: { text: string }) {
+  return <p className="resume-placeholder">{text}</p>;
 }
 
 function Overview({ profile, completion, onProfile, onTailor }: { profile: Profile; completion: number; onProfile: () => void; onTailor: () => void }) {

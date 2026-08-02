@@ -17,14 +17,14 @@ func main() {
 
 	err := wails.Run(&options.App{
 		Title:     "TailorCV",
-		Width:     1280,
-		Height:    820,
-		MinWidth:  980,
-		MinHeight: 680,
+		Width:     1440,
+		Height:    900,
+		MinWidth:  1120,
+		MinHeight: 720,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		BackgroundColour: &options.RGBA{R: 246, G: 244, B: 238, A: 1},
+		BackgroundColour: &options.RGBA{R: 7, G: 8, B: 7, A: 1},
 		OnStartup:        app.startup,
 		OnShutdown:       app.shutdown,
 		Bind: []interface{}{
