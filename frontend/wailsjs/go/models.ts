@@ -130,6 +130,114 @@ export namespace domain {
 	        return a;
 	    }
 	}
+	export class Project {
+	    id: string;
+	    name: string;
+	    role: string;
+	    description: string;
+	    url: string;
+	    repositoryUrl: string;
+	    startDate: string;
+	    endDate: string;
+	    ongoing: boolean;
+	    provenance: string;
+	    verification: string;
+	    resumeEligible: boolean;
+	    position: number;
+	    skills: string[];
+	    bullets: EvidenceBullet[];
+	    createdAt: string;
+	    updatedAt: string;
+
+	    static createFrom(source: any = {}) {
+	        return new Project(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.role = source["role"];
+	        this.description = source["description"];
+	        this.url = source["url"];
+	        this.repositoryUrl = source["repositoryUrl"];
+	        this.startDate = source["startDate"];
+	        this.endDate = source["endDate"];
+	        this.ongoing = source["ongoing"];
+	        this.provenance = source["provenance"];
+	        this.verification = source["verification"];
+	        this.resumeEligible = source["resumeEligible"];
+	        this.position = source["position"];
+	        this.skills = source["skills"];
+	        this.bullets = this.convertValues(source["bullets"], EvidenceBullet);
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+
+	    convertValues(a: any, classs: any, asMap: boolean = false): any {
+	        if (!a) return a;
+	        if (a.slice && a.map) return (a as any[]).map(elem => this.convertValues(elem, classs));
+	        if ("object" === typeof a) {
+	            if (asMap) {
+	                for (const key of Object.keys(a)) a[key] = new classs(a[key]);
+	                return a;
+	            }
+	            return new classs(a);
+	        }
+	        return a;
+	    }
+	}
+	export class ProjectInput {
+	    id: string;
+	    name: string;
+	    role: string;
+	    description: string;
+	    url: string;
+	    repositoryUrl: string;
+	    startDate: string;
+	    endDate: string;
+	    ongoing: boolean;
+	    provenance: string;
+	    verification: string;
+	    resumeEligible: boolean;
+	    skills: string[];
+	    bullets: EvidenceBulletInput[];
+
+	    static createFrom(source: any = {}) {
+	        return new ProjectInput(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.role = source["role"];
+	        this.description = source["description"];
+	        this.url = source["url"];
+	        this.repositoryUrl = source["repositoryUrl"];
+	        this.startDate = source["startDate"];
+	        this.endDate = source["endDate"];
+	        this.ongoing = source["ongoing"];
+	        this.provenance = source["provenance"];
+	        this.verification = source["verification"];
+	        this.resumeEligible = source["resumeEligible"];
+	        this.skills = source["skills"];
+	        this.bullets = this.convertValues(source["bullets"], EvidenceBulletInput);
+	    }
+
+	    convertValues(a: any, classs: any, asMap: boolean = false): any {
+	        if (!a) return a;
+	        if (a.slice && a.map) return (a as any[]).map(elem => this.convertValues(elem, classs));
+	        if ("object" === typeof a) {
+	            if (asMap) {
+	                for (const key of Object.keys(a)) a[key] = new classs(a[key]);
+	                return a;
+	            }
+	            return new classs(a);
+	        }
+	        return a;
+	    }
+	}
 
 	export class JobAnalysis {
 	    score: number;

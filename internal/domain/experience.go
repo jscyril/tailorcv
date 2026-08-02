@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	maxExperienceBullets = 30
-	maxEvidenceLength    = 1200
+	maxEvidenceBullets = 30
+	maxEvidenceLength  = 1200
 )
 
 var monthPattern = regexp.MustCompile(`^\d{4}-(0[1-9]|1[0-2])$`)
@@ -111,8 +111,8 @@ func (input ExperienceInput) Validate() (Experience, error) {
 	if experience.EndDate != "" && experience.EndDate < experience.StartDate {
 		return Experience{}, fmt.Errorf("end date cannot be before start date")
 	}
-	if len(input.Bullets) > maxExperienceBullets {
-		return Experience{}, fmt.Errorf("an experience can contain at most %d evidence bullets", maxExperienceBullets)
+	if len(input.Bullets) > maxEvidenceBullets {
+		return Experience{}, fmt.Errorf("an experience can contain at most %d evidence bullets", maxEvidenceBullets)
 	}
 
 	seenIDs := make(map[string]struct{}, len(input.Bullets))

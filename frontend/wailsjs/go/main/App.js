@@ -10,6 +10,10 @@ export function DeleteExperience(arg1) {
   return window['go']['main']['App']['DeleteExperience'](arg1);
 }
 
+export function DeleteProject(arg1) {
+  return window['go']['main']['App']['DeleteProject'](arg1);
+}
+
 export function GetProfile() {
   return window['go']['main']['App']['GetProfile']();
 }
@@ -18,8 +22,16 @@ export function ListExperiences() {
   return window['go']['main']['App']['ListExperiences']();
 }
 
+export function ListProjects() {
+  return window['go']['main']['App']['ListProjects']();
+}
+
 export function SaveExperience(arg1) {
   return window['go']['main']['App']['SaveExperience'](arg1);
+}
+
+export function SaveProject(arg1) {
+  return window['go']['main']['App']['SaveProject'](arg1);
 }
 
 export function SaveProfile(arg1) {

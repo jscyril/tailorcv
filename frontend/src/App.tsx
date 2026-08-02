@@ -2,9 +2,12 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   AnalyzeJobDescription,
   DeleteExperience,
+  DeleteProject,
   GetProfile,
   ListExperiences,
+  ListProjects,
   SaveExperience,
+  SaveProject,
   SaveProfile,
 } from "../wailsjs/go/main/App";
 import { domain } from "../wailsjs/go/models";
@@ -18,6 +21,13 @@ import {
   newExperienceDraft,
   toExperienceInput,
 } from "./lib/experience";
+import {
+  Project,
+  ProjectDraft,
+  newProjectDraft,
+  projectToDraft,
+  toProjectInput,
+} from "./lib/project";
 import {
   emptyProfile,
   parseSkills,
@@ -44,22 +54,25 @@ export default function App() {
   const [view, setView] = useState<View>("home");
   const [profile, setProfile] = useState<Profile>(emptyProfile);
   const [experiences, setExperiences] = useState<ExperienceDraft[]>([]);
+  const [projects, setProjects] = useState<ProjectDraft[]>([]);
   const [skillsText, setSkillsText] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [analysis, setAnalysis] = useState<JobAnalysis | null>(null);
   const [busy, setBusy] = useState(true);
   const [experienceBusyKey, setExperienceBusyKey] = useState("");
+  const [projectBusyKey, setProjectBusyKey] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
-    Promise.all([GetProfile(), ListExperiences()])
-      .then(([result, savedExperiences]) => {
+    Promise.all([GetProfile(), ListExperiences(), ListProjects()])
+      .then(([result, savedExperiences, savedProjects]) => {
         const loaded = { ...emptyProfile, ...result } as Profile;
         loaded.skills ??= [];
         setProfile(loaded);
         setSkillsText(loaded.skills.join(", "));
         setExperiences((savedExperiences as unknown as Experience[]).map(experienceToDraft));
+        setProjects((savedProjects as unknown as Project[]).map(projectToDraft));
       })
       .catch((reason) => setError(errorMessage(reason)))
       .finally(() => setBusy(false));
@@ -156,6 +169,54 @@ export default function App() {
     }
   };
 
+  const addProject = () => {
+    setProjects((current) => [...current, newProjectDraft()]);
+    setMessage("");
+  };
+
+  const updateProject = (key: string, next: ProjectDraft) => {
+    setProjects((current) => current.map((project) => project.key === key ? next : project));
+    setMessage("");
+  };
+
+  const saveProject = async (event: FormEvent, draft: ProjectDraft) => {
+    event.preventDefault();
+    setProjectBusyKey(draft.key);
+    setError("");
+    setMessage("");
+    try {
+      const saved = await SaveProject(new domain.ProjectInput(toProjectInput(draft)));
+      const normalized = projectToDraft(saved as unknown as Project);
+      setProjects((current) => current.map((project) => project.key === draft.key ? normalized : project));
+      setMessage("Project saved locally.");
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setProjectBusyKey("");
+    }
+  };
+
+  const deleteProject = async (draft: ProjectDraft) => {
+    if (draft.id && !window.confirm(`Delete ${draft.name || "this project"}?`)) {
+      return;
+    }
+    if (!draft.id) {
+      setProjects((current) => current.filter((project) => project.key !== draft.key));
+      return;
+    }
+    setProjectBusyKey(draft.key);
+    setError("");
+    try {
+      await DeleteProject(draft.id);
+      setProjects((current) => current.filter((project) => project.key !== draft.key));
+      setMessage("Project deleted.");
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setProjectBusyKey("");
+    }
+  };
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -201,9 +262,11 @@ export default function App() {
           <ProfileEditor
             profile={profile}
             experiences={experiences}
+            projects={projects}
             skillsText={skillsText}
             busy={busy}
             experienceBusyKey={experienceBusyKey}
+            projectBusyKey={projectBusyKey}
             message={message}
             onChange={updateProfile}
             onSkillsChange={setSkillsText}
@@ -212,6 +275,10 @@ export default function App() {
             onUpdateExperience={updateExperience}
             onSaveExperience={saveExperience}
             onDeleteExperience={deleteExperience}
+            onAddProject={addProject}
+            onUpdateProject={updateProject}
+            onSaveProject={saveProject}
+            onDeleteProject={deleteProject}
           />
         )}
         {view === "tailor" && (
@@ -287,9 +354,11 @@ function Overview({ profile, completion, onProfile, onTailor }: { profile: Profi
 function ProfileEditor({
   profile,
   experiences,
+  projects,
   skillsText,
   busy,
   experienceBusyKey,
+  projectBusyKey,
   message,
   onChange,
   onSkillsChange,
@@ -298,12 +367,18 @@ function ProfileEditor({
   onUpdateExperience,
   onSaveExperience,
   onDeleteExperience,
+  onAddProject,
+  onUpdateProject,
+  onSaveProject,
+  onDeleteProject,
 }: {
   profile: Profile;
   experiences: ExperienceDraft[];
+  projects: ProjectDraft[];
   skillsText: string;
   busy: boolean;
   experienceBusyKey: string;
+  projectBusyKey: string;
   message: string;
   onChange: (field: keyof Profile, value: string) => void;
   onSkillsChange: (value: string) => void;
@@ -312,6 +387,10 @@ function ProfileEditor({
   onUpdateExperience: (key: string, experience: ExperienceDraft) => void;
   onSaveExperience: (event: FormEvent, experience: ExperienceDraft) => void;
   onDeleteExperience: (experience: ExperienceDraft) => void;
+  onAddProject: () => void;
+  onUpdateProject: (key: string, project: ProjectDraft) => void;
+  onSaveProject: (event: FormEvent, project: ProjectDraft) => void;
+  onDeleteProject: (project: ProjectDraft) => void;
 }) {
   return (
     <section className="page form-page">
@@ -359,6 +438,14 @@ function ProfileEditor({
         onUpdate={onUpdateExperience}
         onSave={onSaveExperience}
         onDelete={onDeleteExperience}
+      />
+      <ProjectSection
+        projects={projects}
+        busyKey={projectBusyKey}
+        onAdd={onAddProject}
+        onUpdate={onUpdateProject}
+        onSave={onSaveProject}
+        onDelete={onDeleteProject}
       />
     </section>
   );
@@ -412,12 +499,6 @@ function ExperienceCard({ experience, busy, onUpdate, onSave, onDelete }: {
   const updateField = <K extends keyof ExperienceDraft>(field: K, value: ExperienceDraft[K]) => {
     onUpdate({ ...experience, [field]: value });
   };
-  const updateBullet = (index: number, patch: Partial<EvidenceBullet>) => {
-    updateField("bullets", experience.bullets.map((bullet, bulletIndex) => bulletIndex === index ? { ...bullet, ...patch } : bullet));
-  };
-  const removeBullet = (index: number) => {
-    updateField("bullets", experience.bullets.filter((_, bulletIndex) => bulletIndex !== index));
-  };
 
   return (
     <form className="experience-card" onSubmit={onSave}>
@@ -440,23 +521,154 @@ function ExperienceCard({ experience, busy, onUpdate, onSave, onDelete }: {
         </label>
       </div>
 
+      <EvidenceEditor bullets={experience.bullets} emptyLabel="The role can still be saved." onChange={(bullets) => updateField("bullets", bullets)} />
+      <div className="experience-actions">
+        <small>{experience.updatedAt ? `Last saved ${new Date(experience.updatedAt).toLocaleString()}` : "Not saved yet"}</small>
+        <button className="primary-button" disabled={busy} type="submit">{busy ? "Saving…" : "Save experience"}</button>
+      </div>
+    </form>
+  );
+}
+
+function ProjectSection({ projects, busyKey, onAdd, onUpdate, onSave, onDelete }: {
+  projects: ProjectDraft[];
+  busyKey: string;
+  onAdd: () => void;
+  onUpdate: (key: string, project: ProjectDraft) => void;
+  onSave: (event: FormEvent, project: ProjectDraft) => void;
+  onDelete: (project: ProjectDraft) => void;
+}) {
+  return (
+    <section className="experience-section project-section">
+      <div className="experience-heading">
+        <div>
+          <p className="eyebrow">Selected work</p>
+          <h2>Projects</h2>
+          <p>Capture the work, technologies, and defensible outcomes that can support a tailored resume.</p>
+        </div>
+        <button className="secondary-button" type="button" onClick={onAdd}>Add project</button>
+      </div>
+      {projects.length === 0 ? (
+        <div className="experience-empty">
+          <strong>No projects yet.</strong>
+          <p>Add a manual project now. GitHub imports will enter this same review workflow later.</p>
+          <button className="primary-button" type="button" onClick={onAdd}>Add your first project</button>
+        </div>
+      ) : projects.map((project) => (
+        <ProjectCard
+          key={project.key}
+          project={project}
+          busy={busyKey === project.key}
+          onUpdate={(next) => onUpdate(project.key, next)}
+          onSave={(event) => onSave(event, project)}
+          onDelete={() => onDelete(project)}
+        />
+      ))}
+    </section>
+  );
+}
+
+function ProjectCard({ project, busy, onUpdate, onSave, onDelete }: {
+  project: ProjectDraft;
+  busy: boolean;
+  onUpdate: (project: ProjectDraft) => void;
+  onSave: (event: FormEvent) => void;
+  onDelete: () => void;
+}) {
+  const updateField = <K extends keyof ProjectDraft>(field: K, value: ProjectDraft[K]) => {
+    onUpdate({ ...project, [field]: value });
+  };
+
+  return (
+    <form className="experience-card project-card" onSubmit={onSave}>
+      <div className="experience-card-heading">
+        <div>
+          <span>{project.id ? `${project.provenance} project` : "New project"}</span>
+          <strong>{project.name || "Untitled project"}{project.role ? ` · ${project.role}` : ""}</strong>
+        </div>
+        <button className="danger-button" type="button" disabled={busy} onClick={onDelete}>Delete project</button>
+      </div>
+      <div className="project-fields">
+        <div className="field-grid three">
+          <Field label="Project name" value={project.name} onChange={(value) => updateField("name", value)} placeholder="Release Console" required />
+          <Field label="Your role" value={project.role} onChange={(value) => updateField("role", value)} placeholder="Creator and maintainer" />
+          <label className="checkbox-field eligible-field">
+            <input type="checkbox" checked={project.resumeEligible} onChange={(event) => updateField("resumeEligible", event.target.checked)} />
+            <span>Eligible for resumes</span>
+          </label>
+          <Field label="Start month" type="month" value={project.startDate} onChange={(value) => updateField("startDate", value)} placeholder="YYYY-MM" />
+          <Field label="End month" type="month" value={project.endDate} onChange={(value) => updateField("endDate", value)} placeholder="YYYY-MM" disabled={project.ongoing} />
+          <label className="checkbox-field">
+            <input type="checkbox" checked={project.ongoing} onChange={(event) => updateField("ongoing", event.target.checked)} />
+            <span>Ongoing project</span>
+          </label>
+        </div>
+        <label className="field full">
+          <span>Description</span>
+          <textarea rows={4} maxLength={2400} value={project.description} onChange={(event) => updateField("description", event.target.value)} placeholder="What the project does, who it serves, and why it matters." />
+          <small>{project.description.length}/2400</small>
+        </label>
+        <div className="field-grid two">
+          <Field label="Project URL" type="url" value={project.url} onChange={(value) => updateField("url", value)} placeholder="https://example.com/project" />
+          <Field label="Repository URL" type="url" value={project.repositoryUrl} onChange={(value) => updateField("repositoryUrl", value)} placeholder="https://github.com/owner/repository" />
+        </div>
+        <label className="field full">
+          <span>Technologies and skills</span>
+          <textarea rows={2} value={project.skillsText} onChange={(event) => updateField("skillsText", event.target.value)} placeholder="Go, React, SQLite, Docker" />
+          <small>Separate skills with commas. Duplicates are removed when saved.</small>
+        </label>
+        <div className="review-fields">
+          <label className="field">
+            <span>Project review state</span>
+            <select value={project.verification} onChange={(event) => updateField("verification", event.target.value as ProjectDraft["verification"])}>
+              <option value="unverified">Needs review</option>
+              <option value="verified">Verified</option>
+            </select>
+          </label>
+          <div className="provenance-field"><span>Origin</span><strong>{project.provenance}</strong></div>
+          {!project.resumeEligible && <p>Excluded from resume selection until you mark it eligible.</p>}
+        </div>
+      </div>
+      <EvidenceEditor bullets={project.bullets} emptyLabel="The project can still be saved." onChange={(bullets) => updateField("bullets", bullets)} />
+      <div className="experience-actions">
+        <small>{project.updatedAt ? `Last saved ${new Date(project.updatedAt).toLocaleString()}` : "Not saved yet"}</small>
+        <button className="primary-button" disabled={busy} type="submit">{busy ? "Saving…" : "Save project"}</button>
+      </div>
+    </form>
+  );
+}
+
+function EvidenceEditor({ bullets, emptyLabel, onChange }: {
+  bullets: EvidenceBullet[];
+  emptyLabel: string;
+  onChange: (bullets: EvidenceBullet[]) => void;
+}) {
+  const updateBullet = (index: number, patch: Partial<EvidenceBullet>) => {
+    onChange(bullets.map((bullet, bulletIndex) => bulletIndex === index ? { ...bullet, ...patch } : bullet));
+  };
+  const removeBullet = (index: number) => {
+    onChange(bullets.filter((_, bulletIndex) => bulletIndex !== index));
+  };
+
+  return (
+    <>
       <div className="evidence-heading">
         <div><strong>Evidence bullets</strong><span>Use specific, defensible work and outcomes.</span></div>
-        <button className="text-button" type="button" onClick={() => updateField("bullets", [...experience.bullets, newEvidenceBullet()])}>+ Add bullet</button>
+        <button className="text-button" type="button" onClick={() => onChange([...bullets, newEvidenceBullet()])}>+ Add bullet</button>
       </div>
       <div className="evidence-list">
-        {experience.bullets.length === 0 && <p className="evidence-empty">No evidence bullets. The role can still be saved.</p>}
-        {experience.bullets.map((bullet, index) => (
+        {bullets.length === 0 && <p className="evidence-empty">No evidence bullets. {emptyLabel}</p>}
+        {bullets.map((bullet, index) => (
           <div className="evidence-row" key={bullet.id || `new-bullet-${index}`}>
             <div className="evidence-order" aria-label={`Reorder evidence bullet ${index + 1}`}>
               <span>{index + 1}</span>
-              <button type="button" aria-label="Move bullet up" disabled={index === 0} onClick={() => updateField("bullets", moveItem(experience.bullets, index, index - 1))}>↑</button>
-              <button type="button" aria-label="Move bullet down" disabled={index === experience.bullets.length - 1} onClick={() => updateField("bullets", moveItem(experience.bullets, index, index + 1))}>↓</button>
+              <button type="button" aria-label="Move bullet up" disabled={index === 0} onClick={() => onChange(moveItem(bullets, index, index - 1))}>↑</button>
+              <button type="button" aria-label="Move bullet down" disabled={index === bullets.length - 1} onClick={() => onChange(moveItem(bullets, index, index + 1))}>↓</button>
             </div>
             <div className="evidence-fields">
               <label className="field full">
                 <span>Claim or outcome</span>
-                <textarea rows={3} maxLength={1200} value={bullet.text} onChange={(event) => updateBullet(index, { text: event.target.value })} placeholder="Reduced deployment time by 40% by replacing manual release steps with an audited pipeline." />
+                <textarea rows={3} maxLength={1200} required value={bullet.text} onChange={(event) => updateBullet(index, { text: event.target.value })} placeholder="Reduced deployment time by 40% by replacing manual release steps with an audited pipeline." />
                 <small>{bullet.text.length}/1200</small>
               </label>
               <div className="evidence-metadata">
@@ -475,11 +687,7 @@ function ExperienceCard({ experience, busy, onUpdate, onSave, onDelete }: {
           </div>
         ))}
       </div>
-      <div className="experience-actions">
-        <small>{experience.updatedAt ? `Last saved ${new Date(experience.updatedAt).toLocaleString()}` : "Not saved yet"}</small>
-        <button className="primary-button" disabled={busy} type="submit">{busy ? "Saving…" : "Save experience"}</button>
-      </div>
-    </form>
+    </>
   );
 }
 

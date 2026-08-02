@@ -63,6 +63,48 @@ var migrations = []migration{
 			`CREATE INDEX experience_bullets_order_idx ON experience_bullets(experience_id, position)`,
 		},
 	},
+	{
+		version: 3,
+		statements: []string{
+			`CREATE TABLE projects (
+				id TEXT PRIMARY KEY,
+				name TEXT NOT NULL,
+				role TEXT NOT NULL DEFAULT '',
+				description TEXT NOT NULL DEFAULT '',
+				url TEXT NOT NULL DEFAULT '',
+				repository_url TEXT NOT NULL DEFAULT '',
+				start_date TEXT NOT NULL DEFAULT '',
+				end_date TEXT NOT NULL DEFAULT '',
+				is_ongoing INTEGER NOT NULL DEFAULT 0 CHECK (is_ongoing IN (0, 1)),
+				provenance TEXT NOT NULL CHECK (provenance IN ('manual', 'github', 'imported')),
+				verification_state TEXT NOT NULL CHECK (verification_state IN ('unverified', 'verified')),
+				resume_eligible INTEGER NOT NULL DEFAULT 0 CHECK (resume_eligible IN (0, 1)),
+				position INTEGER NOT NULL,
+				created_at TEXT NOT NULL,
+				updated_at TEXT NOT NULL
+			)`,
+			`CREATE INDEX projects_position_idx ON projects(position, created_at)`,
+			`CREATE TABLE project_skills (
+				project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+				position INTEGER NOT NULL,
+				name TEXT NOT NULL COLLATE NOCASE,
+				PRIMARY KEY (project_id, position),
+				UNIQUE (project_id, name)
+			)`,
+			`CREATE TABLE project_bullets (
+				id TEXT PRIMARY KEY,
+				project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+				text TEXT NOT NULL,
+				provenance TEXT NOT NULL CHECK (provenance IN ('manual', 'github', 'imported')),
+				source_url TEXT NOT NULL DEFAULT '',
+				verification_state TEXT NOT NULL CHECK (verification_state IN ('unverified', 'verified')),
+				position INTEGER NOT NULL,
+				created_at TEXT NOT NULL,
+				updated_at TEXT NOT NULL
+			)`,
+			`CREATE INDEX project_bullets_order_idx ON project_bullets(project_id, position)`,
+		},
+	},
 }
 
 func (s *Store) applyMigrations(ctx context.Context) error {

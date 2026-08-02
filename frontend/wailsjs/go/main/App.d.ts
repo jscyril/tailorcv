@@ -6,10 +6,16 @@ export function AnalyzeJobDescription(arg1:domain.JobAnalysisInput):Promise<doma
 
 export function DeleteExperience(arg1:string):Promise<void>;
 
+export function DeleteProject(arg1:string):Promise<void>;
+
 export function GetProfile():Promise<domain.Profile>;
 
 export function ListExperiences():Promise<Array<domain.Experience>>;
 
+export function ListProjects():Promise<Array<domain.Project>>;
+
 export function SaveExperience(arg1:domain.ExperienceInput):Promise<domain.Experience>;
+
+export function SaveProject(arg1:domain.ProjectInput):Promise<domain.Project>;
 
 export function SaveProfile(arg1:domain.ProfileInput):Promise<domain.Profile>;

@@ -88,6 +88,35 @@ func (a *App) DeleteExperience(id string) error {
 	return a.store.DeleteExperience(a.appContext(), id)
 }
 
+// ListProjects returns manual and imported projects with their review state,
+// skills, and ordered evidence.
+func (a *App) ListProjects() ([]domain.Project, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	return a.store.ListProjects(a.appContext())
+}
+
+// SaveProject validates and atomically persists a project and its evidence.
+func (a *App) SaveProject(input domain.ProjectInput) (domain.Project, error) {
+	if err := a.ready(); err != nil {
+		return domain.Project{}, err
+	}
+	project, err := input.Validate()
+	if err != nil {
+		return domain.Project{}, err
+	}
+	return a.store.SaveProject(a.appContext(), project)
+}
+
+// DeleteProject removes a project and its associated skills and evidence.
+func (a *App) DeleteProject(id string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return a.store.DeleteProject(a.appContext(), id)
+}
+
 // AnalyzeJobDescription performs the deterministic first-stage comparison.
 // Later embedding and LLM providers will enrich this result, not replace it.
 func (a *App) AnalyzeJobDescription(input domain.JobAnalysisInput) (domain.JobAnalysis, error) {
