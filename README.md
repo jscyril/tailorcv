@@ -15,6 +15,7 @@ TailorCV is in its foundation stage. The first vertical slice provides:
 - Education records with validated study dates and live resume-preview rendering.
 - Profile skill management and basic job-description skill matching.
 - A dark split workspace with persistent resume preview, project selection, LaTeX editing, and AI-provider entry points.
+- Versioned JSON backup and atomic restore for all currently supported profile data.
 - Clear service boundaries for GitHub import, resume generation, templates, and PDF compilation.
 
 See [PLAN.md](PLAN.md) for the product architecture and delivery milestones.
@@ -79,6 +80,8 @@ wails build -tags webkit2_41
 ## Local data
 
 The desktop application stores its SQLite database below the current operating system's user configuration directory in a `tailorcv` folder. Development and test databases, generated resumes, credentials, and user PDFs must not be committed.
+
+Use **Backup & restore** in the application sidebar to export a portable JSON snapshot. Imports are fully validated before replacing local data in one transaction. Provider credentials, generated PDFs, compiler caches, and local model data are intentionally excluded.
 
 ## Repository layout
 

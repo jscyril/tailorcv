@@ -4,7 +4,9 @@ import {
   DeleteEducation,
   DeleteExperience,
   DeleteProject,
+  ExportProfileBackup,
   GetProfile,
+  ImportProfileBackup,
   ListEducations,
   ListExperiences,
   ListProjects,
@@ -45,7 +47,7 @@ import {
   profileCompletion,
 } from "./lib/profile";
 
-type View = "overview" | "profile" | "experience" | "projects" | "education" | "skills" | "latex" | "job" | "ai";
+type View = "overview" | "profile" | "experience" | "projects" | "education" | "skills" | "latex" | "job" | "ai" | "data";
 
 type AIProvider = "Ollama" | "Gemini" | "Claude" | "OpenAI";
 
@@ -104,6 +106,8 @@ export default function App() {
   const [experienceBusyKey, setExperienceBusyKey] = useState("");
   const [projectBusyKey, setProjectBusyKey] = useState("");
   const [educationBusyKey, setEducationBusyKey] = useState("");
+  const [backupBusy, setBackupBusy] = useState<"export" | "import" | "">("");
+  const [lastBackupResult, setLastBackupResult] = useState<domain.BackupResult | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [selectedProjectKeys, setSelectedProjectKeys] = useState<string[]>([]);
@@ -114,21 +118,21 @@ export default function App() {
     { role: "assistant", text: "I can tighten bullets, compare evidence to a role, or explain what changed. I will not invent facts." },
   ]);
 
+  const loadWorkspaceData = async () => {
+    const [result, savedExperiences, savedProjects, savedEducations] = await Promise.all([GetProfile(), ListExperiences(), ListProjects(), ListEducations()]);
+    const loaded = { ...emptyProfile, ...result } as Profile;
+    loaded.skills ??= [];
+    setProfile(loaded);
+    setSkillsText(loaded.skills.join(", "));
+    setExperiences((savedExperiences as unknown as Experience[]).map(experienceToDraft));
+    const projectDrafts = (savedProjects as unknown as Project[]).map(projectToDraft);
+    setProjects(projectDrafts);
+    setSelectedProjectKeys(projectDrafts.filter((project) => project.resumeEligible).slice(0, 3).map((project) => project.key));
+    setEducations((savedEducations as unknown as Education[]).map(educationToDraft));
+  };
+
   useEffect(() => {
-    Promise.all([GetProfile(), ListExperiences(), ListProjects(), ListEducations()])
-      .then(([result, savedExperiences, savedProjects, savedEducations]) => {
-        const loaded = { ...emptyProfile, ...result } as Profile;
-        loaded.skills ??= [];
-        setProfile(loaded);
-        setSkillsText(loaded.skills.join(", "));
-        setExperiences((savedExperiences as unknown as Experience[]).map(experienceToDraft));
-        const projectDrafts = (savedProjects as unknown as Project[]).map(projectToDraft);
-        setProjects(projectDrafts);
-        setSelectedProjectKeys(projectDrafts.filter((project) => project.resumeEligible).slice(0, 3).map((project) => project.key));
-        setEducations((savedEducations as unknown as Education[]).map(educationToDraft));
-      })
-      .catch((reason) => setError(errorMessage(reason)))
-      .finally(() => setBusy(false));
+    loadWorkspaceData().catch((reason) => setError(errorMessage(reason))).finally(() => setBusy(false));
   }, []);
 
   const completion = useMemo(() => profileCompletion(profile), [profile]);
@@ -334,6 +338,42 @@ export default function App() {
     setChatDraft("");
   };
 
+  const exportBackup = async () => {
+    setBackupBusy("export");
+    setError("");
+    setMessage("");
+    try {
+      const result = await ExportProfileBackup();
+      if (!result.cancelled) {
+        setLastBackupResult(result);
+        setMessage(`Backup exported to ${result.path}`);
+      }
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setBackupBusy("");
+    }
+  };
+
+  const importBackup = async () => {
+    if (!window.confirm("Restore a TailorCV backup? Your current profile, experience, projects, and education will be replaced after the selected file passes validation.")) return;
+    setBackupBusy("import");
+    setError("");
+    setMessage("");
+    try {
+      const result = await ImportProfileBackup();
+      if (!result.cancelled) {
+        await loadWorkspaceData();
+        setLastBackupResult(result);
+        setMessage(`Backup restored from ${result.path}`);
+      }
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setBackupBusy("");
+    }
+  };
+
   const selectedProjects = projects.filter((project) => selectedProjectKeys.includes(project.key));
 
   return (
@@ -362,6 +402,8 @@ export default function App() {
             <NavButton active={view === "latex"} label="LaTeX source" icon="code" onClick={() => setView("latex")} />
             <NavButton active={view === "job"} label="Job match" icon="target" badge={analysis ? `${analysis.score}%` : undefined} onClick={() => setView("job")} />
             <NavButton active={view === "ai"} label="AI assistant" icon="chat" badge="New" onClick={() => setView("ai")} />
+            <p className="nav-section-label nav-section-spaced">System</p>
+            <NavButton active={view === "data"} label="Backup & restore" icon="database" onClick={() => setView("data")} />
           </nav>
 
           <button className="provider-status" onClick={() => setView("ai")}>
@@ -385,6 +427,7 @@ export default function App() {
             {view === "latex" && <LatexWorkspace source={latexSource} onChange={setLatexSource} />}
             {view === "job" && <JobTailor description={jobDescription} analysis={analysis} busy={busy} hasSkills={profile.skills.length > 0} onDescriptionChange={setJobDescription} onSubmit={analyzeJob} onProfile={() => setView("skills")} />}
             {view === "ai" && <AIWorkspace provider={aiProvider} draft={chatDraft} messages={chatMessages} onProviderChange={setAIProvider} onDraftChange={setChatDraft} onSubmit={sendChatMessage} />}
+            {view === "data" && <DataWorkspace profile={profile} experiences={experiences} projects={projects} educations={educations} busy={backupBusy} lastResult={lastBackupResult} onExport={exportBackup} onImport={importBackup} />}
           </div>
 
           <ResumePreview profile={profile} experiences={experiences} projects={selectedProjects} educations={educations} />
@@ -404,7 +447,7 @@ function NavButton({ active, label, icon, badge, onClick }: { active: boolean; l
   );
 }
 
-type IconName = "home" | "user" | "briefcase" | "folder" | "education" | "sparkles" | "code" | "target" | "chat" | "download" | "refresh" | "check" | "search";
+type IconName = "home" | "user" | "briefcase" | "folder" | "education" | "sparkles" | "code" | "target" | "chat" | "download" | "refresh" | "check" | "search" | "database";
 
 const iconPaths: Record<IconName, React.ReactNode> = {
   home: <><path d="m3 10 9-7 9 7" /><path d="M5 9v11h14V9" /><path d="M9 20v-6h6v6" /></>,
@@ -420,6 +463,7 @@ const iconPaths: Record<IconName, React.ReactNode> = {
   refresh: <><path d="M20 7V3h-4M4 17v4h4" /><path d="M19 10a7 7 0 0 0-12-4L4 9M5 14a7 7 0 0 0 12 4l3-3" /></>,
   check: <path d="m5 12 4 4L19 6" />,
   search: <><circle cx="10" cy="10" r="6" /><path d="m15 15 5 5" /></>,
+  database: <><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" /></>,
 };
 
 function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
@@ -512,6 +556,11 @@ function LatexWorkspace({ source, onChange }: { source: string; onChange: (value
 function AIWorkspace({ provider, draft, messages, onProviderChange, onDraftChange, onSubmit }: { provider: AIProvider; draft: string; messages: ChatMessage[]; onProviderChange: (provider: AIProvider) => void; onDraftChange: (value: string) => void; onSubmit: (event: FormEvent) => void }) {
   const providers: AIProvider[] = ["Ollama", "Gemini", "Claude", "OpenAI"];
   return <section className="workspace-panel ai-workspace"><PanelHeader eyebrow="Evidence-aware assistant" title="AI assistant" description="Use local or cloud models without letting them invent facts." /><div className="provider-picker">{providers.map((item) => <button key={item} className={provider === item ? "active" : ""} onClick={() => onProviderChange(item)}><span className="provider-logo">{item.slice(0, 2).toUpperCase()}</span><span><strong>{item}</strong><small>{item === "Ollama" ? "Local · private" : "Cloud · setup required"}</small></span>{provider === item && <Icon name="check" size={15} />}</button>)}</div><div className="chat-thread">{messages.map((item, index) => <div className={`chat-message ${item.role}`} key={`${item.role}-${index}`}><span>{item.role === "assistant" ? "AI" : "You"}</span><p>{item.text}</p></div>)}</div><form className="chat-composer" onSubmit={onSubmit}><textarea rows={3} value={draft} onChange={(event) => onDraftChange(event.target.value)} placeholder="Ask for a tighter bullet or compare selected evidence…" /><div><small>Only selected evidence will be shared.</small><button className="primary-button" type="submit">Send</button></div></form></section>;
+}
+
+function DataWorkspace({ profile, experiences, projects, educations, busy, lastResult, onExport, onImport }: { profile: Profile; experiences: ExperienceDraft[]; projects: ProjectDraft[]; educations: EducationDraft[]; busy: "export" | "import" | ""; lastResult: domain.BackupResult | null; onExport: () => void; onImport: () => void }) {
+  const evidenceCount = experiences.reduce((sum, experience) => sum + experience.bullets.length, 0) + projects.reduce((sum, project) => sum + project.bullets.length, 0);
+  return <section className="workspace-panel scroll-panel data-workspace"><PanelHeader eyebrow="Local data" title="Backup & restore" description="Keep a portable, versioned copy of your complete TailorCV profile." /><div className="backup-content"><section className="backup-summary"><header><span className="empty-icon"><Icon name="database" size={22} /></span><div><h2>Current local profile</h2><p>Everything listed here is included in one JSON backup.</p></div></header><div className="backup-stat-grid"><div><strong>{profile.name ? "1" : "0"}</strong><span>profile</span></div><div><strong>{experiences.length}</strong><span>roles</span></div><div><strong>{projects.length}</strong><span>projects</span></div><div><strong>{educations.length}</strong><span>education</span></div><div><strong>{profile.skills.length}</strong><span>skills</span></div><div><strong>{evidenceCount}</strong><span>evidence</span></div></div></section><section className="backup-action-card"><div><span className="backup-action-icon"><Icon name="download" size={20} /></span><h2>Export backup</h2><p>Write an owner-readable JSON snapshot using a native save dialog. IDs, ordering, verification state, and timestamps are preserved.</p></div><button className="primary-button" disabled={busy !== ""} onClick={onExport}>{busy === "export" ? "Exporting…" : "Choose destination"}</button></section><section className="backup-action-card restore"><div><span className="backup-action-icon"><Icon name="refresh" size={20} /></span><h2>Restore backup</h2><p>The entire file is validated before a single transaction replaces current data. Invalid or unsupported backups leave this profile untouched.</p></div><button className="secondary-button" disabled={busy !== ""} onClick={onImport}>{busy === "import" ? "Restoring…" : "Choose backup"}</button></section>{lastResult && <section className="backup-result"><span className="status-dot" /><div><strong>Last operation completed</strong><p>{lastResult.experienceCount} roles · {lastResult.projectCount} projects · {lastResult.educationCount} education records</p><small>{lastResult.path}</small></div></section>}<div className="backup-safety"><strong>Backup format v1</strong><p>Backups never include provider credentials, generated PDFs, compiler caches, or local model data.</p></div></div></section>;
 }
 
 function ResumePreview({ profile, experiences, projects, educations }: { profile: Profile; experiences: ExperienceDraft[]; projects: ProjectDraft[]; educations: EducationDraft[] }) {

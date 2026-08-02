@@ -10,7 +10,11 @@ export function DeleteEducation(arg1:string):Promise<void>;
 
 export function DeleteProject(arg1:string):Promise<void>;
 
+export function ExportProfileBackup():Promise<domain.BackupResult>;
+
 export function GetProfile():Promise<domain.Profile>;
+
+export function ImportProfileBackup():Promise<domain.BackupResult>;
 
 export function ListExperiences():Promise<Array<domain.Experience>>;
 

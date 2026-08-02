@@ -2,10 +2,15 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"path/filepath"
+	"strings"
 
+	backupfile "github.com/jscyril/tailorcv/internal/backup"
 	"github.com/jscyril/tailorcv/internal/domain"
 	"github.com/jscyril/tailorcv/internal/storage"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App is the Wails-facing application service. Domain and persistence details
@@ -144,6 +149,74 @@ func (a *App) DeleteProject(id string) error {
 		return err
 	}
 	return a.store.DeleteProject(a.appContext(), id)
+}
+
+// ExportProfileBackup writes a versioned snapshot of all currently supported
+// career-profile data to a user-selected JSON file.
+func (a *App) ExportProfileBackup() (domain.BackupResult, error) {
+	if err := a.ready(); err != nil {
+		return domain.BackupResult{}, err
+	}
+	backup, err := a.store.CreateProfileBackup(a.appContext())
+	if err != nil {
+		return domain.BackupResult{}, err
+	}
+	path, err := runtime.SaveFileDialog(a.appContext(), runtime.SaveDialogOptions{
+		Title:           "Export TailorCV profile backup",
+		DefaultFilename: "tailorcv-profile-backup.json",
+		Filters:         []runtime.FileFilter{{DisplayName: "JSON backup (*.json)", Pattern: "*.json"}},
+	})
+	if err != nil {
+		return domain.BackupResult{}, fmt.Errorf("choose backup destination: %w", err)
+	}
+	if path == "" {
+		return domain.BackupResult{Cancelled: true}, nil
+	}
+	if !strings.EqualFold(filepath.Ext(path), ".json") {
+		path += ".json"
+	}
+	data, err := json.MarshalIndent(backup, "", "  ")
+	if err != nil {
+		return domain.BackupResult{}, fmt.Errorf("encode backup: %w", err)
+	}
+	data = append(data, '\n')
+	if err := backupfile.Write(path, data); err != nil {
+		return domain.BackupResult{}, err
+	}
+	return backup.Result(path), nil
+}
+
+// ImportProfileBackup validates a user-selected backup completely before
+// replacing profile data in one database transaction.
+func (a *App) ImportProfileBackup() (domain.BackupResult, error) {
+	if err := a.ready(); err != nil {
+		return domain.BackupResult{}, err
+	}
+	path, err := runtime.OpenFileDialog(a.appContext(), runtime.OpenDialogOptions{
+		Title:   "Restore TailorCV profile backup",
+		Filters: []runtime.FileFilter{{DisplayName: "JSON backup (*.json)", Pattern: "*.json"}},
+	})
+	if err != nil {
+		return domain.BackupResult{}, fmt.Errorf("choose backup file: %w", err)
+	}
+	if path == "" {
+		return domain.BackupResult{Cancelled: true}, nil
+	}
+	if !strings.EqualFold(filepath.Ext(path), ".json") {
+		return domain.BackupResult{}, fmt.Errorf("backup file must use the .json extension")
+	}
+	data, err := backupfile.Read(path)
+	if err != nil {
+		return domain.BackupResult{}, err
+	}
+	backup, err := domain.DecodeProfileBackup(data)
+	if err != nil {
+		return domain.BackupResult{}, err
+	}
+	if err := a.store.ReplaceProfileFromBackup(a.appContext(), backup); err != nil {
+		return domain.BackupResult{}, err
+	}
+	return backup.Result(path), nil
 }
 
 // AnalyzeJobDescription performs the deterministic first-stage comparison.

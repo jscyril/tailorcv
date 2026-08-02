@@ -1,4 +1,24 @@
 export namespace domain {
+	export class BackupResult {
+	    path: string;
+	    cancelled: boolean;
+	    experienceCount: number;
+	    projectCount: number;
+	    educationCount: number;
+
+	    static createFrom(source: any = {}) {
+	        return new BackupResult(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.cancelled = source["cancelled"];
+	        this.experienceCount = source["experienceCount"];
+	        this.projectCount = source["projectCount"];
+	        this.educationCount = source["educationCount"];
+	    }
+	}
 	export class Education {
 	    id: string;
 	    institution: string;

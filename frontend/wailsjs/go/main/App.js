@@ -18,8 +18,16 @@ export function DeleteProject(arg1) {
   return window['go']['main']['App']['DeleteProject'](arg1);
 }
 
+export function ExportProfileBackup() {
+  return window['go']['main']['App']['ExportProfileBackup']();
+}
+
 export function GetProfile() {
   return window['go']['main']['App']['GetProfile']();
+}
+
+export function ImportProfileBackup() {
+  return window['go']['main']['App']['ImportProfileBackup']();
 }
 
 export function ListExperiences() {

@@ -1,0 +1,185 @@
+package domain
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"time"
+)
+
+const ProfileBackupSchemaVersion = 1
+
+type ProfileBackup struct {
+	SchemaVersion int          `json:"schemaVersion"`
+	ExportedAt    string       `json:"exportedAt"`
+	Profile       Profile      `json:"profile"`
+	Experiences   []Experience `json:"experiences"`
+	Projects      []Project    `json:"projects"`
+	Educations    []Education  `json:"educations"`
+}
+
+type BackupResult struct {
+	Path            string `json:"path"`
+	Cancelled       bool   `json:"cancelled"`
+	ExperienceCount int    `json:"experienceCount"`
+	ProjectCount    int    `json:"projectCount"`
+	EducationCount  int    `json:"educationCount"`
+}
+
+func DecodeProfileBackup(data []byte) (ProfileBackup, error) {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	var backup ProfileBackup
+	if err := decoder.Decode(&backup); err != nil {
+		return ProfileBackup{}, fmt.Errorf("decode backup: %w", err)
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		if err == nil {
+			return ProfileBackup{}, fmt.Errorf("decode backup: multiple JSON values are not allowed")
+		}
+		return ProfileBackup{}, fmt.Errorf("decode backup: %w", err)
+	}
+	return backup.Validate()
+}
+
+func (backup ProfileBackup) Validate() (ProfileBackup, error) {
+	if backup.SchemaVersion != ProfileBackupSchemaVersion {
+		return ProfileBackup{}, fmt.Errorf("backup schema version %d is not supported", backup.SchemaVersion)
+	}
+	if _, err := time.Parse(time.RFC3339, backup.ExportedAt); err != nil {
+		return ProfileBackup{}, fmt.Errorf("backup export time is not valid")
+	}
+
+	profile, err := (ProfileInput{
+		Name:           backup.Profile.Name,
+		Headline:       backup.Profile.Headline,
+		Email:          backup.Profile.Email,
+		Phone:          backup.Profile.Phone,
+		Location:       backup.Profile.Location,
+		Website:        backup.Profile.Website,
+		GitHubUsername: backup.Profile.GitHubUsername,
+		LinkedInURL:    backup.Profile.LinkedInURL,
+		Summary:        backup.Profile.Summary,
+		Skills:         backup.Profile.Skills,
+	}).Validate()
+	if err != nil {
+		return ProfileBackup{}, fmt.Errorf("profile: %w", err)
+	}
+	profile.UpdatedAt = backup.Profile.UpdatedAt
+	if err := validateBackupTimestamp("profile update time", profile.UpdatedAt, false); err != nil {
+		return ProfileBackup{}, err
+	}
+	backup.Profile = profile
+
+	experiences := make([]Experience, 0, len(backup.Experiences))
+	for index, source := range backup.Experiences {
+		if source.Position < 0 {
+			return ProfileBackup{}, fmt.Errorf("experience %d: position cannot be negative", index+1)
+		}
+		if err := validateBackupTimestamp(fmt.Sprintf("experience %d creation time", index+1), source.CreatedAt, true); err != nil {
+			return ProfileBackup{}, err
+		}
+		if err := validateBackupTimestamp(fmt.Sprintf("experience %d update time", index+1), source.UpdatedAt, true); err != nil {
+			return ProfileBackup{}, err
+		}
+		bulletInputs := make([]EvidenceBulletInput, len(source.Bullets))
+		for bulletIndex, bullet := range source.Bullets {
+			if bullet.Position < 0 {
+				return ProfileBackup{}, fmt.Errorf("experience %d evidence %d: position cannot be negative", index+1, bulletIndex+1)
+			}
+			if err := validateBackupTimestamp(fmt.Sprintf("experience %d evidence %d creation time", index+1, bulletIndex+1), bullet.CreatedAt, true); err != nil {
+				return ProfileBackup{}, err
+			}
+			if err := validateBackupTimestamp(fmt.Sprintf("experience %d evidence %d update time", index+1, bulletIndex+1), bullet.UpdatedAt, true); err != nil {
+				return ProfileBackup{}, err
+			}
+			bulletInputs[bulletIndex] = EvidenceBulletInput{ID: bullet.ID, Text: bullet.Text, Provenance: bullet.Provenance, SourceURL: bullet.SourceURL, Verification: bullet.Verification}
+		}
+		validated, err := (ExperienceInput{ID: source.ID, Company: source.Company, Title: source.Title, Location: source.Location, StartDate: source.StartDate, EndDate: source.EndDate, Current: source.Current, Bullets: bulletInputs}).Validate()
+		if err != nil {
+			return ProfileBackup{}, fmt.Errorf("experience %d: %w", index+1, err)
+		}
+		validated.Position, validated.CreatedAt, validated.UpdatedAt = source.Position, source.CreatedAt, source.UpdatedAt
+		for bulletIndex := range validated.Bullets {
+			validated.Bullets[bulletIndex].Position = source.Bullets[bulletIndex].Position
+			validated.Bullets[bulletIndex].CreatedAt = source.Bullets[bulletIndex].CreatedAt
+			validated.Bullets[bulletIndex].UpdatedAt = source.Bullets[bulletIndex].UpdatedAt
+		}
+		experiences = append(experiences, validated)
+	}
+	backup.Experiences = experiences
+
+	projects := make([]Project, 0, len(backup.Projects))
+	for index, source := range backup.Projects {
+		if source.Position < 0 {
+			return ProfileBackup{}, fmt.Errorf("project %d: position cannot be negative", index+1)
+		}
+		if err := validateBackupTimestamp(fmt.Sprintf("project %d creation time", index+1), source.CreatedAt, true); err != nil {
+			return ProfileBackup{}, err
+		}
+		if err := validateBackupTimestamp(fmt.Sprintf("project %d update time", index+1), source.UpdatedAt, true); err != nil {
+			return ProfileBackup{}, err
+		}
+		bulletInputs := make([]EvidenceBulletInput, len(source.Bullets))
+		for bulletIndex, bullet := range source.Bullets {
+			if bullet.Position < 0 {
+				return ProfileBackup{}, fmt.Errorf("project %d evidence %d: position cannot be negative", index+1, bulletIndex+1)
+			}
+			if err := validateBackupTimestamp(fmt.Sprintf("project %d evidence %d creation time", index+1, bulletIndex+1), bullet.CreatedAt, true); err != nil {
+				return ProfileBackup{}, err
+			}
+			if err := validateBackupTimestamp(fmt.Sprintf("project %d evidence %d update time", index+1, bulletIndex+1), bullet.UpdatedAt, true); err != nil {
+				return ProfileBackup{}, err
+			}
+			bulletInputs[bulletIndex] = EvidenceBulletInput{ID: bullet.ID, Text: bullet.Text, Provenance: bullet.Provenance, SourceURL: bullet.SourceURL, Verification: bullet.Verification}
+		}
+		validated, err := (ProjectInput{ID: source.ID, Name: source.Name, Role: source.Role, Description: source.Description, URL: source.URL, RepositoryURL: source.RepositoryURL, StartDate: source.StartDate, EndDate: source.EndDate, Ongoing: source.Ongoing, Provenance: source.Provenance, Verification: source.Verification, ResumeEligible: source.ResumeEligible, Skills: source.Skills, Bullets: bulletInputs}).Validate()
+		if err != nil {
+			return ProfileBackup{}, fmt.Errorf("project %d: %w", index+1, err)
+		}
+		validated.Position, validated.CreatedAt, validated.UpdatedAt = source.Position, source.CreatedAt, source.UpdatedAt
+		for bulletIndex := range validated.Bullets {
+			validated.Bullets[bulletIndex].Position = source.Bullets[bulletIndex].Position
+			validated.Bullets[bulletIndex].CreatedAt = source.Bullets[bulletIndex].CreatedAt
+			validated.Bullets[bulletIndex].UpdatedAt = source.Bullets[bulletIndex].UpdatedAt
+		}
+		projects = append(projects, validated)
+	}
+	backup.Projects = projects
+
+	educations := make([]Education, 0, len(backup.Educations))
+	for index, source := range backup.Educations {
+		if source.Position < 0 {
+			return ProfileBackup{}, fmt.Errorf("education %d: position cannot be negative", index+1)
+		}
+		if err := validateBackupTimestamp(fmt.Sprintf("education %d creation time", index+1), source.CreatedAt, true); err != nil {
+			return ProfileBackup{}, err
+		}
+		if err := validateBackupTimestamp(fmt.Sprintf("education %d update time", index+1), source.UpdatedAt, true); err != nil {
+			return ProfileBackup{}, err
+		}
+		validated, err := (EducationInput{ID: source.ID, Institution: source.Institution, Degree: source.Degree, FieldOfStudy: source.FieldOfStudy, Location: source.Location, StartDate: source.StartDate, EndDate: source.EndDate, Current: source.Current, Details: source.Details}).Validate()
+		if err != nil {
+			return ProfileBackup{}, fmt.Errorf("education %d: %w", index+1, err)
+		}
+		validated.Position, validated.CreatedAt, validated.UpdatedAt = source.Position, source.CreatedAt, source.UpdatedAt
+		educations = append(educations, validated)
+	}
+	backup.Educations = educations
+	return backup, nil
+}
+
+func validateBackupTimestamp(field, value string, required bool) error {
+	if value == "" && !required {
+		return nil
+	}
+	if _, err := time.Parse(time.RFC3339, value); err != nil {
+		return fmt.Errorf("%s is not valid", field)
+	}
+	return nil
+}
+
+func (backup ProfileBackup) Result(path string) BackupResult {
+	return BackupResult{Path: path, ExperienceCount: len(backup.Experiences), ProjectCount: len(backup.Projects), EducationCount: len(backup.Educations)}
+}
