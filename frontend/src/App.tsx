@@ -37,6 +37,7 @@ import {
 import {
   Project,
   ProjectDraft,
+  filterProjects,
   newProjectDraft,
   projectToDraft,
   reconcileSelectedProjectKeys,
@@ -411,11 +412,7 @@ export default function App() {
   return (
     <div className="studio-shell">
       {showOnboarding && <Onboarding profile={profile} skillsText={skillsText} busy={busy} onChange={updateProfile} onSkillsChange={setSkillsText} onSubmit={saveProfile} onSkip={() => setOnboardingDismissed(true)} />}
-      <TopToolbar
-        profile={profile}
-        onCompile={() => setMessage("Compile tooling will be connected in the templates milestone.")}
-        onExport={() => setMessage("PDF export becomes available after the first successful compile.")}
-      />
+      <TopToolbar profile={profile} />
 
       <div className="studio-body">
         <aside className="studio-sidebar">
@@ -434,14 +431,14 @@ export default function App() {
             <p className="nav-section-label nav-section-spaced">Tailor</p>
             <NavButton active={view === "latex"} label="LaTeX source" icon="code" onClick={() => setView("latex")} />
             <NavButton active={view === "job"} label="Job match" icon="target" badge={analysis ? `${analysis.score}%` : undefined} onClick={() => setView("job")} />
-            <NavButton active={view === "ai"} label="AI assistant" icon="chat" badge="New" onClick={() => setView("ai")} />
+            <NavButton active={view === "ai"} label="AI assistant" icon="chat" badge="Setup" onClick={() => setView("ai")} />
             <p className="nav-section-label nav-section-spaced">System</p>
             <NavButton active={view === "data"} label="Backup & restore" icon="database" onClick={() => setView("data")} />
           </nav>
 
           <button className="provider-status" onClick={() => setView("ai")}>
-            <span className="status-dot" />
-            <span><strong>Local AI ready</strong><small>{aiProvider} · provider setup</small></span>
+            <span className="status-dot muted" />
+            <span><strong>AI provider</strong><small>{aiProvider} · not connected</small></span>
             <span aria-hidden="true">›</span>
           </button>
         </aside>
@@ -503,15 +500,15 @@ function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
   return <svg className="icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{iconPaths[name]}</svg>;
 }
 
-function TopToolbar({ profile, onCompile, onExport }: { profile: Profile; onCompile: () => void; onExport: () => void }) {
+function TopToolbar({ profile }: { profile: Profile }) {
   return <header className="top-toolbar">
     <div className="toolbar-brand"><span className="brand-mark">T</span><strong>TailorCV</strong></div>
     <span className="toolbar-divider" />
-    <div className="document-title"><strong>{profile.headline || "Backend Engineer Resume"}</strong><small>resume.tex · saved locally</small></div>
+    <div className="document-title"><strong>{profile.headline || "Backend Engineer Resume"}</strong><small>Layout draft · profile saved locally</small></div>
     <div className="toolbar-spacer" />
-    <div className="ats-pill"><span className="status-dot" /> ATS ready</div>
-    <button className="toolbar-button" onClick={onCompile}><Icon name="refresh" size={16} />Compile</button>
-    <button className="export-button" onClick={onExport}><Icon name="download" size={16} />Export PDF</button>
+    <div className="ats-pill"><span className="status-dot muted" /> Draft preview</div>
+    <button className="toolbar-button" disabled title="LaTeX compilation is not connected yet"><Icon name="refresh" size={16} />Compile</button>
+    <button className="export-button" disabled title="PDF export is available after compilation is implemented"><Icon name="download" size={16} />Export PDF</button>
     <button className="icon-button" aria-label="More document options">•••</button>
   </header>;
 }
@@ -554,20 +551,21 @@ function FormBlock({ title, description, children }: { title: string; descriptio
 
 function ProjectWorkspace({ projects, selectedKeys, busyKey, githubUsername, githubBusy, onToggle, onAdd, onUpdate, onSave, onDelete, onSyncGitHub, onOpenProfile }: { projects: ProjectDraft[]; selectedKeys: string[]; busyKey: string; githubUsername: string; githubBusy: boolean; onToggle: (key: string) => void; onAdd: () => void; onUpdate: (key: string, project: ProjectDraft) => void; onSave: (event: FormEvent, project: ProjectDraft) => void; onDelete: (project: ProjectDraft) => void; onSyncGitHub: () => void; onOpenProfile: () => void }) {
   const [tab, setTab] = useState<"select" | "manage">("select");
+  const [query, setQuery] = useState("");
+  const filteredProjects = filterProjects(projects, query);
   return <section className="workspace-panel scroll-panel">
     <PanelHeader eyebrow="Selected work" title="Projects" description="Choose the strongest evidence for this resume." action={<div className="panel-actions"><button className="secondary-button" onClick={githubUsername ? onSyncGitHub : onOpenProfile} disabled={githubBusy}>{githubBusy ? "Syncing…" : githubUsername ? "Sync GitHub" : "Connect GitHub"}</button><button className="secondary-button" onClick={() => { onAdd(); setTab("manage"); }}>Add project</button></div>} />
     <div className="panel-tabs"><button className={tab === "select" ? "active" : ""} onClick={() => setTab("select")}>Select for resume <span>{selectedKeys.length}</span></button><button className={tab === "manage" ? "active" : ""} onClick={() => setTab("manage")}>Manage evidence</button></div>
     {tab === "select" ? <div className="project-selector">
       <div className="github-sync-note"><span className="github-mark">GH</span><div><strong>{githubUsername ? `github.com/${githubUsername}` : "Connect your GitHub profile"}</strong><p>{githubUsername ? "Public, owned repositories sync into Manage evidence for review." : "Add a username in Profile to import your public repositories."}</p></div><button onClick={githubUsername ? onSyncGitHub : onOpenProfile} disabled={githubBusy}>{githubBusy ? "Syncing…" : githubUsername ? "Refresh" : "Open profile"}</button></div>
-      <label className="search-field"><Icon name="search" size={16} /><input aria-label="Search projects" placeholder="Search projects or technologies" /></label>
+      <label className="search-field"><Icon name="search" size={16} /><input aria-label="Search projects" placeholder="Search projects, roles, or skills" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
       <div className="selection-note"><span className="status-dot" /><div><strong>{selectedKeys.length} projects selected</strong><p>The preview updates as you select evidence.</p></div></div>
-      {projects.length === 0 ? <div className="panel-empty"><span className="empty-icon"><Icon name="folder" size={22} /></span><strong>No projects yet</strong><p>Add a project with evidence bullets, technologies, and a review state.</p><button className="primary-button" onClick={() => { onAdd(); setTab("manage"); }}>Add first project</button></div> : projects.map((project, index) => {
+      {projects.length === 0 ? <div className="panel-empty"><span className="empty-icon"><Icon name="folder" size={22} /></span><strong>No projects yet</strong><p>Add a project with evidence bullets, technologies, and a review state.</p><button className="primary-button" onClick={() => { onAdd(); setTab("manage"); }}>Add first project</button></div> : filteredProjects.length === 0 ? <div className="panel-empty search-empty"><span className="empty-icon"><Icon name="search" size={22} /></span><strong>No matching projects</strong><p>Try a project name, role, description, or technology.</p><button className="text-button" onClick={() => setQuery("")}>Clear search</button></div> : filteredProjects.map((project) => {
         const selected = selectedKeys.includes(project.key);
         const selectable = project.resumeEligible;
-        const score = Math.max(67, 94 - index * 7);
         return <article className={`project-select-card ${selected ? "selected" : ""} ${!selectable ? "locked" : ""}`} key={project.key}>
           <button className="project-check" disabled={!selectable} aria-label={selectable ? `${selected ? "Remove" : "Add"} ${project.name || "project"} ${selected ? "from" : "to"} resume` : `${project.name || "Project"} must be reviewed before selection`} onClick={() => onToggle(project.key)}>{selected && <Icon name="check" size={14} />}</button>
-          <div className="project-card-copy"><div className="project-title-row"><strong>{project.name || "Untitled project"}</strong><span>{selectable ? `${score}% match` : "Review required"}</span></div><p>{project.description || "Add a concise description of the problem, your contribution, and the outcome."}</p><div className="tag-row">{project.skills.slice(0, 4).map((skill) => <span key={skill}>{skill}</span>)}{project.skills.length === 0 && <span>Skills not added</span>}</div><small>{project.verification === "verified" ? "Verified evidence" : "Needs review"} · {project.bullets.length} bullets</small></div>
+          <div className="project-card-copy"><div className="project-title-row"><strong>{project.name || "Untitled project"}</strong><span>{selectable ? selected ? "Selected" : "Available" : "Review required"}</span></div><p>{project.description || "Add a concise description of the problem, your contribution, and the outcome."}</p><div className="tag-row">{project.skills.slice(0, 4).map((skill) => <span key={skill}>{skill}</span>)}{project.skills.length === 0 && <span>Skills not added</span>}</div><small>{project.verification === "verified" ? "Verified evidence" : "Needs review"} · {project.bullets.length} bullets</small></div>
         </article>;
       })}
     </div> : <ProjectSection projects={projects} busyKey={busyKey} onAdd={onAdd} onUpdate={onUpdate} onSave={onSave} onDelete={onDelete} />}
@@ -589,7 +587,7 @@ function SkillsWorkspace({ skillsText, busy, message, onChange, onSubmit }: { sk
 }
 
 function LatexWorkspace({ source, onChange }: { source: string; onChange: (value: string) => void }) {
-  return <section className="workspace-panel latex-workspace"><PanelHeader eyebrow="Source editor" title="LaTeX" description="Edit the trusted template directly. Compilation remains sandboxed." /><div className="editor-tabs"><button className="active">resume.tex</button><button>template.cls</button><span>Plain text mode</span></div><div className="code-editor"><div className="line-numbers">{source.split("\n").map((_, index) => <span key={index}>{index + 1}</span>)}</div><textarea spellCheck={false} value={source} onChange={(event) => onChange(event.target.value)} aria-label="LaTeX source" /></div><footer className="editor-status"><span>UTF-8</span><span>LaTeX</span><span>{source.split("\n").length} lines</span></footer></section>;
+  return <section className="workspace-panel latex-workspace"><PanelHeader eyebrow="Source editor" title="LaTeX" description="Edit the draft template directly. Compilation is not connected yet." /><div className="editor-tabs"><button className="active">resume.tex</button><button disabled title="Custom template files are not implemented yet">template.cls</button><span>Draft · unsaved</span></div><div className="code-editor"><div className="line-numbers">{source.split("\n").map((_, index) => <span key={index}>{index + 1}</span>)}</div><textarea spellCheck={false} value={source} onChange={(event) => onChange(event.target.value)} aria-label="LaTeX source" /></div><footer className="editor-status"><span>UTF-8</span><span>LaTeX draft</span><span>{source.split("\n").length} lines</span></footer></section>;
 }
 
 function AIWorkspace({ provider, draft, messages, onProviderChange, onDraftChange, onSubmit }: { provider: AIProvider; draft: string; messages: ChatMessage[]; onProviderChange: (provider: AIProvider) => void; onDraftChange: (value: string) => void; onSubmit: (event: FormEvent) => void }) {
@@ -605,7 +603,7 @@ function DataWorkspace({ profile, experiences, projects, educations, busy, lastR
 function ResumePreview({ profile, experiences, projects, educations }: { profile: Profile; experiences: ExperienceDraft[]; projects: ProjectDraft[]; educations: EducationDraft[] }) {
   const visibleExperiences = experiences.slice(0, 2);
   const visibleProjects = projects.slice(0, 3);
-  return <aside className="preview-pane"><header className="preview-toolbar"><div><strong>Resume preview</strong><small>ATS · one page</small></div><div className="preview-controls"><button aria-label="Zoom out">−</button><span>92%</span><button aria-label="Zoom in">+</button><i /><span>1 / 1</span></div></header><div className="preview-stage"><article className="resume-paper">
+  return <aside className="preview-pane"><header className="preview-toolbar"><div><strong>Layout preview</strong><small>Draft · not compiled</small></div><div className="preview-controls"><button aria-label="Zoom out" disabled>−</button><span>Fit</span><button aria-label="Zoom in" disabled>+</button><i /><span>1 page</span></div></header><div className="preview-stage"><article className="resume-paper">
     <header className="resume-header"><h1>{profile.name || "Your Name"}</h1><p>{profile.headline || "Backend Engineer"}</p><small>{[profile.email || "your@email.com", profile.phone, profile.location, profile.website].filter(Boolean).join("  ·  ")}</small></header>
     {profile.summary && <ResumeSection title="Summary"><p className="resume-summary">{profile.summary}</p></ResumeSection>}
     <ResumeSection title="Experience">{visibleExperiences.length ? visibleExperiences.map((experience) => <div className="resume-entry" key={experience.key}><div><strong>{experience.title || "Role"} · {experience.company || "Company"}</strong><span>{experience.startDate} — {experience.current ? "Present" : experience.endDate}</span></div>{experience.location && <em>{experience.location}</em>}<ul>{experience.bullets.slice(0, 3).map((bullet, index) => <li key={bullet.id || index}>{bullet.text}</li>)}</ul></div>) : <ResumePlaceholder text="Add experience and evidence bullets" />}</ResumeSection>

@@ -19,6 +19,10 @@
   --danger: #e16b61;
   --paper: #fff;
   --paper-ink: #141714;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 14px;
+  --text-lg: 16px;
 }
 
 * { box-sizing: border-box; }
@@ -40,6 +44,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .toolbar-spacer { flex: 1; }
 .ats-pill { display: flex; align-items: center; gap: 7px; height: 28px; padding: 0 10px; border-radius: 999px; background: var(--elevated); color: var(--secondary); font-size: 10px; font-weight: 700; }
 .status-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px #c8e86b16; }
+.status-dot.muted { background: var(--muted); box-shadow: none; }
 .toolbar-button, .export-button, .icon-button { height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border-radius: 8px; font-size: 11px; font-weight: 700; }
 .toolbar-button, .icon-button { border: 1px solid var(--line); background: var(--elevated); color: var(--secondary); }
 .toolbar-button { padding: 0 14px; }
@@ -370,6 +375,139 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .notice.error { border-color: #e16b6166; background: #2c1715; }
 .notice.success { border-color: #c8e86b44; }
 .notice button { border: 0; background: transparent; color: var(--secondary); font-size: 15px; }
+
+/* Keep the application comfortably readable; the simulated paper retains its print scale. */
+.document-title strong { font-size: var(--text-md); }
+.document-title small,
+.ats-pill { font-size: var(--text-xs); }
+.toolbar-button,
+.export-button,
+.icon-button { font-size: var(--text-sm); }
+
+.onboarding-card > aside > p:last-of-type { font-size: var(--text-sm); }
+.onboarding-promise strong,
+.onboarding-card > form > header p { font-size: var(--text-sm); }
+.onboarding-promise small,
+.onboarding-card > form > header small { font-size: var(--text-xs); }
+.onboarding-card > form > header span { font-size: 10px; }
+
+.sidebar-intro span,
+.nav-section-label,
+.eyebrow { font-size: var(--text-xs); }
+.sidebar-intro p,
+.provider-status small { font-size: var(--text-xs); }
+.nav-button-label,
+.provider-status strong { font-size: var(--text-sm); }
+.nav-badge { font-size: 10px; }
+
+.panel-header h1,
+.editor-pane .page-header h1 { font-size: 25px; }
+.panel-header > div > p:last-child,
+.editor-pane .page-header p:not(.eyebrow) { font-size: var(--text-sm); }
+.primary-button,
+.secondary-button,
+.text-button { font-size: var(--text-sm); }
+
+.metric-card > span,
+.metric-card small,
+.metric-card button,
+.form-block > header p,
+.field small,
+.sticky-form-actions > span { font-size: var(--text-xs); }
+.overview-callout div > p:last-child,
+.form-block > header h2,
+.field > span,
+.provenance-field > span,
+.prefixed-input em { font-size: var(--text-sm); }
+.field input,
+.field textarea,
+.field select,
+.job-card textarea,
+.chat-composer textarea,
+.search-field input { font-size: var(--text-md); }
+.field input,
+.field select,
+.prefixed-input { height: 40px; }
+.prefixed-input input { height: 38px; }
+
+.panel-tabs button,
+.editor-tabs button,
+.github-sync-note strong,
+.github-sync-note button,
+.selection-note strong { font-size: var(--text-sm); }
+.panel-tabs button span,
+.github-sync-note p,
+.selection-note p { font-size: var(--text-xs); }
+.github-mark { font-size: 10px; }
+.project-title-row strong { font-size: var(--text-md); }
+.project-title-row span,
+.project-card-copy > small { font-size: var(--text-xs); }
+.project-card-copy > p,
+.tag-row span,
+.skill-chip-grid > span { font-size: var(--text-sm); }
+.panel-empty strong { font-size: var(--text-md); }
+.panel-empty p { font-size: var(--text-sm); }
+.search-empty { padding-block: 34px; }
+
+.education-card > header span,
+.experience-card-heading span { font-size: 10px; }
+.education-card > header strong,
+.experience-card-heading strong { font-size: var(--text-md); }
+.education-card > footer small,
+.experience-heading p:not(.eyebrow),
+.experience-actions small { font-size: var(--text-xs); }
+.experience-empty strong { font-size: var(--text-md); }
+.experience-empty p,
+.checkbox-field,
+.review-fields p,
+.evidence-heading span,
+.evidence-empty { font-size: var(--text-sm); }
+.danger-button,
+.remove-button { font-size: var(--text-xs); }
+.evidence-heading strong { font-size: var(--text-md); }
+.evidence-order span,
+.evidence-order button,
+.provenance-field strong { font-size: var(--text-xs); }
+
+.line-numbers { font: 11px/1.7 "SFMono-Regular", Consolas, monospace; }
+.code-editor textarea { font: 12px/1.7 "SFMono-Regular", Consolas, monospace; }
+.editor-tabs span,
+.editor-status { font-size: var(--text-xs); }
+
+.provider-logo,
+.chat-message > span { font-size: 9px; }
+.provider-picker strong,
+.provider-picker small,
+.chat-composer small { font-size: var(--text-xs); }
+.chat-message p { font-size: var(--text-sm); }
+
+.backup-summary h2,
+.backup-action-card h2 { font-size: var(--text-md); }
+.backup-summary header p,
+.backup-action-card p,
+.backup-result p,
+.backup-safety p { font-size: var(--text-xs); }
+.backup-stat-grid span { font-size: 10px; }
+.backup-result strong,
+.backup-safety strong { font-size: var(--text-sm); }
+.backup-result small { font-size: 10px; }
+
+.preview-toolbar strong { font-size: var(--text-sm); }
+.preview-toolbar small,
+.preview-controls { font-size: var(--text-xs); }
+
+.card-heading h2,
+.analysis-empty strong,
+.skill-heading h3 { font-size: var(--text-md); }
+.step-pill { font-size: 10px; }
+.job-actions small,
+.analysis-empty p,
+.score-row p,
+.skill-heading span,
+.skill-list p,
+.skill,
+.empty-callout { font-size: var(--text-xs); }
+.notice { font-size: var(--text-sm); }
 
 @media (max-width: 1270px) {
   .studio-body { grid-template-columns: 196px minmax(0, 1fr); }

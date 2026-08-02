@@ -94,3 +94,22 @@ export function reconcileSelectedProjectKeys(selectedKeys: string[], previousKey
 export function removeSelectedProjectKey(selectedKeys: string[], key: string): string[] {
   return selectedKeys.filter((selectedKey) => selectedKey !== key);
 }
+
+export function filterProjects(projects: ProjectDraft[], query: string): ProjectDraft[] {
+  const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  if (terms.length === 0) {
+    return projects;
+  }
+
+  return projects.filter((project) => {
+    const searchableText = [
+      project.name,
+      project.role,
+      project.description,
+      project.skillsText,
+      ...project.skills,
+    ].join(" ").toLocaleLowerCase();
+
+    return terms.every((term) => searchableText.includes(term));
+  });
+}
