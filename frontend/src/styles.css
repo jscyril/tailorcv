@@ -159,6 +159,17 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .panel-empty strong { font-size: 12px; }
 .panel-empty p { max-width: 320px; margin: 6px 0 16px; color: var(--muted); font-size: 9px; line-height: 1.55; }
 
+.education-list { display: grid; gap: 12px; padding: 20px 24px 28px; }
+.education-list .panel-empty.tall { margin: 0; }
+.education-card { overflow: hidden; border: 1px solid var(--line); border-radius: 11px; background: #0d100e; }
+.education-card > header { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 16px; border-bottom: 1px solid var(--line-soft); background: var(--elevated); }
+.education-card > header > div { display: grid; gap: 2px; }
+.education-card > header span { color: var(--accent); font-size: 7px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.education-card > header strong { font-size: 11px; }
+.education-fields { display: grid; gap: 14px; padding: 16px; }
+.education-card > footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px 16px; border-top: 1px solid var(--line-soft); background: #111512; }
+.education-card > footer small { color: var(--muted); font-size: 8px; }
+
 .skills-workspace .form-block { grid-template-columns: 130px minmax(0, 1fr); }
 .skill-chip-grid { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
 .skill-chip-grid > span { display: inline-flex; align-items: center; gap: 6px; background: #c8e86b12; color: var(--accent); }
@@ -218,6 +229,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .resume-entry ul { margin: 3px 0 0; padding-left: 12px; }
 .resume-entry li { margin: 1.5px 0; font-size: 6.4px; line-height: 1.35; }
 .resume-entry.project { margin-bottom: 6px; }
+.resume-entry.education p { margin-top: 2px; }
 .resume-placeholder { margin: 0; padding: 9px; border: 1px dashed #b8bdb9; color: #7a807c; font-size: 6.7px; text-align: center; }
 
 /* Existing evidence editors, adapted to the dark workspace. */

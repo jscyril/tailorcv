@@ -88,6 +88,35 @@ func (a *App) DeleteExperience(id string) error {
 	return a.store.DeleteExperience(a.appContext(), id)
 }
 
+// ListEducations returns education records in their resume order.
+func (a *App) ListEducations() ([]domain.Education, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	return a.store.ListEducations(a.appContext())
+}
+
+// SaveEducation validates and persists an education record while preserving
+// its stable identifier and position.
+func (a *App) SaveEducation(input domain.EducationInput) (domain.Education, error) {
+	if err := a.ready(); err != nil {
+		return domain.Education{}, err
+	}
+	education, err := input.Validate()
+	if err != nil {
+		return domain.Education{}, err
+	}
+	return a.store.SaveEducation(a.appContext(), education)
+}
+
+// DeleteEducation removes an education record.
+func (a *App) DeleteEducation(id string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return a.store.DeleteEducation(a.appContext(), id)
+}
+
 // ListProjects returns manual and imported projects with their review state,
 // skills, and ordered evidence.
 func (a *App) ListProjects() ([]domain.Project, error) {

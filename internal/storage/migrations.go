@@ -105,6 +105,26 @@ var migrations = []migration{
 			`CREATE INDEX project_bullets_order_idx ON project_bullets(project_id, position)`,
 		},
 	},
+	{
+		version: 4,
+		statements: []string{
+			`CREATE TABLE educations (
+				id TEXT PRIMARY KEY,
+				institution TEXT NOT NULL,
+				degree TEXT NOT NULL,
+				field_of_study TEXT NOT NULL DEFAULT '',
+				location TEXT NOT NULL DEFAULT '',
+				start_date TEXT NOT NULL DEFAULT '',
+				end_date TEXT NOT NULL DEFAULT '',
+				is_current INTEGER NOT NULL DEFAULT 0 CHECK (is_current IN (0, 1)),
+				details TEXT NOT NULL DEFAULT '',
+				position INTEGER NOT NULL,
+				created_at TEXT NOT NULL,
+				updated_at TEXT NOT NULL
+			)`,
+			`CREATE INDEX educations_position_idx ON educations(position, created_at)`,
+		},
+	},
 }
 
 func (s *Store) applyMigrations(ctx context.Context) error {

@@ -1,16 +1,26 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   AnalyzeJobDescription,
+  DeleteEducation,
   DeleteExperience,
   DeleteProject,
   GetProfile,
+  ListEducations,
   ListExperiences,
   ListProjects,
+  SaveEducation,
   SaveExperience,
   SaveProject,
   SaveProfile,
 } from "../wailsjs/go/main/App";
 import { domain } from "../wailsjs/go/models";
+import {
+  Education,
+  EducationDraft,
+  educationToDraft,
+  newEducationDraft,
+  toEducationInput,
+} from "./lib/education";
 import {
   EvidenceBullet,
   Experience,
@@ -68,6 +78,9 @@ const DEFAULT_LATEX = String.raw`\documentclass[10pt]{article}
 \section*{Projects}
 % Selected projects are rendered here.
 
+\section*{Education}
+% Saved education records are rendered here.
+
 \section*{Skills}
 % Skills from your career profile are rendered here.
 \end{document}`;
@@ -83,12 +96,14 @@ export default function App() {
   const [profile, setProfile] = useState<Profile>(emptyProfile);
   const [experiences, setExperiences] = useState<ExperienceDraft[]>([]);
   const [projects, setProjects] = useState<ProjectDraft[]>([]);
+  const [educations, setEducations] = useState<EducationDraft[]>([]);
   const [skillsText, setSkillsText] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [analysis, setAnalysis] = useState<JobAnalysis | null>(null);
   const [busy, setBusy] = useState(true);
   const [experienceBusyKey, setExperienceBusyKey] = useState("");
   const [projectBusyKey, setProjectBusyKey] = useState("");
+  const [educationBusyKey, setEducationBusyKey] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [selectedProjectKeys, setSelectedProjectKeys] = useState<string[]>([]);
@@ -100,8 +115,8 @@ export default function App() {
   ]);
 
   useEffect(() => {
-    Promise.all([GetProfile(), ListExperiences(), ListProjects()])
-      .then(([result, savedExperiences, savedProjects]) => {
+    Promise.all([GetProfile(), ListExperiences(), ListProjects(), ListEducations()])
+      .then(([result, savedExperiences, savedProjects, savedEducations]) => {
         const loaded = { ...emptyProfile, ...result } as Profile;
         loaded.skills ??= [];
         setProfile(loaded);
@@ -110,6 +125,7 @@ export default function App() {
         const projectDrafts = (savedProjects as unknown as Project[]).map(projectToDraft);
         setProjects(projectDrafts);
         setSelectedProjectKeys(projectDrafts.filter((project) => project.resumeEligible).slice(0, 3).map((project) => project.key));
+        setEducations((savedEducations as unknown as Education[]).map(educationToDraft));
       })
       .catch((reason) => setError(errorMessage(reason)))
       .finally(() => setBusy(false));
@@ -254,6 +270,54 @@ export default function App() {
     }
   };
 
+  const addEducation = () => {
+    setEducations((current) => [...current, newEducationDraft()]);
+    setMessage("");
+  };
+
+  const updateEducation = (key: string, next: EducationDraft) => {
+    setEducations((current) => current.map((education) => education.key === key ? next : education));
+    setMessage("");
+  };
+
+  const saveEducation = async (event: FormEvent, draft: EducationDraft) => {
+    event.preventDefault();
+    setEducationBusyKey(draft.key);
+    setError("");
+    setMessage("");
+    try {
+      const saved = await SaveEducation(new domain.EducationInput(toEducationInput(draft)));
+      const normalized = educationToDraft(saved as unknown as Education);
+      setEducations((current) => current.map((education) => education.key === draft.key ? normalized : education));
+      setMessage("Education saved locally.");
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setEducationBusyKey("");
+    }
+  };
+
+  const deleteEducation = async (draft: EducationDraft) => {
+    if (draft.id && !window.confirm(`Delete ${draft.degree || "this education record"} from ${draft.institution || "this institution"}?`)) {
+      return;
+    }
+    if (!draft.id) {
+      setEducations((current) => current.filter((education) => education.key !== draft.key));
+      return;
+    }
+    setEducationBusyKey(draft.key);
+    setError("");
+    try {
+      await DeleteEducation(draft.id);
+      setEducations((current) => current.filter((education) => education.key !== draft.key));
+      setMessage("Education deleted.");
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setEducationBusyKey("");
+    }
+  };
+
   const toggleProject = (key: string) => {
     setSelectedProjectKeys((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
   };
@@ -292,7 +356,7 @@ export default function App() {
             <NavButton active={view === "profile"} label="Profile" icon="user" onClick={() => setView("profile")} />
             <NavButton active={view === "experience"} label="Experience" icon="briefcase" badge={experiences.length || undefined} onClick={() => setView("experience")} />
             <NavButton active={view === "projects"} label="Projects" icon="folder" badge={selectedProjectKeys.length || undefined} onClick={() => setView("projects")} />
-            <NavButton active={view === "education"} label="Education" icon="education" onClick={() => setView("education")} />
+            <NavButton active={view === "education"} label="Education" icon="education" badge={educations.length || undefined} onClick={() => setView("education")} />
             <NavButton active={view === "skills"} label="Skills" icon="sparkles" badge={profile.skills.length || undefined} onClick={() => setView("skills")} />
             <p className="nav-section-label nav-section-spaced">Tailor</p>
             <NavButton active={view === "latex"} label="LaTeX source" icon="code" onClick={() => setView("latex")} />
@@ -316,14 +380,14 @@ export default function App() {
             {view === "profile" && <ProfileWorkspace profile={profile} busy={busy} message={message} onChange={updateProfile} onSubmit={saveProfile} />}
             {view === "experience" && <section className="workspace-panel scroll-panel"><PanelHeader eyebrow="Career evidence" title="Experience" description="Keep every claim factual, ordered, and reviewable." action={<button className="secondary-button" onClick={addExperience}>Add role</button>} /><ExperienceSection experiences={experiences} busyKey={experienceBusyKey} onAdd={addExperience} onUpdate={updateExperience} onSave={saveExperience} onDelete={deleteExperience} /></section>}
             {view === "projects" && <ProjectWorkspace projects={projects} selectedKeys={selectedProjectKeys} busyKey={projectBusyKey} onToggle={toggleProject} onAdd={addProject} onUpdate={updateProject} onSave={saveProject} onDelete={deleteProject} />}
-            {view === "education" && <EducationWorkspace />}
+            {view === "education" && <EducationWorkspace educations={educations} busyKey={educationBusyKey} onAdd={addEducation} onUpdate={updateEducation} onSave={saveEducation} onDelete={deleteEducation} />}
             {view === "skills" && <SkillsWorkspace skillsText={skillsText} busy={busy} message={message} onChange={setSkillsText} onSubmit={saveProfile} />}
             {view === "latex" && <LatexWorkspace source={latexSource} onChange={setLatexSource} />}
             {view === "job" && <JobTailor description={jobDescription} analysis={analysis} busy={busy} hasSkills={profile.skills.length > 0} onDescriptionChange={setJobDescription} onSubmit={analyzeJob} onProfile={() => setView("skills")} />}
             {view === "ai" && <AIWorkspace provider={aiProvider} draft={chatDraft} messages={chatMessages} onProviderChange={setAIProvider} onDraftChange={setChatDraft} onSubmit={sendChatMessage} />}
           </div>
 
-          <ResumePreview profile={profile} experiences={experiences} projects={selectedProjects} />
+          <ResumePreview profile={profile} experiences={experiences} projects={selectedProjects} educations={educations} />
         </main>
       </div>
     </div>
@@ -427,8 +491,13 @@ function ProjectWorkspace({ projects, selectedKeys, busyKey, onToggle, onAdd, on
   </section>;
 }
 
-function EducationWorkspace() {
-  return <section className="workspace-panel scroll-panel"><PanelHeader eyebrow="Background" title="Education" description="Academic history that supports your application." action={<button className="secondary-button" disabled>Add education</button>} /><div className="panel-empty tall"><span className="empty-icon"><Icon name="education" size={24} /></span><strong>Education records are next</strong><p>The workspace is designed and ready; persistence will be added with the education domain model.</p></div></section>;
+function EducationWorkspace({ educations, busyKey, onAdd, onUpdate, onSave, onDelete }: { educations: EducationDraft[]; busyKey: string; onAdd: () => void; onUpdate: (key: string, education: EducationDraft) => void; onSave: (event: FormEvent, education: EducationDraft) => void; onDelete: (education: EducationDraft) => void }) {
+  return <section className="workspace-panel scroll-panel education-workspace"><PanelHeader eyebrow="Background" title="Education" description="Academic history that supports your application." action={<button className="secondary-button" onClick={onAdd}>Add education</button>} /><div className="education-list">{educations.length === 0 ? <div className="panel-empty tall"><span className="empty-icon"><Icon name="education" size={24} /></span><strong>No education records yet</strong><p>Add a degree, program, or current course of study. Saved records appear in the resume preview immediately.</p><button className="primary-button" onClick={onAdd}>Add education</button></div> : educations.map((education) => <EducationCard key={education.key} education={education} busy={busyKey === education.key} onUpdate={(next) => onUpdate(education.key, next)} onSave={(event) => onSave(event, education)} onDelete={() => onDelete(education)} />)}</div></section>;
+}
+
+function EducationCard({ education, busy, onUpdate, onSave, onDelete }: { education: EducationDraft; busy: boolean; onUpdate: (education: EducationDraft) => void; onSave: (event: FormEvent) => void; onDelete: () => void }) {
+  const updateField = <K extends keyof EducationDraft>(field: K, value: EducationDraft[K]) => onUpdate({ ...education, [field]: value });
+  return <form className="education-card" onSubmit={onSave}><header><div><span>{education.id ? "Saved education" : "New education"}</span><strong>{education.degree || "Untitled degree"}{education.institution ? ` · ${education.institution}` : ""}</strong></div><button className="danger-button" type="button" disabled={busy} onClick={onDelete}>Delete</button></header><div className="education-fields"><div className="field-grid two"><Field label="Institution" value={education.institution} onChange={(value) => updateField("institution", value)} placeholder="Example Institute" required /><Field label="Degree" value={education.degree} onChange={(value) => updateField("degree", value)} placeholder="Bachelor of Science" required /><Field label="Field of study" value={education.fieldOfStudy} onChange={(value) => updateField("fieldOfStudy", value)} placeholder="Computer Science" /><Field label="Location" value={education.location} onChange={(value) => updateField("location", value)} placeholder="Bengaluru, India" /><Field label="Start month" type="month" value={education.startDate} onChange={(value) => updateField("startDate", value)} placeholder="YYYY-MM" /><Field label="End month" type="month" value={education.endDate} onChange={(value) => updateField("endDate", value)} placeholder="YYYY-MM" disabled={education.current} /></div><label className="checkbox-field"><input type="checkbox" checked={education.current} onChange={(event) => updateField("current", event.target.checked)} /><span>I currently study here</span></label><label className="field"><span>Details (optional)</span><textarea rows={4} maxLength={1200} value={education.details} onChange={(event) => updateField("details", event.target.value)} placeholder="Honors, relevant coursework, thesis, or leadership." /><small>{education.details.length}/1200</small></label></div><footer><small>{education.updatedAt ? `Last saved ${new Date(education.updatedAt).toLocaleString()}` : "Not saved yet"}</small><button className="primary-button" disabled={busy}>{busy ? "Saving…" : "Save education"}</button></footer></form>;
 }
 
 function SkillsWorkspace({ skillsText, busy, message, onChange, onSubmit }: { skillsText: string; busy: boolean; message: string; onChange: (value: string) => void; onSubmit: (event: FormEvent) => void }) {
@@ -445,7 +514,7 @@ function AIWorkspace({ provider, draft, messages, onProviderChange, onDraftChang
   return <section className="workspace-panel ai-workspace"><PanelHeader eyebrow="Evidence-aware assistant" title="AI assistant" description="Use local or cloud models without letting them invent facts." /><div className="provider-picker">{providers.map((item) => <button key={item} className={provider === item ? "active" : ""} onClick={() => onProviderChange(item)}><span className="provider-logo">{item.slice(0, 2).toUpperCase()}</span><span><strong>{item}</strong><small>{item === "Ollama" ? "Local · private" : "Cloud · setup required"}</small></span>{provider === item && <Icon name="check" size={15} />}</button>)}</div><div className="chat-thread">{messages.map((item, index) => <div className={`chat-message ${item.role}`} key={`${item.role}-${index}`}><span>{item.role === "assistant" ? "AI" : "You"}</span><p>{item.text}</p></div>)}</div><form className="chat-composer" onSubmit={onSubmit}><textarea rows={3} value={draft} onChange={(event) => onDraftChange(event.target.value)} placeholder="Ask for a tighter bullet or compare selected evidence…" /><div><small>Only selected evidence will be shared.</small><button className="primary-button" type="submit">Send</button></div></form></section>;
 }
 
-function ResumePreview({ profile, experiences, projects }: { profile: Profile; experiences: ExperienceDraft[]; projects: ProjectDraft[] }) {
+function ResumePreview({ profile, experiences, projects, educations }: { profile: Profile; experiences: ExperienceDraft[]; projects: ProjectDraft[]; educations: EducationDraft[] }) {
   const visibleExperiences = experiences.slice(0, 2);
   const visibleProjects = projects.slice(0, 3);
   return <aside className="preview-pane"><header className="preview-toolbar"><div><strong>Resume preview</strong><small>ATS · one page</small></div><div className="preview-controls"><button aria-label="Zoom out">−</button><span>92%</span><button aria-label="Zoom in">+</button><i /><span>1 / 1</span></div></header><div className="preview-stage"><article className="resume-paper">
@@ -453,6 +522,7 @@ function ResumePreview({ profile, experiences, projects }: { profile: Profile; e
     {profile.summary && <ResumeSection title="Summary"><p className="resume-summary">{profile.summary}</p></ResumeSection>}
     <ResumeSection title="Experience">{visibleExperiences.length ? visibleExperiences.map((experience) => <div className="resume-entry" key={experience.key}><div><strong>{experience.title || "Role"} · {experience.company || "Company"}</strong><span>{experience.startDate} — {experience.current ? "Present" : experience.endDate}</span></div>{experience.location && <em>{experience.location}</em>}<ul>{experience.bullets.slice(0, 3).map((bullet, index) => <li key={bullet.id || index}>{bullet.text}</li>)}</ul></div>) : <ResumePlaceholder text="Add experience and evidence bullets" />}</ResumeSection>
     <ResumeSection title="Projects">{visibleProjects.length ? visibleProjects.map((project) => <div className="resume-entry project" key={project.key}><div><strong>{project.name || "Project"}</strong><span>{project.skills.slice(0, 3).join(" · ")}</span></div>{project.description && <p>{project.description}</p>}<ul>{project.bullets.slice(0, 2).map((bullet, index) => <li key={bullet.id || index}>{bullet.text}</li>)}</ul></div>) : <ResumePlaceholder text="Select projects to include them" />}</ResumeSection>
+    {educations.length > 0 && <ResumeSection title="Education">{educations.slice(0, 2).map((education) => <div className="resume-entry education" key={education.key}><div><strong>{education.degree}{education.fieldOfStudy ? `, ${education.fieldOfStudy}` : ""}</strong><span>{education.startDate}{education.startDate && (education.current || education.endDate) ? " — " : ""}{education.current ? "Present" : education.endDate}</span></div><em>{education.institution}{education.location ? ` · ${education.location}` : ""}</em>{education.details && <p>{education.details}</p>}</div>)}</ResumeSection>}
     <ResumeSection title="Skills"><p className="resume-skills">{profile.skills.length ? profile.skills.join("  ·  ") : "Add skills to your profile"}</p></ResumeSection>
   </article></div></aside>;
 }

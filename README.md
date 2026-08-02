@@ -12,6 +12,7 @@ TailorCV is in its foundation stage. The first vertical slice provides:
 - A locally persisted career profile backed by SQLite.
 - Manual experience records with ordered, provenance-aware evidence bullets.
 - Reviewable projects with skills, source links, eligibility, and ordered evidence.
+- Education records with validated study dates and live resume-preview rendering.
 - Profile skill management and basic job-description skill matching.
 - A dark split workspace with persistent resume preview, project selection, LaTeX editing, and AI-provider entry points.
 - Clear service boundaries for GitHub import, resume generation, templates, and PDF compilation.

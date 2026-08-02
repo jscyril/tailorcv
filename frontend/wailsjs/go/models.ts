@@ -1,4 +1,66 @@
 export namespace domain {
+	export class Education {
+	    id: string;
+	    institution: string;
+	    degree: string;
+	    fieldOfStudy: string;
+	    location: string;
+	    startDate: string;
+	    endDate: string;
+	    current: boolean;
+	    details: string;
+	    position: number;
+	    createdAt: string;
+	    updatedAt: string;
+
+	    static createFrom(source: any = {}) {
+	        return new Education(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.institution = source["institution"];
+	        this.degree = source["degree"];
+	        this.fieldOfStudy = source["fieldOfStudy"];
+	        this.location = source["location"];
+	        this.startDate = source["startDate"];
+	        this.endDate = source["endDate"];
+	        this.current = source["current"];
+	        this.details = source["details"];
+	        this.position = source["position"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
+	export class EducationInput {
+	    id: string;
+	    institution: string;
+	    degree: string;
+	    fieldOfStudy: string;
+	    location: string;
+	    startDate: string;
+	    endDate: string;
+	    current: boolean;
+	    details: string;
+
+	    static createFrom(source: any = {}) {
+	        return new EducationInput(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.institution = source["institution"];
+	        this.degree = source["degree"];
+	        this.fieldOfStudy = source["fieldOfStudy"];
+	        this.location = source["location"];
+	        this.startDate = source["startDate"];
+	        this.endDate = source["endDate"];
+	        this.current = source["current"];
+	        this.details = source["details"];
+	    }
+	}
 
 	export class EvidenceBullet {
 	    id: string;
