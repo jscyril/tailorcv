@@ -81,6 +81,24 @@ export namespace domain {
 	        this.details = source["details"];
 	    }
 	}
+	export class GitHubImportResult {
+	    fetched: number;
+	    imported: number;
+	    updated: number;
+	    skipped: number;
+
+	    static createFrom(source: any = {}) {
+	        return new GitHubImportResult(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.fetched = source["fetched"];
+	        this.imported = source["imported"];
+	        this.updated = source["updated"];
+	        this.skipped = source["skipped"];
+	    }
+	}
 
 	export class EvidenceBullet {
 	    id: string;

@@ -9,6 +9,7 @@ import (
 
 	backupfile "github.com/jscyril/tailorcv/internal/backup"
 	"github.com/jscyril/tailorcv/internal/domain"
+	githubclient "github.com/jscyril/tailorcv/internal/github"
 	"github.com/jscyril/tailorcv/internal/storage"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -18,11 +19,12 @@ import (
 type App struct {
 	ctx     context.Context
 	store   *storage.Store
+	github  *githubclient.Client
 	initErr error
 }
 
 func NewApp() *App {
-	return &App{}
+	return &App{github: githubclient.NewClient(nil)}
 }
 
 func (a *App) startup(ctx context.Context) {
@@ -217,6 +219,65 @@ func (a *App) ImportProfileBackup() (domain.BackupResult, error) {
 		return domain.BackupResult{}, err
 	}
 	return backup.Result(path), nil
+}
+
+// ImportGitHubProjects fetches public repositories owned by the configured
+// GitHub user. New repositories require review before becoming resume eligible;
+// refreshes preserve user-entered evidence and review decisions.
+func (a *App) ImportGitHubProjects() (domain.GitHubImportResult, error) {
+	if err := a.ready(); err != nil {
+		return domain.GitHubImportResult{}, err
+	}
+	profile, err := a.store.GetProfile(a.appContext())
+	if err != nil {
+		return domain.GitHubImportResult{}, err
+	}
+	if profile.GitHubUsername == "" {
+		return domain.GitHubImportResult{}, fmt.Errorf("add a GitHub username to your profile before syncing repositories")
+	}
+	repositories, err := a.github.ListPublicRepositories(a.appContext(), profile.GitHubUsername)
+	if err != nil {
+		return domain.GitHubImportResult{}, err
+	}
+	existingProjects, err := a.store.ListProjects(a.appContext())
+	if err != nil {
+		return domain.GitHubImportResult{}, err
+	}
+	existingByRepository := make(map[string]domain.Project, len(existingProjects))
+	for _, project := range existingProjects {
+		if project.RepositoryURL != "" {
+			existingByRepository[strings.ToLower(project.RepositoryURL)] = project
+		}
+	}
+
+	result := domain.GitHubImportResult{Fetched: len(repositories)}
+	for _, repository := range repositories {
+		if repository.Fork || repository.Archived {
+			result.Skipped++
+			continue
+		}
+		var existing *domain.Project
+		if project, found := existingByRepository[strings.ToLower(repository.HTMLURL)]; found {
+			if project.Provenance != domain.ProvenanceGitHub {
+				result.Skipped++
+				continue
+			}
+			existing = &project
+		}
+		project, err := repository.Project(existing)
+		if err != nil {
+			return domain.GitHubImportResult{}, fmt.Errorf("prepare GitHub project %q: %w", repository.Name, err)
+		}
+		if _, err := a.store.SaveProject(a.appContext(), project); err != nil {
+			return domain.GitHubImportResult{}, fmt.Errorf("save GitHub project %q: %w", repository.Name, err)
+		}
+		if existing == nil {
+			result.Imported++
+		} else {
+			result.Updated++
+		}
+	}
+	return result, nil
 }
 
 // AnalyzeJobDescription performs the deterministic first-stage comparison.

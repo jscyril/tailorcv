@@ -16,6 +16,8 @@ export function GetProfile():Promise<domain.Profile>;
 
 export function ImportProfileBackup():Promise<domain.BackupResult>;
 
+export function ImportGitHubProjects():Promise<domain.GitHubImportResult>;
+
 export function ListExperiences():Promise<Array<domain.Experience>>;
 
 export function ListEducations():Promise<Array<domain.Education>>;

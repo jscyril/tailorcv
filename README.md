@@ -16,6 +16,7 @@ TailorCV is in its foundation stage. The first vertical slice provides:
 - Profile skill management and basic job-description skill matching.
 - A dark split workspace with persistent resume preview, project selection, LaTeX editing, and AI-provider entry points.
 - Versioned JSON backup and atomic restore for all currently supported profile data.
+- Public GitHub repository sync with review-gated resume eligibility.
 - Clear service boundaries for GitHub import, resume generation, templates, and PDF compilation.
 
 See [PLAN.md](PLAN.md) for the product architecture and delivery milestones.
@@ -55,6 +56,13 @@ Run the desktop application with live reload:
 
 ```bash
 wails dev
+```
+
+To run the embedded production frontend directly on Linux with WebKitGTK 4.1:
+
+```bash
+pnpm --dir frontend build
+go run -tags "production,webkit2_41" .
 ```
 
 Run the checks used during development:

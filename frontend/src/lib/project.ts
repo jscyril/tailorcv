@@ -82,3 +82,15 @@ export function toProjectInput(draft: ProjectDraft) {
     })),
   };
 }
+
+export function reconcileSelectedProjectKeys(selectedKeys: string[], previousKey: string, savedKey: string, resumeEligible: boolean): string[] {
+  const updated = selectedKeys.map((key) => key === previousKey ? savedKey : key);
+  if (!resumeEligible) {
+    return updated.filter((key) => key !== savedKey);
+  }
+  return [...new Set(updated)];
+}
+
+export function removeSelectedProjectKey(selectedKeys: string[], key: string): string[] {
+  return selectedKeys.filter((selectedKey) => selectedKey !== key);
+}

@@ -30,6 +30,10 @@ export function ImportProfileBackup() {
   return window['go']['main']['App']['ImportProfileBackup']();
 }
 
+export function ImportGitHubProjects() {
+  return window['go']['main']['App']['ImportGitHubProjects']();
+}
+
 export function ListExperiences() {
   return window['go']['main']['App']['ListExperiences']();
 }

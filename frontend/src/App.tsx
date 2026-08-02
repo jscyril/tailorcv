@@ -6,6 +6,7 @@ import {
   DeleteProject,
   ExportProfileBackup,
   GetProfile,
+  ImportGitHubProjects,
   ImportProfileBackup,
   ListEducations,
   ListExperiences,
@@ -38,6 +39,8 @@ import {
   ProjectDraft,
   newProjectDraft,
   projectToDraft,
+  reconcileSelectedProjectKeys,
+  removeSelectedProjectKey,
   toProjectInput,
 } from "./lib/project";
 import {
@@ -107,7 +110,9 @@ export default function App() {
   const [projectBusyKey, setProjectBusyKey] = useState("");
   const [educationBusyKey, setEducationBusyKey] = useState("");
   const [backupBusy, setBackupBusy] = useState<"export" | "import" | "">("");
+  const [githubBusy, setGitHubBusy] = useState(false);
   const [lastBackupResult, setLastBackupResult] = useState<domain.BackupResult | null>(null);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [selectedProjectKeys, setSelectedProjectKeys] = useState<string[]>([]);
@@ -233,6 +238,9 @@ export default function App() {
 
   const updateProject = (key: string, next: ProjectDraft) => {
     setProjects((current) => current.map((project) => project.key === key ? next : project));
+    if (!next.resumeEligible) {
+      setSelectedProjectKeys((current) => current.filter((item) => item !== key));
+    }
     setMessage("");
   };
 
@@ -245,6 +253,7 @@ export default function App() {
       const saved = await SaveProject(new domain.ProjectInput(toProjectInput(draft)));
       const normalized = projectToDraft(saved as unknown as Project);
       setProjects((current) => current.map((project) => project.key === draft.key ? normalized : project));
+      setSelectedProjectKeys((current) => reconcileSelectedProjectKeys(current, draft.key, normalized.key, normalized.resumeEligible));
       setMessage("Project saved locally.");
     } catch (reason) {
       setError(errorMessage(reason));
@@ -259,6 +268,7 @@ export default function App() {
     }
     if (!draft.id) {
       setProjects((current) => current.filter((project) => project.key !== draft.key));
+      setSelectedProjectKeys((current) => removeSelectedProjectKey(current, draft.key));
       return;
     }
     setProjectBusyKey(draft.key);
@@ -266,6 +276,7 @@ export default function App() {
     try {
       await DeleteProject(draft.id);
       setProjects((current) => current.filter((project) => project.key !== draft.key));
+      setSelectedProjectKeys((current) => removeSelectedProjectKey(current, draft.key));
       setMessage("Project deleted.");
     } catch (reason) {
       setError(errorMessage(reason));
@@ -323,6 +334,7 @@ export default function App() {
   };
 
   const toggleProject = (key: string) => {
+    if (!projects.some((project) => project.key === key && project.resumeEligible)) return;
     setSelectedProjectKeys((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
   };
 
@@ -374,10 +386,31 @@ export default function App() {
     }
   };
 
+  const syncGitHubProjects = async () => {
+    setGitHubBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await ImportGitHubProjects();
+      const savedProjects = await ListProjects();
+      const projectDrafts = (savedProjects as unknown as Project[]).map(projectToDraft);
+      setProjects(projectDrafts);
+      setSelectedProjectKeys((current) => current.filter((key) => projectDrafts.some((project) => project.key === key && project.resumeEligible)));
+      setMessage(`GitHub sync complete: ${result.imported} imported, ${result.updated} refreshed, ${result.skipped} skipped.`);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setGitHubBusy(false);
+    }
+  };
+
   const selectedProjects = projects.filter((project) => selectedProjectKeys.includes(project.key));
+  const hasProfileData = Boolean(profile.name || profile.email || profile.headline || profile.phone || profile.location || profile.website || profile.githubUsername || profile.linkedInUrl || profile.summary || profile.skills.length);
+  const showOnboarding = !busy && !onboardingDismissed && !hasProfileData && experiences.length === 0 && projects.length === 0 && educations.length === 0;
 
   return (
     <div className="studio-shell">
+      {showOnboarding && <Onboarding profile={profile} skillsText={skillsText} busy={busy} onChange={updateProfile} onSkillsChange={setSkillsText} onSubmit={saveProfile} onSkip={() => setOnboardingDismissed(true)} />}
       <TopToolbar
         profile={profile}
         onCompile={() => setMessage("Compile tooling will be connected in the templates milestone.")}
@@ -421,7 +454,7 @@ export default function App() {
             {view === "overview" && <WorkspaceOverview profile={profile} completion={completion} experiences={experiences} projects={projects} onOpen={setView} />}
             {view === "profile" && <ProfileWorkspace profile={profile} busy={busy} message={message} onChange={updateProfile} onSubmit={saveProfile} />}
             {view === "experience" && <section className="workspace-panel scroll-panel"><PanelHeader eyebrow="Career evidence" title="Experience" description="Keep every claim factual, ordered, and reviewable." action={<button className="secondary-button" onClick={addExperience}>Add role</button>} /><ExperienceSection experiences={experiences} busyKey={experienceBusyKey} onAdd={addExperience} onUpdate={updateExperience} onSave={saveExperience} onDelete={deleteExperience} /></section>}
-            {view === "projects" && <ProjectWorkspace projects={projects} selectedKeys={selectedProjectKeys} busyKey={projectBusyKey} onToggle={toggleProject} onAdd={addProject} onUpdate={updateProject} onSave={saveProject} onDelete={deleteProject} />}
+            {view === "projects" && <ProjectWorkspace projects={projects} selectedKeys={selectedProjectKeys} busyKey={projectBusyKey} githubUsername={profile.githubUsername} githubBusy={githubBusy} onToggle={toggleProject} onAdd={addProject} onUpdate={updateProject} onSave={saveProject} onDelete={deleteProject} onSyncGitHub={syncGitHubProjects} onOpenProfile={() => setView("profile")} />}
             {view === "education" && <EducationWorkspace educations={educations} busyKey={educationBusyKey} onAdd={addEducation} onUpdate={updateEducation} onSave={saveEducation} onDelete={deleteEducation} />}
             {view === "skills" && <SkillsWorkspace skillsText={skillsText} busy={busy} message={message} onChange={setSkillsText} onSubmit={saveProfile} />}
             {view === "latex" && <LatexWorkspace source={latexSource} onChange={setLatexSource} />}
@@ -483,6 +516,10 @@ function TopToolbar({ profile, onCompile, onExport }: { profile: Profile; onComp
   </header>;
 }
 
+function Onboarding({ profile, skillsText, busy, onChange, onSkillsChange, onSubmit, onSkip }: { profile: Profile; skillsText: string; busy: boolean; onChange: (field: keyof Profile, value: string) => void; onSkillsChange: (value: string) => void; onSubmit: (event: FormEvent) => void; onSkip: () => void }) {
+  return <div className="onboarding-overlay"><section className="onboarding-card"><aside><span className="brand-mark">T</span><p className="eyebrow">Welcome to TailorCV</p><h1>Start with facts you control.</h1><p>Create your local career profile. TailorCV uses it as the source of truth for every resume.</p><div className="onboarding-promise"><span className="status-dot" /><div><strong>Stored on this device</strong><small>No account or cloud sync required.</small></div></div></aside><form onSubmit={onSubmit}><header><div><span>01</span><p>Profile foundation</p></div><small>About 2 minutes</small></header><div className="onboarding-fields"><div className="field-grid two"><Field label="Full name" value={profile.name} onChange={(value) => onChange("name", value)} placeholder="Ada Lovelace" required /><Field label="Email" type="email" value={profile.email} onChange={(value) => onChange("email", value)} placeholder="ada@example.com" required /><Field label="Professional headline" value={profile.headline} onChange={(value) => onChange("headline", value)} placeholder="Backend engineer building reliable systems" required /><Field label="Location" value={profile.location} onChange={(value) => onChange("location", value)} placeholder="Bengaluru, India" /><Field label="GitHub username" value={profile.githubUsername} onChange={(value) => onChange("githubUsername", value)} placeholder="octocat" prefix="github.com/" /><Field label="LinkedIn URL" type="url" value={profile.linkedInUrl} onChange={(value) => onChange("linkedInUrl", value)} placeholder="https://linkedin.com/in/..." /></div><label className="field"><span>Core skills</span><textarea rows={3} value={skillsText} onChange={(event) => onSkillsChange(event.target.value)} placeholder="Go, TypeScript, PostgreSQL, Docker" /><small>Separate skills with commas.</small></label></div><footer><button className="text-button" type="button" onClick={onSkip}>Explore first</button><button className="primary-button" disabled={busy}>{busy ? "Creating profile…" : "Create local profile"}</button></footer></form></section></div>;
+}
+
 function PanelHeader({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: React.ReactNode }) {
   return <header className="panel-header"><div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p>{description}</p></div>{action}</header>;
 }
@@ -515,20 +552,22 @@ function FormBlock({ title, description, children }: { title: string; descriptio
   return <section className="form-block"><header><h2>{title}</h2><p>{description}</p></header><div>{children}</div></section>;
 }
 
-function ProjectWorkspace({ projects, selectedKeys, busyKey, onToggle, onAdd, onUpdate, onSave, onDelete }: { projects: ProjectDraft[]; selectedKeys: string[]; busyKey: string; onToggle: (key: string) => void; onAdd: () => void; onUpdate: (key: string, project: ProjectDraft) => void; onSave: (event: FormEvent, project: ProjectDraft) => void; onDelete: (project: ProjectDraft) => void }) {
+function ProjectWorkspace({ projects, selectedKeys, busyKey, githubUsername, githubBusy, onToggle, onAdd, onUpdate, onSave, onDelete, onSyncGitHub, onOpenProfile }: { projects: ProjectDraft[]; selectedKeys: string[]; busyKey: string; githubUsername: string; githubBusy: boolean; onToggle: (key: string) => void; onAdd: () => void; onUpdate: (key: string, project: ProjectDraft) => void; onSave: (event: FormEvent, project: ProjectDraft) => void; onDelete: (project: ProjectDraft) => void; onSyncGitHub: () => void; onOpenProfile: () => void }) {
   const [tab, setTab] = useState<"select" | "manage">("select");
   return <section className="workspace-panel scroll-panel">
-    <PanelHeader eyebrow="Selected work" title="Projects" description="Choose the strongest evidence for this resume." action={<button className="secondary-button" onClick={() => { onAdd(); setTab("manage"); }}>Add project</button>} />
+    <PanelHeader eyebrow="Selected work" title="Projects" description="Choose the strongest evidence for this resume." action={<div className="panel-actions"><button className="secondary-button" onClick={githubUsername ? onSyncGitHub : onOpenProfile} disabled={githubBusy}>{githubBusy ? "Syncing…" : githubUsername ? "Sync GitHub" : "Connect GitHub"}</button><button className="secondary-button" onClick={() => { onAdd(); setTab("manage"); }}>Add project</button></div>} />
     <div className="panel-tabs"><button className={tab === "select" ? "active" : ""} onClick={() => setTab("select")}>Select for resume <span>{selectedKeys.length}</span></button><button className={tab === "manage" ? "active" : ""} onClick={() => setTab("manage")}>Manage evidence</button></div>
     {tab === "select" ? <div className="project-selector">
+      <div className="github-sync-note"><span className="github-mark">GH</span><div><strong>{githubUsername ? `github.com/${githubUsername}` : "Connect your GitHub profile"}</strong><p>{githubUsername ? "Public, owned repositories sync into Manage evidence for review." : "Add a username in Profile to import your public repositories."}</p></div><button onClick={githubUsername ? onSyncGitHub : onOpenProfile} disabled={githubBusy}>{githubBusy ? "Syncing…" : githubUsername ? "Refresh" : "Open profile"}</button></div>
       <label className="search-field"><Icon name="search" size={16} /><input aria-label="Search projects" placeholder="Search projects or technologies" /></label>
       <div className="selection-note"><span className="status-dot" /><div><strong>{selectedKeys.length} projects selected</strong><p>The preview updates as you select evidence.</p></div></div>
       {projects.length === 0 ? <div className="panel-empty"><span className="empty-icon"><Icon name="folder" size={22} /></span><strong>No projects yet</strong><p>Add a project with evidence bullets, technologies, and a review state.</p><button className="primary-button" onClick={() => { onAdd(); setTab("manage"); }}>Add first project</button></div> : projects.map((project, index) => {
         const selected = selectedKeys.includes(project.key);
+        const selectable = project.resumeEligible;
         const score = Math.max(67, 94 - index * 7);
-        return <article className={`project-select-card ${selected ? "selected" : ""}`} key={project.key}>
-          <button className="project-check" aria-label={`${selected ? "Remove" : "Add"} ${project.name || "project"} ${selected ? "from" : "to"} resume`} onClick={() => onToggle(project.key)}>{selected && <Icon name="check" size={14} />}</button>
-          <div className="project-card-copy"><div className="project-title-row"><strong>{project.name || "Untitled project"}</strong><span>{score}% match</span></div><p>{project.description || "Add a concise description of the problem, your contribution, and the outcome."}</p><div className="tag-row">{project.skills.slice(0, 4).map((skill) => <span key={skill}>{skill}</span>)}{project.skills.length === 0 && <span>Skills not added</span>}</div><small>{project.verification === "verified" ? "Verified evidence" : "Needs review"} · {project.bullets.length} bullets</small></div>
+        return <article className={`project-select-card ${selected ? "selected" : ""} ${!selectable ? "locked" : ""}`} key={project.key}>
+          <button className="project-check" disabled={!selectable} aria-label={selectable ? `${selected ? "Remove" : "Add"} ${project.name || "project"} ${selected ? "from" : "to"} resume` : `${project.name || "Project"} must be reviewed before selection`} onClick={() => onToggle(project.key)}>{selected && <Icon name="check" size={14} />}</button>
+          <div className="project-card-copy"><div className="project-title-row"><strong>{project.name || "Untitled project"}</strong><span>{selectable ? `${score}% match` : "Review required"}</span></div><p>{project.description || "Add a concise description of the problem, your contribution, and the outcome."}</p><div className="tag-row">{project.skills.slice(0, 4).map((skill) => <span key={skill}>{skill}</span>)}{project.skills.length === 0 && <span>Skills not added</span>}</div><small>{project.verification === "verified" ? "Verified evidence" : "Needs review"} · {project.bullets.length} bullets</small></div>
         </article>;
       })}
     </div> : <ProjectSection projects={projects} busyKey={busyKey} onAdd={onAdd} onUpdate={onUpdate} onSave={onSave} onDelete={onDelete} />}

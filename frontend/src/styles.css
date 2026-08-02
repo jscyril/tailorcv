@@ -49,6 +49,25 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .icon-button { width: 36px; letter-spacing: 1px; }
 .icon { flex: 0 0 auto; }
 
+.onboarding-overlay { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 32px; background: #050605ed; backdrop-filter: blur(14px); }
+.onboarding-card { width: min(920px, 100%); min-height: 560px; display: grid; grid-template-columns: 310px minmax(0, 1fr); overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); box-shadow: 0 30px 100px #000c; }
+.onboarding-card > aside { display: flex; flex-direction: column; align-items: flex-start; padding: 34px; border-right: 1px solid var(--line); background: radial-gradient(circle at 20% 15%, #c8e86b18, transparent 38%), #0b0d0c; }
+.onboarding-card > aside .brand-mark { margin-bottom: 74px; }
+.onboarding-card > aside h1 { margin: 0; font-size: 30px; line-height: 1.08; letter-spacing: -.04em; }
+.onboarding-card > aside > p:last-of-type { margin: 14px 0 0; color: var(--muted); font-size: 11px; line-height: 1.65; }
+.onboarding-promise { display: flex; align-items: center; gap: 10px; margin-top: auto; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--elevated); }
+.onboarding-promise > div { display: grid; gap: 2px; }
+.onboarding-promise strong { font-size: 9px; }
+.onboarding-promise small { color: var(--muted); font-size: 8px; }
+.onboarding-card > form { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.onboarding-card > form > header { display: flex; align-items: center; justify-content: space-between; padding: 24px 28px; border-bottom: 1px solid var(--line); }
+.onboarding-card > form > header > div { display: flex; align-items: center; gap: 9px; }
+.onboarding-card > form > header span { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 50%; background: #c8e86b18; color: var(--accent); font-size: 8px; font-weight: 800; }
+.onboarding-card > form > header p { margin: 0; font-size: 11px; font-weight: 700; }
+.onboarding-card > form > header small { color: var(--muted); font-size: 8px; }
+.onboarding-fields { display: grid; align-content: start; gap: 18px; padding: 26px 28px; }
+.onboarding-card > form > footer { display: flex; align-items: center; justify-content: space-between; padding: 17px 28px; border-top: 1px solid var(--line); background: #0d100e; }
+
 .studio-body { height: calc(100vh - 64px); display: grid; grid-template-columns: 220px minmax(0, 1fr); }
 .studio-sidebar { min-height: 0; display: flex; flex-direction: column; padding: 20px 12px 14px; border-right: 1px solid var(--line); background: var(--sidebar); }
 .sidebar-intro { padding: 0 10px 18px; }
@@ -81,6 +100,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .panel-header h1 { margin: 0; color: var(--text); font-size: 22px; line-height: 1.15; letter-spacing: -.025em; }
 .panel-header > div > p:last-child { max-width: 480px; margin: 7px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .panel-header > button { margin-top: 18px; }
+.panel-actions { display: flex; align-items: center; gap: 7px; margin-top: 18px; }
 
 .primary-button, .secondary-button { min-height: 36px; border-radius: 8px; padding: 0 14px; font-size: 11px; font-weight: 750; white-space: nowrap; }
 .primary-button { border: 1px solid var(--accent); background: var(--accent); color: #11160c; }
@@ -134,6 +154,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .panel-tabs button.active::after, .editor-tabs button.active::after { content: ""; position: absolute; right: 7px; bottom: -1px; left: 7px; height: 2px; background: var(--accent); }
 .panel-tabs button span { margin-left: 5px; padding: 2px 5px; border-radius: 999px; background: var(--elevated); color: var(--accent); font-size: 8px; }
 .project-selector { display: grid; gap: 10px; padding: 16px 24px 28px; }
+.github-sync-note { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; background: #0d100e; }
+.github-mark { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; background: var(--text); color: #111412; font-size: 8px; font-weight: 900; }
+.github-sync-note > div { min-width: 0; display: grid; gap: 2px; }
+.github-sync-note strong { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.github-sync-note p { margin: 0; color: var(--muted); font-size: 8px; }
+.github-sync-note button { padding: 5px 8px; border: 0; background: transparent; color: var(--accent); font-size: 8px; font-weight: 750; }
 .search-field { height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 11px; border: 1px solid var(--line); border-radius: 8px; background: #0d100e; color: var(--muted); }
 .search-field input { height: 35px; padding: 0; border: 0; background: transparent; box-shadow: none; }
 .selection-note { display: flex; align-items: center; gap: 10px; padding: 11px 13px; border: 1px solid #c8e86b2a; border-radius: 8px; background: #182014; }
@@ -143,8 +169,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .project-select-card { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; padding: 15px; border: 1px solid var(--line-soft); border-radius: 10px; background: var(--elevated); transition: border-color .15s, background .15s; }
 .project-select-card:hover { border-color: #465048; background: #1a1e1b; }
 .project-select-card.selected { border-color: #a9ce4655; background: #192015; }
+.project-select-card.locked { opacity: .72; }
 .project-check { width: 19px; height: 19px; display: grid; place-items: center; margin-top: 1px; padding: 0; border: 1px solid #535d57; border-radius: 5px; background: transparent; color: #12170e; }
 .project-select-card.selected .project-check { border-color: var(--accent); background: var(--accent); }
+.project-check:disabled { border-style: dashed; background: #121512; }
 .project-card-copy { min-width: 0; }
 .project-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .project-title-row strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
