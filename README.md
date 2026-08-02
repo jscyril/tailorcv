@@ -23,6 +23,20 @@ TailorCV is in its foundation stage. The first vertical slice provides:
 
 See [PLAN.md](PLAN.md) for the product architecture and delivery milestones.
 
+## Screenshots
+
+### Workspace overview
+
+![TailorCV workspace overview with resume preview](screenshots/2026-08-02_18-36-00.png)
+
+| Profile editor | Experience editor |
+| --- | --- |
+| ![Editing a career profile in TailorCV](screenshots/2026-08-02_18-36-28.png) | ![Editing experience and evidence bullets in TailorCV](screenshots/2026-08-02_18-36-40.png) |
+
+| Education editor | Resume templates |
+| --- | --- |
+| ![Editing education history in TailorCV](screenshots/2026-08-02_18-36-53.png) | ![Selecting and importing LaTeX resume templates in TailorCV](screenshots/2026-08-02_18-37-04.png) |
+
 ## Principles
 
 - **Local first:** Career data stays on the user's computer by default.
