@@ -295,11 +295,47 @@ func (a *App) AnalyzeJobDescription(input domain.JobAnalysisInput) (domain.JobAn
 	if err := a.ready(); err != nil {
 		return domain.JobAnalysis{}, err
 	}
+	job, err := input.JobInput().Validate()
+	if err != nil {
+		return domain.JobAnalysis{}, err
+	}
 	profile, err := a.store.GetProfile(a.appContext())
 	if err != nil {
 		return domain.JobAnalysis{}, err
 	}
-	return domain.AnalyzeJobDescription(input, profile.Skills)
+	experiences, err := a.store.ListExperiences(a.appContext())
+	if err != nil {
+		return domain.JobAnalysis{}, err
+	}
+	projects, err := a.store.ListProjects(a.appContext())
+	if err != nil {
+		return domain.JobAnalysis{}, err
+	}
+	analysis, err := domain.AnalyzeCareerEvidence(input, profile.Skills, experiences, projects)
+	if err != nil {
+		return domain.JobAnalysis{}, err
+	}
+	saved, err := a.store.SaveJob(a.appContext(), job)
+	if err != nil {
+		return domain.JobAnalysis{}, err
+	}
+	analysis.Job = saved
+	return analysis, nil
+}
+
+// ListJobs returns saved opportunities with the most recently analyzed first.
+func (a *App) ListJobs() ([]domain.Job, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	return a.store.ListJobs(a.appContext())
+}
+
+func (a *App) DeleteJob(id string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return a.store.DeleteJob(a.appContext(), id)
 }
 
 // ListResumeTemplates returns read-only built-ins followed by user-owned

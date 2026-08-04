@@ -17,6 +17,7 @@ type ProfileBackup struct {
 	Experiences   []Experience `json:"experiences"`
 	Projects      []Project    `json:"projects"`
 	Educations    []Education  `json:"educations"`
+	Jobs          []Job        `json:"jobs,omitempty"`
 }
 
 type BackupResult struct {
@@ -25,6 +26,7 @@ type BackupResult struct {
 	ExperienceCount int    `json:"experienceCount"`
 	ProjectCount    int    `json:"projectCount"`
 	EducationCount  int    `json:"educationCount"`
+	JobCount        int    `json:"jobCount"`
 }
 
 func DecodeProfileBackup(data []byte) (ProfileBackup, error) {
@@ -167,6 +169,23 @@ func (backup ProfileBackup) Validate() (ProfileBackup, error) {
 		educations = append(educations, validated)
 	}
 	backup.Educations = educations
+
+	jobs := make([]Job, 0, len(backup.Jobs))
+	for index, source := range backup.Jobs {
+		if err := validateBackupTimestamp(fmt.Sprintf("job %d creation time", index+1), source.CreatedAt, true); err != nil {
+			return ProfileBackup{}, err
+		}
+		if err := validateBackupTimestamp(fmt.Sprintf("job %d update time", index+1), source.UpdatedAt, true); err != nil {
+			return ProfileBackup{}, err
+		}
+		validated, err := (JobInput{ID: source.ID, Company: source.Company, Role: source.Role, Description: source.Description}).Validate()
+		if err != nil {
+			return ProfileBackup{}, fmt.Errorf("job %d: %w", index+1, err)
+		}
+		validated.CreatedAt, validated.UpdatedAt = source.CreatedAt, source.UpdatedAt
+		jobs = append(jobs, validated)
+	}
+	backup.Jobs = jobs
 	return backup, nil
 }
 
@@ -181,5 +200,5 @@ func validateBackupTimestamp(field, value string, required bool) error {
 }
 
 func (backup ProfileBackup) Result(path string) BackupResult {
-	return BackupResult{Path: path, ExperienceCount: len(backup.Experiences), ProjectCount: len(backup.Projects), EducationCount: len(backup.Educations)}
+	return BackupResult{Path: path, ExperienceCount: len(backup.Experiences), ProjectCount: len(backup.Projects), EducationCount: len(backup.Educations), JobCount: len(backup.Jobs)}
 }

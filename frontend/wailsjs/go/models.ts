@@ -67,6 +67,7 @@ export namespace domain {
 	    experienceCount: number;
 	    projectCount: number;
 	    educationCount: number;
+	    jobCount: number;
 
 	    static createFrom(source: any = {}) {
 	        return new BackupResult(source);
@@ -79,6 +80,7 @@ export namespace domain {
 	        this.experienceCount = source["experienceCount"];
 	        this.projectCount = source["projectCount"];
 	        this.educationCount = source["educationCount"];
+	        this.jobCount = source["jobCount"];
 	    }
 	}
 	export class Education {
@@ -418,10 +420,57 @@ export namespace domain {
 	    }
 	}
 
+	export class Job {
+	    id: string;
+	    company: string;
+	    role: string;
+	    description: string;
+	    createdAt: string;
+	    updatedAt: string;
+
+	    static createFrom(source: any = {}) { return new Job(source); }
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.company = source["company"];
+	        this.role = source["role"];
+	        this.description = source["description"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
+	export class EvidenceMatch {
+	    factId: string;
+	    sourceId: string;
+	    sourceType: string;
+	    sourceLabel: string;
+	    text: string;
+	    score: number;
+	    matchedSkills: string[];
+	    reasons: string[];
+	    verified: boolean;
+
+	    static createFrom(source: any = {}) { return new EvidenceMatch(source); }
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.factId = source["factId"];
+	        this.sourceId = source["sourceId"];
+	        this.sourceType = source["sourceType"];
+	        this.sourceLabel = source["sourceLabel"];
+	        this.text = source["text"];
+	        this.score = source["score"];
+	        this.matchedSkills = source["matchedSkills"];
+	        this.reasons = source["reasons"];
+	        this.verified = source["verified"];
+	    }
+	}
 	export class JobAnalysis {
+	    job: Job;
 	    score: number;
 	    matchedSkills: string[];
 	    unmentionedSkills: string[];
+	    detectedSkills: string[];
+	    rankedEvidence: EvidenceMatch[];
 	    explanation: string;
 
 	    static createFrom(source: any = {}) {
@@ -430,13 +479,32 @@ export namespace domain {
 
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.job = this.convertValues(source["job"], Job);
 	        this.score = source["score"];
 	        this.matchedSkills = source["matchedSkills"];
 	        this.unmentionedSkills = source["unmentionedSkills"];
+	        this.detectedSkills = source["detectedSkills"];
+	        this.rankedEvidence = this.convertValues(source["rankedEvidence"], EvidenceMatch);
 	        this.explanation = source["explanation"];
+	    }
+
+	    convertValues(a: any, classs: any, asMap: boolean = false): any {
+	        if (!a) return a;
+	        if (a.slice && a.map) return (a as any[]).map(elem => this.convertValues(elem, classs));
+	        if ("object" === typeof a) {
+	            if (asMap) {
+	                for (const key of Object.keys(a)) a[key] = new classs(a[key]);
+	                return a;
+	            }
+	            return new classs(a);
+	        }
+	        return a;
 	    }
 	}
 	export class JobAnalysisInput {
+	    id: string;
+	    company: string;
+	    role: string;
 	    description: string;
 
 	    static createFrom(source: any = {}) {
@@ -445,6 +513,9 @@ export namespace domain {
 
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.company = source["company"];
+	        this.role = source["role"];
 	        this.description = source["description"];
 	    }
 	}

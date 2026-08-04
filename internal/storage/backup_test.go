@@ -44,6 +44,13 @@ func TestProfileBackupRoundTripReplacesAllCurrentData(t *testing.T) {
 	if _, err := store.SaveEducation(ctx, education); err != nil {
 		t.Fatalf("SaveEducation() error = %v", err)
 	}
+	job, err := (domain.JobInput{Company: "Example Systems", Role: "Platform Engineer", Description: "Build reliable Go services and audited deployment pipelines for a growing platform."}).Validate()
+	if err != nil {
+		t.Fatalf("job Validate() error = %v", err)
+	}
+	if _, err := store.SaveJob(ctx, job); err != nil {
+		t.Fatalf("SaveJob() error = %v", err)
+	}
 
 	backup, err := store.CreateProfileBackup(ctx)
 	if err != nil {
@@ -64,7 +71,7 @@ func TestProfileBackupRoundTripReplacesAllCurrentData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateProfileBackup(after import) error = %v", err)
 	}
-	if got.Profile.Name != "Ada Lovelace" || len(got.Experiences) != 1 || len(got.Projects) != 1 || len(got.Educations) != 1 {
+	if got.Profile.Name != "Ada Lovelace" || len(got.Experiences) != 1 || len(got.Projects) != 1 || len(got.Educations) != 1 || len(got.Jobs) != 1 {
 		t.Fatalf("restored backup = %#v", got)
 	}
 	if got.Experiences[0].Bullets[0].ID != backup.Experiences[0].Bullets[0].ID || got.Projects[0].Skills[0] != "Go" || len(got.Projects[0].DetectedLanguages) != 2 || got.Projects[0].DetectedLanguages[1].Name != "Shell" {

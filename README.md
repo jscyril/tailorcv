@@ -13,7 +13,7 @@ TailorCV is in its foundation stage. The first vertical slice provides:
 - Manual experience records with ordered, provenance-aware evidence bullets.
 - Reviewable projects with skills, source links, eligibility, and ordered evidence.
 - Education records with validated study dates and live resume-preview rendering.
-- Profile skill management and basic job-description skill matching.
+- Persisted job opportunities with alias-aware skill matching and explainable ranking of career evidence.
 - A dark split workspace with project selection, editable LaTeX source, and compiled PDF preview.
 - Read-only Jake-style and Classic ATS templates, plus persistent user-imported `.tex` templates.
 - Local Tectonic compilation with isolated workspaces, untrusted mode, time and output limits, and native `.tex`/`.pdf` export.

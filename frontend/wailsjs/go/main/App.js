@@ -10,6 +10,10 @@ export function DeleteExperience(arg1) {
   return window['go']['main']['App']['DeleteExperience'](arg1);
 }
 
+export function DeleteJob(arg1) {
+  return window['go']['main']['App']['DeleteJob'](arg1);
+}
+
 export function DeleteEducation(arg1) {
   return window['go']['main']['App']['DeleteEducation'](arg1);
 }
@@ -60,6 +64,10 @@ export function ImportResumeTemplate() {
 
 export function ListExperiences() {
   return window['go']['main']['App']['ListExperiences']();
+}
+
+export function ListJobs() {
+  return window['go']['main']['App']['ListJobs']();
 }
 
 export function ListEducations() {

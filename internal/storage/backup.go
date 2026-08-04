@@ -26,6 +26,10 @@ func (s *Store) CreateProfileBackup(ctx context.Context) (domain.ProfileBackup, 
 	if err != nil {
 		return domain.ProfileBackup{}, err
 	}
+	jobs, err := s.ListJobs(ctx)
+	if err != nil {
+		return domain.ProfileBackup{}, err
+	}
 	return domain.ProfileBackup{
 		SchemaVersion: domain.ProfileBackupSchemaVersion,
 		ExportedAt:    time.Now().UTC().Format(time.RFC3339),
@@ -33,6 +37,7 @@ func (s *Store) CreateProfileBackup(ctx context.Context) (domain.ProfileBackup, 
 		Experiences:   experiences,
 		Projects:      projects,
 		Educations:    educations,
+		Jobs:          jobs,
 	}, nil
 }
 
@@ -52,6 +57,7 @@ func (s *Store) ReplaceProfileFromBackup(ctx context.Context, source domain.Prof
 	defer func() { _ = tx.Rollback() }()
 
 	for _, statement := range []string{
+		`DELETE FROM jobs`,
 		`DELETE FROM projects`,
 		`DELETE FROM experiences`,
 		`DELETE FROM educations`,
@@ -161,6 +167,18 @@ func (s *Store) ReplaceProfileFromBackup(ctx context.Context, source domain.Prof
 		}
 	}
 
+	for _, job := range backup.Jobs {
+		createdAt := timestampOr(job.CreatedAt, now)
+		updatedAt := timestampOr(job.UpdatedAt, createdAt)
+		_, err := tx.ExecContext(ctx, `
+			INSERT INTO jobs (id, company, role, description, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?)
+		`, job.ID, job.Company, job.Role, job.Description, createdAt, updatedAt)
+		if err != nil {
+			return fmt.Errorf("import job: %w", err)
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit backup import: %w", err)
 	}
@@ -196,6 +214,12 @@ func validateBackupIDs(backup domain.ProfileBackup) error {
 	for index, education := range backup.Educations {
 		if err := validateUniqueUUID(education.ID, educationIDs); err != nil {
 			return fmt.Errorf("education %d ID: %w", index+1, err)
+		}
+	}
+	jobIDs := make(map[string]struct{}, len(backup.Jobs))
+	for index, job := range backup.Jobs {
+		if err := validateUniqueUUID(job.ID, jobIDs); err != nil {
+			return fmt.Errorf("job %d ID: %w", index+1, err)
 		}
 	}
 	return nil

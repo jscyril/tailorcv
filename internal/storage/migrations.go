@@ -156,6 +156,20 @@ var migrations = []migration{
 			)`,
 		},
 	},
+	{
+		version: 7,
+		statements: []string{
+			`CREATE TABLE jobs (
+				id TEXT PRIMARY KEY,
+				company TEXT NOT NULL DEFAULT '',
+				role TEXT NOT NULL DEFAULT '',
+				description TEXT NOT NULL,
+				created_at TEXT NOT NULL,
+				updated_at TEXT NOT NULL
+			)`,
+			`CREATE INDEX jobs_updated_at_idx ON jobs(updated_at DESC)`,
+		},
+	},
 }
 
 func (s *Store) applyMigrations(ctx context.Context) error {

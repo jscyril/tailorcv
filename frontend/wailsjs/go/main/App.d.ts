@@ -6,6 +6,8 @@ export function AnalyzeJobDescription(arg1:domain.JobAnalysisInput):Promise<doma
 
 export function DeleteExperience(arg1:string):Promise<void>;
 
+export function DeleteJob(arg1:string):Promise<void>;
+
 export function DeleteEducation(arg1:string):Promise<void>;
 
 export function DeleteProject(arg1:string):Promise<void>;
@@ -31,6 +33,8 @@ export function ImportGitHubProjects():Promise<domain.GitHubImportResult>;
 export function ImportResumeTemplate():Promise<domain.ResumeTemplate>;
 
 export function ListExperiences():Promise<Array<domain.Experience>>;
+
+export function ListJobs():Promise<Array<domain.Job>>;
 
 export function ListEducations():Promise<Array<domain.Education>>;
 
