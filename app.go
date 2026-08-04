@@ -609,12 +609,12 @@ func (a *App) CompileLatex(source string) (domain.CompileResult, error) {
 		return domain.CompileResult{}, err
 	}
 	result, pdf, err := a.compiler.Compile(a.appContext(), source)
-	if err != nil {
-		return domain.CompileResult{}, err
-	}
 	a.compileMu.Lock()
 	a.lastPDF = append(a.lastPDF[:0], pdf...)
 	a.compileMu.Unlock()
+	if err != nil {
+		return domain.CompileResult{}, err
+	}
 	return result, nil
 }
 

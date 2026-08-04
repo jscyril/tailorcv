@@ -1,17 +1,52 @@
 export namespace domain {
+	export class CompileDiagnostic {
+	    line: number;
+	    severity: string;
+	    message: string;
+
+	    static createFrom(source: any = {}) { return new CompileDiagnostic(source); }
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.line = source["line"];
+	        this.severity = source["severity"];
+	        this.message = source["message"];
+	    }
+	}
 	export class CompileResult {
+	    success: boolean;
 	    pdfBase64: string;
 	    engine: string;
 	    durationMs: number;
 	    log: string;
+	    diagnostics: CompileDiagnostic[];
 
 	    static createFrom(source: any = {}) { return new CompileResult(source); }
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.success = source["success"];
 	        this.pdfBase64 = source["pdfBase64"];
 	        this.engine = source["engine"];
 	        this.durationMs = source["durationMs"];
 	        this.log = source["log"];
+	        this.diagnostics = this.convertValues(source["diagnostics"], CompileDiagnostic);
+	    }
+
+	    convertValues(a: any, classs: any, asMap: boolean = false): any {
+	        if (!a) {
+	            return a;
+	        }
+	        if (a.slice && a.map) {
+	            return (a as any[]).map(elem => this.convertValues(elem, classs));
+	        } else if ("object" === typeof a) {
+	            if (asMap) {
+	                for (const key of Object.keys(a)) {
+	                    a[key] = new classs(a[key]);
+	                }
+	                return a;
+	            }
+	            return new classs(a);
+	        }
+	        return a;
 	    }
 	}
 	export class FileResult {

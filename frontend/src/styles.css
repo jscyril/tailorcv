@@ -241,11 +241,22 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .latex-actions .text-button { min-height: 36px; padding-inline: 4px; }
 .editor-tabs { display: flex; align-items: center; gap: 3px; padding: 0 16px; border-bottom: 1px solid var(--line); background: #0c0e0d; }
 .editor-tabs span { margin-left: auto; color: var(--muted); font-size: 8px; }
+.latex-editor-body { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; overflow: hidden; }
 .code-editor { min-height: 0; display: grid; grid-template-columns: 42px minmax(0, 1fr); overflow: hidden; background: #090b0a; }
 .line-numbers { overflow: hidden; padding: 15px 10px; border-right: 1px solid #202420; color: #505852; font: 10px/1.7 "SFMono-Regular", Consolas, monospace; text-align: right; user-select: none; }
 .line-numbers span { display: block; }
 .code-editor textarea { width: 100%; height: 100%; resize: none; padding: 15px; border: 0; outline: 0; background: #090b0a; color: #d9e3d5; caret-color: var(--accent); font: 10px/1.7 "SFMono-Regular", Consolas, monospace; tab-size: 2; }
+.compiler-diagnostics { max-height: 150px; overflow-y: auto; border-top: 1px solid #3c2826; background: #100d0c; }
+.compiler-diagnostics > header { position: sticky; top: 0; display: flex; justify-content: space-between; align-items: center; padding: 8px 14px; border-bottom: 1px solid #30211f; background: #17100f; z-index: 1; }
+.compiler-diagnostics > header strong { color: #f0c1b8; font-size: 10px; }
+.compiler-diagnostics > header span { color: var(--muted); font-size: 9px; }
+.compiler-diagnostic { display: grid; grid-template-columns: 48px 54px minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 7px 14px; border-bottom: 1px solid #241a18; }
+.compiler-diagnostic > span { color: #f09483; font-size: 8px; font-weight: 800; text-transform: uppercase; }
+.compiler-diagnostic.warning > span { color: #d7bd6a; }
+.compiler-diagnostic strong { color: var(--secondary); font-size: 9px; }
+.compiler-diagnostic p { margin: 0; color: #d7cdc9; font: 10px/1.5 "SFMono-Regular", Consolas, monospace; overflow-wrap: anywhere; }
 .editor-status { height: 27px; display: flex; justify-content: flex-end; align-items: center; gap: 16px; padding: 0 14px; border-top: 1px solid var(--line); background: #0c0e0d; color: var(--muted); font-size: 8px; }
+.editor-status span:first-child { margin-right: auto; color: var(--secondary); }
 
 .ai-workspace { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; overflow: hidden; }
 .provider-picker { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; padding: 13px 18px; border-bottom: 1px solid var(--line); }

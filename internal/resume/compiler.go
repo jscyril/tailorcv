@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -65,15 +67,26 @@ func (compiler *Compiler) Compile(ctx context.Context, source string) (domain.Co
 	started := time.Now()
 	err = command.Run()
 	duration := time.Since(started)
+	compilerLog := strings.TrimSpace(log.String())
 	if compileContext.Err() == context.DeadlineExceeded {
 		return domain.CompileResult{}, nil, fmt.Errorf("LaTeX compilation exceeded the %s time limit", compileTimeout)
 	}
+	result := domain.CompileResult{
+		Success:     err == nil,
+		Engine:      "Tectonic",
+		DurationMS:  duration.Milliseconds(),
+		Log:         compilerLog,
+		Diagnostics: parseCompilerDiagnostics(compilerLog),
+	}
 	if err != nil {
-		message := strings.TrimSpace(log.String())
-		if message == "" {
-			message = err.Error()
+		if len(result.Diagnostics) == 0 {
+			message := firstCompilerMessage(compilerLog)
+			if message == "" {
+				message = err.Error()
+			}
+			result.Diagnostics = []domain.CompileDiagnostic{{Severity: "error", Message: message}}
 		}
-		return domain.CompileResult{}, nil, fmt.Errorf("LaTeX compilation failed:\n%s", message)
+		return result, nil, nil
 	}
 	pdf, err := os.ReadFile(filepath.Join(workspace, "resume.pdf"))
 	if err != nil {
@@ -82,13 +95,86 @@ func (compiler *Compiler) Compile(ctx context.Context, source string) (domain.Co
 	if len(pdf) == 0 || len(pdf) > maxPDFSize {
 		return domain.CompileResult{}, nil, fmt.Errorf("compiled PDF is empty or exceeds the 24 MiB limit")
 	}
-	result := domain.CompileResult{
-		PDFBase64:  base64.StdEncoding.EncodeToString(pdf),
-		Engine:     "Tectonic",
-		DurationMS: duration.Milliseconds(),
-		Log:        strings.TrimSpace(log.String()),
-	}
+	result.PDFBase64 = base64.StdEncoding.EncodeToString(pdf)
 	return result, pdf, nil
+}
+
+var (
+	structuredDiagnosticPattern = regexp.MustCompile(`(?i)^(error|warning):\s*(?:(?:[^:]+):(\d+):\s*)?(.+)$`)
+	texLinePattern              = regexp.MustCompile(`^l\.(\d+)\s*(.*)$`)
+	locationPattern             = regexp.MustCompile(`(?:-->|at)?\s*[^:\s]+:(\d+)(?::\d+)?`)
+)
+
+func parseCompilerDiagnostics(output string) []domain.CompileDiagnostic {
+	diagnostics := make([]domain.CompileDiagnostic, 0)
+	var pending *domain.CompileDiagnostic
+	appendDiagnostic := func(diagnostic domain.CompileDiagnostic) {
+		diagnostic.Message = strings.Join(strings.Fields(diagnostic.Message), " ")
+		if diagnostic.Message == "" {
+			return
+		}
+		for _, existing := range diagnostics {
+			if existing.Line == diagnostic.Line && existing.Severity == diagnostic.Severity && existing.Message == diagnostic.Message {
+				return
+			}
+		}
+		diagnostics = append(diagnostics, diagnostic)
+	}
+	flushPending := func() {
+		if pending != nil {
+			appendDiagnostic(*pending)
+			pending = nil
+		}
+	}
+
+	for _, sourceLine := range strings.Split(output, "\n") {
+		line := strings.TrimSpace(sourceLine)
+		if line == "" {
+			continue
+		}
+		if match := structuredDiagnosticPattern.FindStringSubmatch(line); match != nil {
+			flushPending()
+			diagnostic := domain.CompileDiagnostic{Severity: strings.ToLower(match[1]), Message: match[3]}
+			if match[2] != "" {
+				diagnostic.Line, _ = strconv.Atoi(match[2])
+				appendDiagnostic(diagnostic)
+			} else {
+				pending = &diagnostic
+			}
+			continue
+		}
+		if strings.HasPrefix(line, "!") {
+			flushPending()
+			pending = &domain.CompileDiagnostic{Severity: "error", Message: strings.TrimSpace(strings.TrimPrefix(line, "!"))}
+			continue
+		}
+		if pending != nil {
+			if match := texLinePattern.FindStringSubmatch(line); match != nil {
+				pending.Line, _ = strconv.Atoi(match[1])
+				if context := strings.TrimSpace(match[2]); context != "" {
+					pending.Message += " — " + context
+				}
+				flushPending()
+				continue
+			}
+			if match := locationPattern.FindStringSubmatch(line); match != nil {
+				pending.Line, _ = strconv.Atoi(match[1])
+				flushPending()
+			}
+		}
+	}
+	flushPending()
+	return diagnostics
+}
+
+func firstCompilerMessage(output string) string {
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" && !strings.HasPrefix(strings.ToLower(line), "note:") {
+			return line
+		}
+	}
+	return ""
 }
 
 func compilerCacheDirectory(fallback string) string {

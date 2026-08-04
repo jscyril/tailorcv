@@ -53,10 +53,18 @@ func (input ResumeTemplateInput) Validate() (ResumeTemplate, error) {
 }
 
 type CompileResult struct {
-	PDFBase64  string `json:"pdfBase64"`
-	Engine     string `json:"engine"`
-	DurationMS int64  `json:"durationMs"`
-	Log        string `json:"log"`
+	Success     bool                `json:"success"`
+	PDFBase64   string              `json:"pdfBase64"`
+	Engine      string              `json:"engine"`
+	DurationMS  int64               `json:"durationMs"`
+	Log         string              `json:"log"`
+	Diagnostics []CompileDiagnostic `json:"diagnostics"`
+}
+
+type CompileDiagnostic struct {
+	Line     int    `json:"line"`
+	Severity string `json:"severity"`
+	Message  string `json:"message"`
 }
 
 type FileResult struct {
