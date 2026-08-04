@@ -201,6 +201,20 @@ var migrations = []migration{
 			`CREATE INDEX resume_versions_application_idx ON resume_versions(application_id, version_number DESC)`,
 		},
 	},
+	{
+		version: 9,
+		statements: []string{
+			`CREATE VIRTUAL TABLE career_evidence_fts USING fts5(
+				fact_id UNINDEXED,
+				source_id UNINDEXED,
+				source_type UNINDEXED,
+				source_label,
+				text,
+				skills,
+				tokenize = 'porter unicode61'
+			)`,
+		},
+	},
 }
 
 func (s *Store) applyMigrations(ctx context.Context) error {

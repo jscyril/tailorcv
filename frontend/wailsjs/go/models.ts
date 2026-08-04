@@ -564,6 +564,11 @@ export namespace domain {
 	    matchedSkills: string[];
 	    unmentionedSkills: string[];
 	    detectedSkills: string[];
+	    requiredSkills: string[];
+	    preferredSkills: string[];
+	    responsibilities: string[];
+	    keywords: string[];
+	    searchTerms: string[];
 	    rankedEvidence: EvidenceMatch[];
 	    explanation: string;
 
@@ -578,6 +583,11 @@ export namespace domain {
 	        this.matchedSkills = source["matchedSkills"];
 	        this.unmentionedSkills = source["unmentionedSkills"];
 	        this.detectedSkills = source["detectedSkills"];
+	        this.requiredSkills = source["requiredSkills"];
+	        this.preferredSkills = source["preferredSkills"];
+	        this.responsibilities = source["responsibilities"];
+	        this.keywords = source["keywords"];
+	        this.searchTerms = source["searchTerms"];
 	        this.rankedEvidence = this.convertValues(source["rankedEvidence"], EvidenceMatch);
 	        this.explanation = source["explanation"];
 	    }

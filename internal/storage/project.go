@@ -302,6 +302,9 @@ func (s *Store) SaveProject(ctx context.Context, project domain.Project) (domain
 		}
 	}
 
+	if err := rebuildEvidenceSearch(ctx, tx); err != nil {
+		return domain.Project{}, err
+	}
 	if err := tx.Commit(); err != nil {
 		return domain.Project{}, fmt.Errorf("commit project update: %w", err)
 	}
@@ -315,7 +318,12 @@ func (s *Store) DeleteProject(ctx context.Context, id string) error {
 	if _, err := uuid.Parse(id); err != nil {
 		return fmt.Errorf("project ID is not valid")
 	}
-	result, err := s.db.ExecContext(ctx, `DELETE FROM projects WHERE id = ?`, id)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin project delete: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	result, err := tx.ExecContext(ctx, `DELETE FROM projects WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("delete project: %w", err)
 	}
@@ -325,6 +333,12 @@ func (s *Store) DeleteProject(ctx context.Context, id string) error {
 	}
 	if deleted == 0 {
 		return fmt.Errorf("project was not found")
+	}
+	if err := rebuildEvidenceSearch(ctx, tx); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit project delete: %w", err)
 	}
 	return nil
 }

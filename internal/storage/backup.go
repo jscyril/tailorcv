@@ -214,6 +214,9 @@ func (s *Store) ReplaceProfileFromBackup(ctx context.Context, source domain.Prof
 		}
 	}
 
+	if err := rebuildEvidenceSearch(ctx, tx); err != nil {
+		return err
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit backup import: %w", err)
 	}

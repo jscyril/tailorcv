@@ -315,6 +315,14 @@ func (a *App) AnalyzeJobDescription(input domain.JobAnalysisInput) (domain.JobAn
 	if err != nil {
 		return domain.JobAnalysis{}, err
 	}
+	searchHits, err := a.store.SearchEvidence(a.appContext(), analysis.SearchTerms, 50)
+	if err != nil {
+		return domain.JobAnalysis{}, err
+	}
+	analysis, err = domain.AnalyzeCareerEvidenceWithSearch(input, profile.Skills, experiences, projects, searchHits)
+	if err != nil {
+		return domain.JobAnalysis{}, err
+	}
 	saved, err := a.store.SaveJob(a.appContext(), job)
 	if err != nil {
 		return domain.JobAnalysis{}, err

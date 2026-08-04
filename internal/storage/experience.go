@@ -217,6 +217,9 @@ func (s *Store) SaveExperience(ctx context.Context, experience domain.Experience
 		}
 	}
 
+	if err := rebuildEvidenceSearch(ctx, tx); err != nil {
+		return domain.Experience{}, err
+	}
 	if err := tx.Commit(); err != nil {
 		return domain.Experience{}, fmt.Errorf("commit experience update: %w", err)
 	}
@@ -230,7 +233,12 @@ func (s *Store) DeleteExperience(ctx context.Context, id string) error {
 	if _, err := uuid.Parse(id); err != nil {
 		return fmt.Errorf("experience ID is not valid")
 	}
-	result, err := s.db.ExecContext(ctx, `DELETE FROM experiences WHERE id = ?`, id)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin experience delete: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	result, err := tx.ExecContext(ctx, `DELETE FROM experiences WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("delete experience: %w", err)
 	}
@@ -240,6 +248,12 @@ func (s *Store) DeleteExperience(ctx context.Context, id string) error {
 	}
 	if deleted == 0 {
 		return fmt.Errorf("experience was not found")
+	}
+	if err := rebuildEvidenceSearch(ctx, tx); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit experience delete: %w", err)
 	}
 	return nil
 }

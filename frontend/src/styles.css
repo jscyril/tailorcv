@@ -427,6 +427,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .skill { padding: 5px 7px; border-radius: 6px; font-size: 8px; font-weight: 700; }
 .skill.match { background: #c8e86b1c; color: var(--accent); }
 .skill.neutral { background: var(--elevated); color: var(--muted); }
+.requirement-summary, .keyword-summary { margin-top: 16px; }
+.requirement-summary ul { display: grid; gap: 6px; margin: 9px 0 0; padding-left: 18px; color: var(--secondary); font-size: var(--text-xs); line-height: 1.5; }
+.requirement-summary li::marker { color: var(--accent); }
+.keyword-summary > strong { font-size: var(--text-sm); }
 .ranked-evidence { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
 .ranked-evidence > article { margin-top: 9px; padding: 11px; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--elevated); }
 .ranked-evidence > article.selected { border-color: #c8e86b66; background: #1b2415; }

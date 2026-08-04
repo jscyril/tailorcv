@@ -64,7 +64,10 @@ func (s *Store) initialize(ctx context.Context) error {
 			return fmt.Errorf("initialize database: %w", err)
 		}
 	}
-	return s.applyMigrations(ctx)
+	if err := s.applyMigrations(ctx); err != nil {
+		return err
+	}
+	return rebuildEvidenceSearch(ctx, s.db)
 }
 
 func (s *Store) GetProfile(ctx context.Context) (domain.Profile, error) {

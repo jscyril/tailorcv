@@ -62,3 +62,29 @@ func TestJobInputNormalizesAndLimitsDescription(t *testing.T) {
 		t.Fatalf("job = %#v", job)
 	}
 }
+
+func TestAnalyzeCareerEvidenceExtractsStructuredRequirements(t *testing.T) {
+	analysis, err := AnalyzeCareerEvidence(JobAnalysisInput{Description: `Required: Go and Kubernetes.
+Preferred: PostgreSQL experience is a plus.
+Design and operate reliable production APIs for customers.`}, []string{"Go"}, nil, nil)
+	if err != nil {
+		t.Fatalf("AnalyzeCareerEvidence() error = %v", err)
+	}
+	if len(analysis.RequiredSkills) != 2 || len(analysis.PreferredSkills) != 1 || analysis.PreferredSkills[0] != "PostgreSQL" {
+		t.Fatalf("skill requirements = required %#v, preferred %#v", analysis.RequiredSkills, analysis.PreferredSkills)
+	}
+	if len(analysis.Responsibilities) != 1 || len(analysis.Keywords) == 0 || len(analysis.SearchTerms) == 0 {
+		t.Fatalf("structured analysis = %#v", analysis)
+	}
+}
+
+func TestAnalyzeCareerEvidenceUsesIndexedSearchSignal(t *testing.T) {
+	experiences := []Experience{{ID: "experience", Title: "Engineer", Company: "Example", Bullets: []EvidenceBullet{{ID: "indexed-fact", Text: "Automated release workflows"}}}}
+	analysis, err := AnalyzeCareerEvidenceWithSearch(JobAnalysisInput{Description: "Build dependable customer systems and improve operational quality across the software platform."}, nil, experiences, nil, []EvidenceSearchHit{{FactID: "indexed-fact", Score: 18}})
+	if err != nil {
+		t.Fatalf("AnalyzeCareerEvidenceWithSearch() error = %v", err)
+	}
+	if len(analysis.RankedEvidence) != 1 || analysis.RankedEvidence[0].Score != 18 || analysis.RankedEvidence[0].Reasons[0] != "Indexed evidence search match" {
+		t.Fatalf("ranked evidence = %#v", analysis.RankedEvidence)
+	}
+}
