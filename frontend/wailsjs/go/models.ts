@@ -68,6 +68,8 @@ export namespace domain {
 	    projectCount: number;
 	    educationCount: number;
 	    jobCount: number;
+	    applicationCount: number;
+	    resumeVersionCount: number;
 
 	    static createFrom(source: any = {}) {
 	        return new BackupResult(source);
@@ -81,6 +83,8 @@ export namespace domain {
 	        this.projectCount = source["projectCount"];
 	        this.educationCount = source["educationCount"];
 	        this.jobCount = source["jobCount"];
+	        this.applicationCount = source["applicationCount"];
+	        this.resumeVersionCount = source["resumeVersionCount"];
 	    }
 	}
 	export class Education {
@@ -449,6 +453,7 @@ export namespace domain {
 	    matchedSkills: string[];
 	    reasons: string[];
 	    verified: boolean;
+	    selectable: boolean;
 
 	    static createFrom(source: any = {}) { return new EvidenceMatch(source); }
 	    constructor(source: any = {}) {
@@ -462,6 +467,95 @@ export namespace domain {
 	        this.matchedSkills = source["matchedSkills"];
 	        this.reasons = source["reasons"];
 	        this.verified = source["verified"];
+	        this.selectable = source["selectable"];
+	    }
+	}
+	export class ResumeVersion {
+	    id: string;
+	    applicationId: string;
+	    versionNumber: number;
+	    jobDescriptionSnapshot: string;
+	    selectedFactIds: string[];
+	    latexSource: string;
+	    templateId: string;
+	    createdAt: string;
+
+	    static createFrom(source: any = {}) { return new ResumeVersion(source); }
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.applicationId = source["applicationId"];
+	        this.versionNumber = source["versionNumber"];
+	        this.jobDescriptionSnapshot = source["jobDescriptionSnapshot"];
+	        this.selectedFactIds = source["selectedFactIds"];
+	        this.latexSource = source["latexSource"];
+	        this.templateId = source["templateId"];
+	        this.createdAt = source["createdAt"];
+	    }
+	}
+	export class Application {
+	    id: string;
+	    jobId: string;
+	    status: string;
+	    selectedFactIds: string[];
+	    versions: ResumeVersion[];
+	    createdAt: string;
+	    updatedAt: string;
+
+	    static createFrom(source: any = {}) { return new Application(source); }
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.jobId = source["jobId"];
+	        this.status = source["status"];
+	        this.selectedFactIds = source["selectedFactIds"];
+	        this.versions = this.convertValues(source["versions"], ResumeVersion);
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+
+	    convertValues(a: any, classs: any, asMap: boolean = false): any {
+	        if (!a) return a;
+	        if (a.slice && a.map) return (a as any[]).map(elem => this.convertValues(elem, classs));
+	        if ("object" === typeof a) {
+	            if (asMap) {
+	                for (const key of Object.keys(a)) a[key] = new classs(a[key]);
+	                return a;
+	            }
+	            return new classs(a);
+	        }
+	        return a;
+	    }
+	}
+	export class CreateResumeVersionInput {
+	    jobId: string;
+	    selectedFactIds: string[];
+	    templateId: string;
+
+	    static createFrom(source: any = {}) { return new CreateResumeVersionInput(source); }
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.jobId = source["jobId"];
+	        this.selectedFactIds = source["selectedFactIds"];
+	        this.templateId = source["templateId"];
+	    }
+	}
+	export class ApplicationResumeResult {
+	    application: Application;
+	    version: ResumeVersion;
+
+	    static createFrom(source: any = {}) { return new ApplicationResumeResult(source); }
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.application = this.convertValues(source["application"], Application);
+	        this.version = this.convertValues(source["version"], ResumeVersion);
+	    }
+
+	    convertValues(a: any, classs: any): any {
+	        if (!a) return a;
+	        if (a.slice && a.map) return (a as any[]).map(elem => this.convertValues(elem, classs));
+	        if ("object" === typeof a) return new classs(a);
+	        return a;
 	    }
 	}
 	export class JobAnalysis {

@@ -16,6 +16,8 @@ export function DeleteResumeTemplate(arg1:string):Promise<void>;
 
 export function CompileLatex(arg1:string):Promise<domain.CompileResult>;
 
+export function CreateResumeVersion(arg1:domain.CreateResumeVersionInput):Promise<domain.ApplicationResumeResult>;
+
 export function ExportCompiledPDF():Promise<domain.FileResult>;
 
 export function ExportLatexSource(arg1:string):Promise<domain.FileResult>;
@@ -33,6 +35,8 @@ export function ImportGitHubProjects():Promise<domain.GitHubImportResult>;
 export function ImportResumeTemplate():Promise<domain.ResumeTemplate>;
 
 export function ListExperiences():Promise<Array<domain.Experience>>;
+
+export function ListApplications():Promise<Array<domain.Application>>;
 
 export function ListJobs():Promise<Array<domain.Job>>;
 

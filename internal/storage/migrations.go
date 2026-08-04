@@ -170,6 +170,37 @@ var migrations = []migration{
 			`CREATE INDEX jobs_updated_at_idx ON jobs(updated_at DESC)`,
 		},
 	},
+	{
+		version: 8,
+		statements: []string{
+			`CREATE TABLE applications (
+				id TEXT PRIMARY KEY,
+				job_id TEXT NOT NULL UNIQUE REFERENCES jobs(id) ON DELETE CASCADE,
+				status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted', 'archived')),
+				created_at TEXT NOT NULL,
+				updated_at TEXT NOT NULL
+			)`,
+			`CREATE TABLE application_selected_facts (
+				application_id TEXT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+				position INTEGER NOT NULL,
+				fact_id TEXT NOT NULL,
+				PRIMARY KEY (application_id, position),
+				UNIQUE (application_id, fact_id)
+			)`,
+			`CREATE TABLE resume_versions (
+				id TEXT PRIMARY KEY,
+				application_id TEXT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+				version_number INTEGER NOT NULL CHECK (version_number > 0),
+				job_description_snapshot TEXT NOT NULL,
+				selected_fact_ids_json TEXT NOT NULL,
+				latex_source TEXT NOT NULL,
+				template_id TEXT NOT NULL,
+				created_at TEXT NOT NULL,
+				UNIQUE (application_id, version_number)
+			)`,
+			`CREATE INDEX resume_versions_application_idx ON resume_versions(application_id, version_number DESC)`,
+		},
+	},
 }
 
 func (s *Store) applyMigrations(ctx context.Context) error {

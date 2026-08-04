@@ -35,6 +35,23 @@ func (s *Store) ListJobs(ctx context.Context) ([]domain.Job, error) {
 	return jobs, nil
 }
 
+func (s *Store) GetJob(ctx context.Context, id string) (domain.Job, error) {
+	if _, err := uuid.Parse(id); err != nil {
+		return domain.Job{}, fmt.Errorf("job ID is not valid")
+	}
+	var job domain.Job
+	err := s.db.QueryRowContext(ctx, `SELECT id, company, role, description, created_at, updated_at FROM jobs WHERE id = ?`, id).Scan(
+		&job.ID, &job.Company, &job.Role, &job.Description, &job.CreatedAt, &job.UpdatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Job{}, fmt.Errorf("job was not found")
+	}
+	if err != nil {
+		return domain.Job{}, fmt.Errorf("read job: %w", err)
+	}
+	return job, nil
+}
+
 func (s *Store) SaveJob(ctx context.Context, job domain.Job) (domain.Job, error) {
 	if job.ID == "" {
 		job.ID = uuid.NewString()

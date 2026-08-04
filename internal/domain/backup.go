@@ -11,22 +11,25 @@ import (
 const ProfileBackupSchemaVersion = 1
 
 type ProfileBackup struct {
-	SchemaVersion int          `json:"schemaVersion"`
-	ExportedAt    string       `json:"exportedAt"`
-	Profile       Profile      `json:"profile"`
-	Experiences   []Experience `json:"experiences"`
-	Projects      []Project    `json:"projects"`
-	Educations    []Education  `json:"educations"`
-	Jobs          []Job        `json:"jobs,omitempty"`
+	SchemaVersion int           `json:"schemaVersion"`
+	ExportedAt    string        `json:"exportedAt"`
+	Profile       Profile       `json:"profile"`
+	Experiences   []Experience  `json:"experiences"`
+	Projects      []Project     `json:"projects"`
+	Educations    []Education   `json:"educations"`
+	Jobs          []Job         `json:"jobs,omitempty"`
+	Applications  []Application `json:"applications,omitempty"`
 }
 
 type BackupResult struct {
-	Path            string `json:"path"`
-	Cancelled       bool   `json:"cancelled"`
-	ExperienceCount int    `json:"experienceCount"`
-	ProjectCount    int    `json:"projectCount"`
-	EducationCount  int    `json:"educationCount"`
-	JobCount        int    `json:"jobCount"`
+	Path               string `json:"path"`
+	Cancelled          bool   `json:"cancelled"`
+	ExperienceCount    int    `json:"experienceCount"`
+	ProjectCount       int    `json:"projectCount"`
+	EducationCount     int    `json:"educationCount"`
+	JobCount           int    `json:"jobCount"`
+	ApplicationCount   int    `json:"applicationCount"`
+	ResumeVersionCount int    `json:"resumeVersionCount"`
 }
 
 func DecodeProfileBackup(data []byte) (ProfileBackup, error) {
@@ -186,6 +189,54 @@ func (backup ProfileBackup) Validate() (ProfileBackup, error) {
 		jobs = append(jobs, validated)
 	}
 	backup.Jobs = jobs
+
+	applications := make([]Application, 0, len(backup.Applications))
+	for index, source := range backup.Applications {
+		if source.Status != "draft" && source.Status != "submitted" && source.Status != "archived" {
+			return ProfileBackup{}, fmt.Errorf("application %d status is not valid", index+1)
+		}
+		if err := validateBackupTimestamp(fmt.Sprintf("application %d creation time", index+1), source.CreatedAt, true); err != nil {
+			return ProfileBackup{}, err
+		}
+		if err := validateBackupTimestamp(fmt.Sprintf("application %d update time", index+1), source.UpdatedAt, true); err != nil {
+			return ProfileBackup{}, err
+		}
+		selection, err := (CreateResumeVersionInput{JobID: source.JobID, TemplateID: "backup-validation", SelectedFactIDs: source.SelectedFactIDs}).Validate()
+		if err != nil {
+			return ProfileBackup{}, fmt.Errorf("application %d: %w", index+1, err)
+		}
+		application := Application{ID: source.ID, JobID: selection.JobID, Status: source.Status, SelectedFactIDs: selection.SelectedFactIDs, Versions: make([]ResumeVersion, 0, len(source.Versions)), CreatedAt: source.CreatedAt, UpdatedAt: source.UpdatedAt}
+		versionNumbers := make(map[int]struct{}, len(source.Versions))
+		for versionIndex, version := range source.Versions {
+			if version.ApplicationID != source.ID {
+				return ProfileBackup{}, fmt.Errorf("application %d resume version %d belongs to another application", index+1, versionIndex+1)
+			}
+			if version.VersionNumber < 1 {
+				return ProfileBackup{}, fmt.Errorf("application %d resume version %d number is not valid", index+1, versionIndex+1)
+			}
+			if _, exists := versionNumbers[version.VersionNumber]; exists {
+				return ProfileBackup{}, fmt.Errorf("application %d resume version numbers must be unique", index+1)
+			}
+			versionNumbers[version.VersionNumber] = struct{}{}
+			if err := validateBackupTimestamp(fmt.Sprintf("application %d resume version %d creation time", index+1, versionIndex+1), version.CreatedAt, true); err != nil {
+				return ProfileBackup{}, err
+			}
+			validatedVersion, err := (CreateResumeVersionInput{JobID: source.JobID, TemplateID: version.TemplateID, SelectedFactIDs: version.SelectedFactIDs}).Validate()
+			if err != nil {
+				return ProfileBackup{}, fmt.Errorf("application %d resume version %d: %w", index+1, versionIndex+1, err)
+			}
+			if len(version.JobDescriptionSnapshot) < 40 {
+				return ProfileBackup{}, fmt.Errorf("application %d resume version %d job snapshot is not valid", index+1, versionIndex+1)
+			}
+			if len(version.LatexSource) == 0 || len(version.LatexSource) > MaxTemplateSourceBytes {
+				return ProfileBackup{}, fmt.Errorf("application %d resume version %d LaTeX source is not valid", index+1, versionIndex+1)
+			}
+			version.SelectedFactIDs = validatedVersion.SelectedFactIDs
+			application.Versions = append(application.Versions, version)
+		}
+		applications = append(applications, application)
+	}
+	backup.Applications = applications
 	return backup, nil
 }
 
@@ -200,5 +251,9 @@ func validateBackupTimestamp(field, value string, required bool) error {
 }
 
 func (backup ProfileBackup) Result(path string) BackupResult {
-	return BackupResult{Path: path, ExperienceCount: len(backup.Experiences), ProjectCount: len(backup.Projects), EducationCount: len(backup.Educations), JobCount: len(backup.Jobs)}
+	versionCount := 0
+	for _, application := range backup.Applications {
+		versionCount += len(application.Versions)
+	}
+	return BackupResult{Path: path, ExperienceCount: len(backup.Experiences), ProjectCount: len(backup.Projects), EducationCount: len(backup.Educations), JobCount: len(backup.Jobs), ApplicationCount: len(backup.Applications), ResumeVersionCount: versionCount}
 }

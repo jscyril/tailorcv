@@ -31,6 +31,7 @@ type EvidenceMatch struct {
 	MatchedSkills []string `json:"matchedSkills"`
 	Reasons       []string `json:"reasons"`
 	Verified      bool     `json:"verified"`
+	Selectable    bool     `json:"selectable"`
 }
 
 type JobAnalysis struct {
@@ -180,7 +181,7 @@ func rankEvidence(factID, sourceID, sourceType, label, text string, verified, el
 	}
 	return EvidenceMatch{
 		FactID: factID, SourceID: sourceID, SourceType: sourceType, SourceLabel: label,
-		Text: text, Score: min(score, 100), MatchedSkills: matchedSkills, Reasons: reasons, Verified: verified,
+		Text: text, Score: min(score, 100), MatchedSkills: matchedSkills, Reasons: reasons, Verified: verified, Selectable: sourceType != "project" || eligible,
 	}
 }
 

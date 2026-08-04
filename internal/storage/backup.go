@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -30,6 +31,10 @@ func (s *Store) CreateProfileBackup(ctx context.Context) (domain.ProfileBackup, 
 	if err != nil {
 		return domain.ProfileBackup{}, err
 	}
+	applications, err := s.ListApplications(ctx)
+	if err != nil {
+		return domain.ProfileBackup{}, err
+	}
 	return domain.ProfileBackup{
 		SchemaVersion: domain.ProfileBackupSchemaVersion,
 		ExportedAt:    time.Now().UTC().Format(time.RFC3339),
@@ -38,6 +43,7 @@ func (s *Store) CreateProfileBackup(ctx context.Context) (domain.ProfileBackup, 
 		Projects:      projects,
 		Educations:    educations,
 		Jobs:          jobs,
+		Applications:  applications,
 	}, nil
 }
 
@@ -57,6 +63,7 @@ func (s *Store) ReplaceProfileFromBackup(ctx context.Context, source domain.Prof
 	defer func() { _ = tx.Rollback() }()
 
 	for _, statement := range []string{
+		`DELETE FROM applications`,
 		`DELETE FROM jobs`,
 		`DELETE FROM projects`,
 		`DELETE FROM experiences`,
@@ -179,6 +186,34 @@ func (s *Store) ReplaceProfileFromBackup(ctx context.Context, source domain.Prof
 		}
 	}
 
+	for _, application := range backup.Applications {
+		_, err := tx.ExecContext(ctx, `
+			INSERT INTO applications(id, job_id, status, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?)
+		`, application.ID, application.JobID, application.Status, application.CreatedAt, application.UpdatedAt)
+		if err != nil {
+			return fmt.Errorf("import application: %w", err)
+		}
+		for position, factID := range application.SelectedFactIDs {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO application_selected_facts(application_id, position, fact_id) VALUES (?, ?, ?)`, application.ID, position, factID); err != nil {
+				return fmt.Errorf("import application selected fact: %w", err)
+			}
+		}
+		for _, version := range application.Versions {
+			selectedJSON, err := json.Marshal(version.SelectedFactIDs)
+			if err != nil {
+				return fmt.Errorf("encode imported resume version selection: %w", err)
+			}
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO resume_versions(id, application_id, version_number, job_description_snapshot, selected_fact_ids_json, latex_source, template_id, created_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			`, version.ID, application.ID, version.VersionNumber, version.JobDescriptionSnapshot, string(selectedJSON), version.LatexSource, version.TemplateID, version.CreatedAt)
+			if err != nil {
+				return fmt.Errorf("import resume version: %w", err)
+			}
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit backup import: %w", err)
 	}
@@ -220,6 +255,33 @@ func validateBackupIDs(backup domain.ProfileBackup) error {
 	for index, job := range backup.Jobs {
 		if err := validateUniqueUUID(job.ID, jobIDs); err != nil {
 			return fmt.Errorf("job %d ID: %w", index+1, err)
+		}
+	}
+	applicationIDs := make(map[string]struct{}, len(backup.Applications))
+	versionIDs := make(map[string]struct{})
+	for index, application := range backup.Applications {
+		if err := validateUniqueUUID(application.ID, applicationIDs); err != nil {
+			return fmt.Errorf("application %d ID: %w", index+1, err)
+		}
+		if _, exists := jobIDs[application.JobID]; !exists {
+			return fmt.Errorf("application %d references an unknown job", index+1)
+		}
+		selectedIDs := make(map[string]struct{}, len(application.SelectedFactIDs))
+		for factIndex, factID := range application.SelectedFactIDs {
+			if err := validateUniqueUUID(factID, selectedIDs); err != nil {
+				return fmt.Errorf("application %d selected fact %d: %w", index+1, factIndex+1, err)
+			}
+		}
+		for versionIndex, version := range application.Versions {
+			if err := validateUniqueUUID(version.ID, versionIDs); err != nil {
+				return fmt.Errorf("application %d resume version %d ID: %w", index+1, versionIndex+1, err)
+			}
+			versionSelectedIDs := make(map[string]struct{}, len(version.SelectedFactIDs))
+			for factIndex, factID := range version.SelectedFactIDs {
+				if err := validateUniqueUUID(factID, versionSelectedIDs); err != nil {
+					return fmt.Errorf("application %d resume version %d selected fact %d: %w", index+1, versionIndex+1, factIndex+1, err)
+				}
+			}
 		}
 	}
 	return nil

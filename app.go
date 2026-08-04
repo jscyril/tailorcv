@@ -338,6 +338,109 @@ func (a *App) DeleteJob(id string) error {
 	return a.store.DeleteJob(a.appContext(), id)
 }
 
+// ListApplications returns local application records with immutable resume
+// versions ordered newest first.
+func (a *App) ListApplications() ([]domain.Application, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	return a.store.ListApplications(a.appContext())
+}
+
+// CreateResumeVersion renders only explicitly selected evidence and appends an
+// immutable source snapshot to the application associated with the saved job.
+func (a *App) CreateResumeVersion(input domain.CreateResumeVersionInput) (domain.ApplicationResumeResult, error) {
+	if err := a.ready(); err != nil {
+		return domain.ApplicationResumeResult{}, err
+	}
+	validated, err := input.Validate()
+	if err != nil {
+		return domain.ApplicationResumeResult{}, err
+	}
+	job, err := a.store.GetJob(a.appContext(), validated.JobID)
+	if err != nil {
+		return domain.ApplicationResumeResult{}, err
+	}
+	template, err := a.resumeTemplate(validated.TemplateID)
+	if err != nil {
+		return domain.ApplicationResumeResult{}, err
+	}
+	profile, err := a.store.GetProfile(a.appContext())
+	if err != nil {
+		return domain.ApplicationResumeResult{}, err
+	}
+	experiences, err := a.store.ListExperiences(a.appContext())
+	if err != nil {
+		return domain.ApplicationResumeResult{}, err
+	}
+	projects, err := a.store.ListProjects(a.appContext())
+	if err != nil {
+		return domain.ApplicationResumeResult{}, err
+	}
+	educations, err := a.store.ListEducations(a.appContext())
+	if err != nil {
+		return domain.ApplicationResumeResult{}, err
+	}
+	selectedExperiences, selectedProjects, err := selectResumeEvidence(validated.SelectedFactIDs, experiences, projects)
+	if err != nil {
+		return domain.ApplicationResumeResult{}, err
+	}
+	source := resume.Render(template.Source, resume.Data{Profile: profile, Experiences: selectedExperiences, Projects: selectedProjects, Educations: educations})
+	return a.store.CreateResumeVersion(a.appContext(), job.ID, validated.SelectedFactIDs, template.ID, job.Description, source)
+}
+
+func selectResumeEvidence(selectedFactIDs []string, experiences []domain.Experience, projects []domain.Project) ([]domain.Experience, []domain.Project, error) {
+	selected := make(map[string]struct{}, len(selectedFactIDs))
+	for _, id := range selectedFactIDs {
+		selected[id] = struct{}{}
+	}
+	found := make(map[string]struct{}, len(selectedFactIDs))
+	filteredExperiences := make([]domain.Experience, 0)
+	for _, experience := range experiences {
+		bullets := make([]domain.EvidenceBullet, 0)
+		for _, bullet := range experience.Bullets {
+			if _, included := selected[bullet.ID]; included {
+				bullets = append(bullets, bullet)
+				found[bullet.ID] = struct{}{}
+			}
+		}
+		if len(bullets) > 0 {
+			experience.Bullets = bullets
+			filteredExperiences = append(filteredExperiences, experience)
+		}
+	}
+	filteredProjects := make([]domain.Project, 0)
+	for _, project := range projects {
+		_, wholeProject := selected[project.ID]
+		bullets := make([]domain.EvidenceBullet, 0)
+		for _, bullet := range project.Bullets {
+			if _, included := selected[bullet.ID]; included {
+				if !project.ResumeEligible {
+					return nil, nil, fmt.Errorf("project %q must be reviewed before its evidence can be selected", project.Name)
+				}
+				bullets = append(bullets, bullet)
+				found[bullet.ID] = struct{}{}
+			}
+		}
+		if wholeProject {
+			if !project.ResumeEligible {
+				return nil, nil, fmt.Errorf("project %q must be reviewed before it can be selected", project.Name)
+			}
+			found[project.ID] = struct{}{}
+		}
+		if wholeProject || len(bullets) > 0 {
+			project.Bullets = bullets
+			filteredProjects = append(filteredProjects, project)
+		}
+	}
+	for _, id := range selectedFactIDs {
+		if _, exists := found[id]; !exists {
+			return nil, nil, fmt.Errorf("selected evidence %q was not found in the current profile", id)
+		}
+	}
+	return filteredExperiences, filteredProjects, nil
+}
+
 // ListResumeTemplates returns read-only built-ins followed by user-owned
 // templates imported or created on this device.
 func (a *App) ListResumeTemplates() ([]domain.ResumeTemplate, error) {

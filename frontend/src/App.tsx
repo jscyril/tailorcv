@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   AnalyzeJobDescription,
   CompileLatex,
+  CreateResumeVersion,
   DeleteEducation,
   DeleteExperience,
   DeleteJob,
@@ -16,6 +17,7 @@ import {
   ImportProfileBackup,
   ImportResumeTemplate,
   ListEducations,
+  ListApplications,
   ListExperiences,
   ListJobs,
   ListProjects,
@@ -103,6 +105,28 @@ type EvidenceMatch = {
   matchedSkills: string[];
   reasons: string[];
   verified: boolean;
+  selectable: boolean;
+};
+
+type ResumeVersion = {
+  id: string;
+  applicationId: string;
+  versionNumber: number;
+  jobDescriptionSnapshot: string;
+  selectedFactIds: string[];
+  latexSource: string;
+  templateId: string;
+  createdAt: string;
+};
+
+type Application = {
+  id: string;
+  jobId: string;
+  status: string;
+  selectedFactIds: string[];
+  versions: ResumeVersion[];
+  createdAt: string;
+  updatedAt: string;
 };
 
 const EMPTY_JOB: Job = { id: "", company: "", role: "", description: "", createdAt: "", updatedAt: "" };
@@ -146,6 +170,8 @@ export default function App() {
   const [skillsText, setSkillsText] = useState("");
   const [jobDraft, setJobDraft] = useState<Job>(EMPTY_JOB);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [selectedFactIDs, setSelectedFactIDs] = useState<string[]>([]);
   const [analysis, setAnalysis] = useState<JobAnalysis | null>(null);
   const [busy, setBusy] = useState(true);
   const [experienceBusyKey, setExperienceBusyKey] = useState("");
@@ -163,6 +189,7 @@ export default function App() {
   const [selectedTemplateID, setSelectedTemplateID] = useState("");
   const [templateBusyKey, setTemplateBusyKey] = useState("");
   const [compileBusy, setCompileBusy] = useState(false);
+  const [versionBusy, setVersionBusy] = useState(false);
   const [compileResult, setCompileResult] = useState<domain.CompileResult | null>(null);
   const [aiProvider, setAIProvider] = useState<AIProvider>("Ollama");
   const [chatDraft, setChatDraft] = useState("");
@@ -171,7 +198,7 @@ export default function App() {
   ]);
 
   const loadWorkspaceData = async () => {
-    const [result, savedExperiences, savedProjects, savedEducations, savedTemplates, savedTemplateID, savedJobs] = await Promise.all([GetProfile(), ListExperiences(), ListProjects(), ListEducations(), ListResumeTemplates(), GetSelectedResumeTemplateID(), ListJobs()]);
+    const [result, savedExperiences, savedProjects, savedEducations, savedTemplates, savedTemplateID, savedJobs, savedApplications] = await Promise.all([GetProfile(), ListExperiences(), ListProjects(), ListEducations(), ListResumeTemplates(), GetSelectedResumeTemplateID(), ListJobs(), ListApplications()]);
     const loaded = { ...emptyProfile, ...result } as Profile;
     loaded.skills ??= [];
     setProfile(loaded);
@@ -185,8 +212,10 @@ export default function App() {
     setTemplates(savedTemplates);
     setSelectedTemplateID(savedTemplateID);
     setJobs(savedJobs as unknown as Job[]);
+    setApplications(savedApplications as unknown as Application[]);
     setJobDraft(EMPTY_JOB);
     setAnalysis(null);
+    setSelectedFactIDs([]);
     const rendered = await RenderResumeTemplate(savedTemplateID, selectedKeys.filter((key) => !key.startsWith("new-project-")));
     setLatexSource(rendered);
     setCompileResult(null);
@@ -234,6 +263,7 @@ export default function App() {
       const next = result as unknown as JobAnalysis;
       setAnalysis(next);
       setJobDraft(next.job);
+      setSelectedFactIDs(next.rankedEvidence.filter((evidence) => evidence.selectable).slice(0, 6).map((evidence) => evidence.factId));
       setJobs((await ListJobs()) as unknown as Job[]);
       setMessage("Job saved and evidence ranked locally.");
     } catch (reason) {
@@ -246,19 +276,52 @@ export default function App() {
   const updateJobDraft = (field: "company" | "role" | "description", value: string) => {
     setJobDraft((current) => ({ ...current, [field]: value }));
     setAnalysis(null);
+    setSelectedFactIDs([]);
     setMessage("");
   };
 
   const newJob = () => {
     setJobDraft(EMPTY_JOB);
     setAnalysis(null);
+    setSelectedFactIDs([]);
     setMessage("");
   };
 
   const openJob = (job: Job) => {
     setJobDraft(job);
     setAnalysis(null);
+    setSelectedFactIDs(applications.find((application) => application.jobId === job.id)?.selectedFactIds ?? []);
     setMessage("");
+  };
+
+  const toggleEvidenceFact = (factID: string) => {
+    setSelectedFactIDs((current) => current.includes(factID) ? current.filter((id) => id !== factID) : [...current, factID]);
+    setMessage("");
+  };
+
+  const createResumeVersion = async () => {
+    setVersionBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await CreateResumeVersion({ jobId: jobDraft.id, selectedFactIds: selectedFactIDs, templateId: selectedTemplateID });
+      const version = result.version as unknown as ResumeVersion;
+      setApplications((await ListApplications()) as unknown as Application[]);
+      setLatexSource(version.latexSource);
+      setCompileResult(null);
+      setMessage(`Resume version ${version.versionNumber} saved from ${selectedFactIDs.length} selected facts.`);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setVersionBusy(false);
+    }
+  };
+
+  const openResumeVersion = (version: ResumeVersion) => {
+    setLatexSource(version.latexSource);
+    setCompileResult(null);
+    setView("latex");
+    setMessage(`Opened immutable resume version ${version.versionNumber}.`);
   };
 
   const deleteJob = async (job: Job) => {
@@ -268,6 +331,7 @@ export default function App() {
     try {
       await DeleteJob(job.id);
       setJobs((current) => current.filter((item) => item.id !== job.id));
+      setApplications((current) => current.filter((application) => application.jobId !== job.id));
       if (jobDraft.id === job.id) newJob();
       setMessage("Saved job deleted.");
     } catch (reason) {
@@ -654,6 +718,7 @@ export default function App() {
 
   const selectedProjects = projects.filter((project) => selectedProjectKeys.includes(project.key));
   const activeTemplate = templates.find((template) => template.id === selectedTemplateID);
+  const currentApplication = applications.find((application) => application.jobId === jobDraft.id);
   const hasCareerEvidence = profile.skills.length > 0 || experiences.some((experience) => experience.bullets.length > 0) || projects.some((project) => project.skills.length > 0 || project.bullets.length > 0);
   const hasProfileData = Boolean(profile.name || profile.email || profile.headline || profile.phone || profile.location || profile.website || profile.githubUsername || profile.linkedInUrl || profile.summary || profile.skills.length);
   const showOnboarding = !busy && !onboardingDismissed && !hasProfileData && experiences.length === 0 && projects.length === 0 && educations.length === 0;
@@ -698,7 +763,7 @@ export default function App() {
           {message && <div className="notice success" role="status">{message}<button aria-label="Dismiss message" onClick={() => setMessage("")}>×</button></div>}
 
           <div className="editor-pane">
-            {view === "overview" && <WorkspaceOverview profile={profile} completion={completion} experiences={experiences} projects={projects} onOpen={setView} />}
+            {view === "overview" && <WorkspaceOverview profile={profile} completion={completion} experiences={experiences} projects={projects} applications={applications} onOpen={setView} />}
             {view === "profile" && <ProfileWorkspace profile={profile} busy={busy} message={message} onChange={updateProfile} onSubmit={saveProfile} />}
             {view === "experience" && <section className="workspace-panel scroll-panel"><PanelHeader eyebrow="Career evidence" title="Experience" description="Keep every claim factual, ordered, and reviewable." action={<button className="secondary-button" onClick={addExperience}>Add role</button>} /><ExperienceSection experiences={experiences} busyKey={experienceBusyKey} onAdd={addExperience} onUpdate={updateExperience} onSave={saveExperience} onDelete={deleteExperience} /></section>}
             {view === "projects" && <ProjectWorkspace projects={projects} selectedKeys={selectedProjectKeys} busyKey={projectBusyKey} githubUsername={profile.githubUsername} githubBusy={githubBusy} onToggle={toggleProject} onAdd={addProject} onUpdate={updateProject} onSave={saveProject} onDelete={deleteProject} onSyncGitHub={syncGitHubProjects} onOpenProfile={() => setView("profile")} />}
@@ -706,9 +771,9 @@ export default function App() {
             {view === "skills" && <SkillsWorkspace skillsText={skillsText} busy={busy} message={message} onChange={setSkillsText} onSubmit={saveProfile} />}
             {view === "templates" && <TemplatesWorkspace templates={templates} selectedID={selectedTemplateID} busyKey={templateBusyKey} onImport={importResumeTemplate} onUse={(id) => useResumeTemplate(id)} onEdit={(id) => useResumeTemplate(id, true)} onDuplicate={duplicateResumeTemplate} onDelete={deleteResumeTemplate} />}
             {view === "latex" && <LatexWorkspace source={latexSource} template={activeTemplate} busy={templateBusyKey !== ""} compiling={compileBusy} onChange={updateLatexSource} onSave={saveCurrentTemplate} onReload={() => useResumeTemplate(selectedTemplateID)} onCompile={compileLatex} onExport={exportLatexSource} />}
-            {view === "job" && <JobTailor job={jobDraft} jobs={jobs} analysis={analysis} busy={busy} hasEvidence={hasCareerEvidence} onChange={updateJobDraft} onNew={newJob} onOpen={openJob} onDelete={deleteJob} onSubmit={analyzeJob} onProfile={() => setView("skills")} />}
+            {view === "job" && <JobTailor job={jobDraft} jobs={jobs} application={currentApplication} analysis={analysis} selectedFactIDs={selectedFactIDs} busy={busy} versionBusy={versionBusy} hasEvidence={hasCareerEvidence} templateName={activeTemplate?.name ?? "Selected template"} onChange={updateJobDraft} onNew={newJob} onOpen={openJob} onDelete={deleteJob} onToggleEvidence={toggleEvidenceFact} onCreateVersion={createResumeVersion} onOpenVersion={openResumeVersion} onSubmit={analyzeJob} onProfile={() => setView("skills")} />}
             {view === "ai" && <AIWorkspace provider={aiProvider} draft={chatDraft} messages={chatMessages} onProviderChange={setAIProvider} onDraftChange={setChatDraft} onSubmit={sendChatMessage} />}
-            {view === "data" && <DataWorkspace profile={profile} experiences={experiences} projects={projects} educations={educations} jobs={jobs} busy={backupBusy} lastResult={lastBackupResult} onExport={exportBackup} onImport={importBackup} />}
+            {view === "data" && <DataWorkspace profile={profile} experiences={experiences} projects={projects} educations={educations} jobs={jobs} applications={applications} busy={backupBusy} lastResult={lastBackupResult} onExport={exportBackup} onImport={importBackup} />}
           </div>
 
           <ResumePreview profile={profile} experiences={experiences} projects={selectedProjects} educations={educations} compileResult={compileResult} />
@@ -773,13 +838,14 @@ function PanelHeader({ eyebrow, title, description, action }: { eyebrow: string;
   return <header className="panel-header"><div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p>{description}</p></div>{action}</header>;
 }
 
-function WorkspaceOverview({ profile, completion, experiences, projects, onOpen }: { profile: Profile; completion: number; experiences: ExperienceDraft[]; projects: ProjectDraft[]; onOpen: (view: View) => void }) {
+function WorkspaceOverview({ profile, completion, experiences, projects, applications, onOpen }: { profile: Profile; completion: number; experiences: ExperienceDraft[]; projects: ProjectDraft[]; applications: Application[]; onOpen: (view: View) => void }) {
+  const versionCount = applications.reduce((sum, application) => sum + application.versions.length, 0);
   return <section className="workspace-panel scroll-panel">
     <PanelHeader eyebrow="Your workspace" title={profile.name ? `Welcome back, ${profile.name.split(" ")[0]}.` : "Build your source of truth."} description="Keep one reliable career profile, then tailor the evidence for each role." action={<button className="primary-button" onClick={() => onOpen("job")}>Match a job</button>} />
     <div className="metric-grid">
       <article className="metric-card accent"><span>Profile readiness</span><strong>{completion}%</strong><div className="progress"><i style={{ width: `${completion}%` }} /></div><button onClick={() => onOpen("profile")}>Complete profile →</button></article>
       <article className="metric-card"><span>Evidence</span><strong>{experiences.reduce((sum, item) => sum + item.bullets.length, 0)}</strong><small>reviewable career claims</small></article>
-      <article className="metric-card"><span>Projects</span><strong>{projects.length}</strong><small>{projects.filter((project) => project.resumeEligible).length} resume eligible</small></article>
+      <article className="metric-card"><span>Resume versions</span><strong>{versionCount}</strong><small>{applications.length} saved applications · {projects.filter((project) => project.resumeEligible).length} eligible projects</small></article>
     </div>
     <div className="overview-callout"><span className="callout-index">01</span><div><p className="eyebrow">Recommended next step</p><h2>{completion < 70 ? "Finish the profile foundation" : "Select evidence for your next application"}</h2><p>{completion < 70 ? "Add your identity, positioning, and core skills before tailoring." : "Choose projects and experience that directly support the target role."}</p></div><button className="secondary-button" onClick={() => onOpen(completion < 70 ? "profile" : "projects")}>Open workspace</button></div>
   </section>;
@@ -872,9 +938,10 @@ function AIWorkspace({ provider, draft, messages, onProviderChange, onDraftChang
   return <section className="workspace-panel ai-workspace"><PanelHeader eyebrow="Evidence-aware assistant" title="AI assistant" description="Use local or cloud models without letting them invent facts." /><div className="provider-picker">{providers.map((item) => <button key={item} className={provider === item ? "active" : ""} onClick={() => onProviderChange(item)}><span className="provider-logo">{item.slice(0, 2).toUpperCase()}</span><span><strong>{item}</strong><small>{item === "Ollama" ? "Local · private" : "Cloud · setup required"}</small></span>{provider === item && <Icon name="check" size={15} />}</button>)}</div><div className="chat-thread">{messages.map((item, index) => <div className={`chat-message ${item.role}`} key={`${item.role}-${index}`}><span>{item.role === "assistant" ? "AI" : "You"}</span><p>{item.text}</p></div>)}</div><form className="chat-composer" onSubmit={onSubmit}><textarea rows={3} value={draft} onChange={(event) => onDraftChange(event.target.value)} placeholder="Ask for a tighter bullet or compare selected evidence…" /><div><small>Only selected evidence will be shared.</small><button className="primary-button" type="submit">Send</button></div></form></section>;
 }
 
-function DataWorkspace({ profile, experiences, projects, educations, jobs, busy, lastResult, onExport, onImport }: { profile: Profile; experiences: ExperienceDraft[]; projects: ProjectDraft[]; educations: EducationDraft[]; jobs: Job[]; busy: "export" | "import" | ""; lastResult: domain.BackupResult | null; onExport: () => void; onImport: () => void }) {
+function DataWorkspace({ profile, experiences, projects, educations, jobs, applications, busy, lastResult, onExport, onImport }: { profile: Profile; experiences: ExperienceDraft[]; projects: ProjectDraft[]; educations: EducationDraft[]; jobs: Job[]; applications: Application[]; busy: "export" | "import" | ""; lastResult: domain.BackupResult | null; onExport: () => void; onImport: () => void }) {
   const evidenceCount = experiences.reduce((sum, experience) => sum + experience.bullets.length, 0) + projects.reduce((sum, project) => sum + project.bullets.length, 0);
-  return <section className="workspace-panel scroll-panel data-workspace"><PanelHeader eyebrow="Local data" title="Backup & restore" description="Keep a portable, versioned copy of your complete TailorCV profile." /><div className="backup-content"><section className="backup-summary"><header><span className="empty-icon"><Icon name="database" size={22} /></span><div><h2>Current local profile</h2><p>Everything listed here is included in one JSON backup.</p></div></header><div className="backup-stat-grid"><div><strong>{profile.name ? "1" : "0"}</strong><span>profile</span></div><div><strong>{experiences.length}</strong><span>roles</span></div><div><strong>{projects.length}</strong><span>projects</span></div><div><strong>{educations.length}</strong><span>education</span></div><div><strong>{jobs.length}</strong><span>jobs</span></div><div><strong>{profile.skills.length}</strong><span>skills</span></div><div><strong>{evidenceCount}</strong><span>evidence</span></div></div></section><section className="backup-action-card"><div><span className="backup-action-icon"><Icon name="download" size={20} /></span><h2>Export backup</h2><p>Write an owner-readable JSON snapshot using a native save dialog. IDs, ordering, verification state, and timestamps are preserved.</p></div><button className="primary-button" disabled={busy !== ""} onClick={onExport}>{busy === "export" ? "Exporting…" : "Choose destination"}</button></section><section className="backup-action-card restore"><div><span className="backup-action-icon"><Icon name="refresh" size={20} /></span><h2>Restore backup</h2><p>The entire file is validated before a single transaction replaces current data. Invalid or unsupported backups leave this profile untouched.</p></div><button className="secondary-button" disabled={busy !== ""} onClick={onImport}>{busy === "import" ? "Restoring…" : "Choose backup"}</button></section>{lastResult && <section className="backup-result"><span className="status-dot" /><div><strong>Last operation completed</strong><p>{lastResult.experienceCount} roles · {lastResult.projectCount} projects · {lastResult.educationCount} education records · {lastResult.jobCount} jobs</p><small>{lastResult.path}</small></div></section>}<div className="backup-safety"><strong>Backup format v1</strong><p>Backups never include provider credentials, generated PDFs, compiler caches, or local model data.</p></div></div></section>;
+  const versionCount = applications.reduce((sum, application) => sum + application.versions.length, 0);
+  return <section className="workspace-panel scroll-panel data-workspace"><PanelHeader eyebrow="Local data" title="Backup & restore" description="Keep a portable, versioned copy of your complete TailorCV profile." /><div className="backup-content"><section className="backup-summary"><header><span className="empty-icon"><Icon name="database" size={22} /></span><div><h2>Current local profile</h2><p>Everything listed here is included in one JSON backup.</p></div></header><div className="backup-stat-grid"><div><strong>{profile.name ? "1" : "0"}</strong><span>profile</span></div><div><strong>{experiences.length}</strong><span>roles</span></div><div><strong>{projects.length}</strong><span>projects</span></div><div><strong>{educations.length}</strong><span>education</span></div><div><strong>{jobs.length}</strong><span>jobs</span></div><div><strong>{applications.length}</strong><span>applications</span></div><div><strong>{versionCount}</strong><span>versions</span></div><div><strong>{profile.skills.length}</strong><span>skills</span></div><div><strong>{evidenceCount}</strong><span>evidence</span></div></div></section><section className="backup-action-card"><div><span className="backup-action-icon"><Icon name="download" size={20} /></span><h2>Export backup</h2><p>Write an owner-readable JSON snapshot using a native save dialog. IDs, ordering, verification state, and timestamps are preserved.</p></div><button className="primary-button" disabled={busy !== ""} onClick={onExport}>{busy === "export" ? "Exporting…" : "Choose destination"}</button></section><section className="backup-action-card restore"><div><span className="backup-action-icon"><Icon name="refresh" size={20} /></span><h2>Restore backup</h2><p>The entire file is validated before a single transaction replaces current data. Invalid or unsupported backups leave this profile untouched.</p></div><button className="secondary-button" disabled={busy !== ""} onClick={onImport}>{busy === "import" ? "Restoring…" : "Choose backup"}</button></section>{lastResult && <section className="backup-result"><span className="status-dot" /><div><strong>Last operation completed</strong><p>{lastResult.applicationCount} applications · {lastResult.resumeVersionCount} resume versions · {lastResult.jobCount} jobs</p><small>{lastResult.path}</small></div></section>}<div className="backup-safety"><strong>Backup format v1</strong><p>Backups never include provider credentials, generated PDFs, compiler caches, or local model data.</p></div></div></section>;
 }
 
 function ResumePreview({ profile, experiences, projects, educations, compileResult }: { profile: Profile; experiences: ExperienceDraft[]; projects: ProjectDraft[]; educations: EducationDraft[]; compileResult: domain.CompileResult | null }) {
@@ -1300,16 +1367,23 @@ function Field({ label, value, placeholder, type = "text", prefix, disabled = fa
   return <label className="field"><span>{label}</span><div className={prefix ? "prefixed-input" : ""}>{prefix && <em>{prefix}</em>}<input type={type} value={value} placeholder={placeholder} disabled={disabled} required={required} onChange={(event) => onChange(event.target.value)} /></div></label>;
 }
 
-function JobTailor({ job, jobs, analysis, busy, hasEvidence, onChange, onNew, onOpen, onDelete, onSubmit, onProfile }: {
+function JobTailor({ job, jobs, application, analysis, selectedFactIDs, busy, versionBusy, hasEvidence, templateName, onChange, onNew, onOpen, onDelete, onToggleEvidence, onCreateVersion, onOpenVersion, onSubmit, onProfile }: {
   job: Job;
   jobs: Job[];
+  application?: Application;
   analysis: JobAnalysis | null;
+  selectedFactIDs: string[];
   busy: boolean;
+  versionBusy: boolean;
   hasEvidence: boolean;
+  templateName: string;
   onChange: (field: "company" | "role" | "description", value: string) => void;
   onNew: () => void;
   onOpen: (job: Job) => void;
   onDelete: (job: Job) => void;
+  onToggleEvidence: (factID: string) => void;
+  onCreateVersion: () => void;
+  onOpenVersion: (version: ResumeVersion) => void;
   onSubmit: (event: FormEvent) => void;
   onProfile: () => void;
 }) {
@@ -1327,15 +1401,17 @@ function JobTailor({ job, jobs, analysis, busy, hasEvidence, onChange, onNew, on
         </form>
         <section className="analysis-card">
           <div className="card-heading"><span className="step-pill muted">Step 2</span><h2>Review the evidence</h2></div>
-          {!analysis ? <div className="analysis-empty"><div className="radar">✦</div><strong>Your ranked evidence will appear here</strong><p>TailorCV shows exact skill and term overlap with a reason for every suggested fact.</p></div> : <AnalysisResult analysis={analysis} />}
+          {!analysis ? <div className="analysis-empty"><div className="radar">✦</div><strong>Your ranked evidence will appear here</strong><p>TailorCV shows exact skill and term overlap with a reason for every suggested fact.</p></div> : <AnalysisResult analysis={analysis} selectedFactIDs={selectedFactIDs} onToggle={onToggleEvidence} />}
+          {analysis && <div className="version-action"><div><strong>{selectedFactIDs.length} facts selected</strong><span>Render with {templateName} and preserve an immutable job snapshot.</span></div><button className="primary-button" disabled={versionBusy || selectedFactIDs.length === 0} onClick={onCreateVersion}>{versionBusy ? "Saving version…" : "Save resume version"}</button></div>}
         </section>
       </div>
+      {application && application.versions.length > 0 && <section className="version-history"><div className="saved-jobs-heading"><strong>Resume history</strong><span>{application.versions.length}</span></div><div>{application.versions.map((version) => <article key={version.id}><div><strong>Version {version.versionNumber}</strong><span>{version.selectedFactIds.length} facts · {new Date(version.createdAt).toLocaleString()}</span></div><button className="text-button" onClick={() => onOpenVersion(version)}>Open source</button></article>)}</div></section>}
     </section>
   );
 }
 
-function AnalysisResult({ analysis }: { analysis: JobAnalysis }) {
-  return <div className="analysis-result"><div className="score-row"><div className="score-ring" style={{ "--score": `${analysis.score * 3.6}deg` } as React.CSSProperties}><span>{analysis.score}%</span></div><div><strong>Profile skill alignment</strong><p>{analysis.explanation}</p></div></div><SkillGroup title="Skills requested" skills={analysis.detectedSkills} tone="match" /><SkillGroup title="Profile skills not mentioned" skills={analysis.unmentionedSkills} tone="neutral" /><div className="ranked-evidence"><div className="skill-heading"><h3>Ranked career evidence</h3><span>{analysis.rankedEvidence.length}</span></div>{analysis.rankedEvidence.length ? analysis.rankedEvidence.map((evidence) => <article key={`${evidence.sourceType}-${evidence.factId}`}><header><div><span>{evidence.sourceType}</span><strong>{evidence.sourceLabel}</strong></div><b>{evidence.score}</b></header><p>{evidence.text}</p><div className="evidence-reasons">{evidence.reasons.map((reason) => <span key={reason}>{reason}</span>)}</div></article>) : <p className="no-ranked-evidence">No saved evidence shares meaningful skills or terms with this description yet.</p>}</div></div>;
+function AnalysisResult({ analysis, selectedFactIDs, onToggle }: { analysis: JobAnalysis; selectedFactIDs: string[]; onToggle: (factID: string) => void }) {
+  return <div className="analysis-result"><div className="score-row"><div className="score-ring" style={{ "--score": `${analysis.score * 3.6}deg` } as React.CSSProperties}><span>{analysis.score}%</span></div><div><strong>Profile skill alignment</strong><p>{analysis.explanation}</p></div></div><SkillGroup title="Skills requested" skills={analysis.detectedSkills} tone="match" /><SkillGroup title="Profile skills not mentioned" skills={analysis.unmentionedSkills} tone="neutral" /><div className="ranked-evidence"><div className="skill-heading"><h3>Ranked career evidence</h3><span>{analysis.rankedEvidence.length}</span></div>{analysis.rankedEvidence.length ? analysis.rankedEvidence.map((evidence) => <article className={`${selectedFactIDs.includes(evidence.factId) ? "selected" : ""} ${!evidence.selectable ? "locked" : ""}`} key={`${evidence.sourceType}-${evidence.factId}`}><header><label><input type="checkbox" checked={selectedFactIDs.includes(evidence.factId)} disabled={!evidence.selectable} onChange={() => onToggle(evidence.factId)} /><div><span>{evidence.sourceType}</span><strong>{evidence.sourceLabel}</strong></div></label><b>{evidence.score}</b></header><p>{evidence.text}</p><div className="evidence-reasons">{evidence.reasons.map((reason) => <span key={reason}>{reason}</span>)}{!evidence.selectable && <span>Review project to unlock</span>}</div></article>) : <p className="no-ranked-evidence">No saved evidence shares meaningful skills or terms with this description yet.</p>}</div></div>;
 }
 
 function SkillGroup({ title, skills, tone }: { title: string; skills: string[]; tone: "match" | "neutral" }) {

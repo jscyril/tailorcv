@@ -30,6 +30,10 @@ export function CompileLatex(arg1) {
   return window['go']['main']['App']['CompileLatex'](arg1);
 }
 
+export function CreateResumeVersion(arg1) {
+  return window['go']['main']['App']['CreateResumeVersion'](arg1);
+}
+
 export function ExportCompiledPDF() {
   return window['go']['main']['App']['ExportCompiledPDF']();
 }
@@ -64,6 +68,10 @@ export function ImportResumeTemplate() {
 
 export function ListExperiences() {
   return window['go']['main']['App']['ListExperiences']();
+}
+
+export function ListApplications() {
+  return window['go']['main']['App']['ListApplications']();
 }
 
 export function ListJobs() {
