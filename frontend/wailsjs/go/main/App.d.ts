@@ -16,6 +16,8 @@ export function DeleteResumeTemplate(arg1:string):Promise<void>;
 
 export function CompileLatex(arg1:string):Promise<domain.CompileResult>;
 
+export function CompileResumeVersion(arg1:string):Promise<domain.CompileResult>;
+
 export function CreateResumeVersion(arg1:domain.CreateResumeVersionInput):Promise<domain.ApplicationResumeResult>;
 
 export function ExportCompiledPDF():Promise<domain.FileResult>;
@@ -55,6 +57,8 @@ export function SaveEducation(arg1:domain.EducationInput):Promise<domain.Educati
 export function SaveProject(arg1:domain.ProjectInput):Promise<domain.Project>;
 
 export function SaveResumeTemplate(arg1:domain.ResumeTemplateInput):Promise<domain.ResumeTemplate>;
+
+export function SaveResumeVersionEdit(arg1:domain.SaveResumeVersionEditInput):Promise<domain.ResumeVersion>;
 
 export function SaveProfile(arg1:domain.ProfileInput):Promise<domain.Profile>;
 

@@ -231,6 +231,20 @@ func (backup ProfileBackup) Validate() (ProfileBackup, error) {
 			if len(version.LatexSource) == 0 || len(version.LatexSource) > MaxTemplateSourceBytes {
 				return ProfileBackup{}, fmt.Errorf("application %d resume version %d LaTeX source is not valid", index+1, versionIndex+1)
 			}
+			if version.ContentHash == "" {
+				version.ContentHash = ResumeContentHash(version.LatexSource)
+			}
+			if version.ContentHash != ResumeContentHash(version.LatexSource) {
+				return ProfileBackup{}, fmt.Errorf("application %d resume version %d content hash does not match its source", index+1, versionIndex+1)
+			}
+			if version.CompileDurationMS < 0 {
+				return ProfileBackup{}, fmt.Errorf("application %d resume version %d compile duration is not valid", index+1, versionIndex+1)
+			}
+			if err := validateBackupTimestamp(fmt.Sprintf("application %d resume version %d compile time", index+1, versionIndex+1), version.CompiledAt, false); err != nil {
+				return ProfileBackup{}, err
+			}
+			version.PDFPath = ""
+			version.PDFAvailable = false
 			version.SelectedFactIDs = validatedVersion.SelectedFactIDs
 			application.Versions = append(application.Versions, version)
 		}

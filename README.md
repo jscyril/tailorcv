@@ -6,7 +6,7 @@ The application is being built with Wails, Go, React, TypeScript, SQLite, and Te
 
 ## Current status
 
-TailorCV is in its foundation stage. The first vertical slice provides:
+TailorCV has a complete deterministic resume-building vertical slice and is finishing its templates-and-compilation milestone. It currently provides:
 
 - A Wails desktop shell with a React interface.
 - A locally persisted career profile backed by SQLite.
@@ -15,8 +15,9 @@ TailorCV is in its foundation stage. The first vertical slice provides:
 - Education records with validated study dates and live resume-preview rendering.
 - Persisted job opportunities with alias-aware skill matching and explainable ranking of career evidence.
 - Structured required/preferred skill and responsibility extraction backed by a synchronized SQLite FTS5 evidence index.
-- Manual evidence selection with saved applications and immutable, numbered LaTeX resume snapshots.
-- A dark split workspace with project selection, editable LaTeX source, and compiled PDF preview.
+- Manual evidence selection with saved applications and immutable, numbered LaTeX resume snapshots, including evidence-ranking explanations and content hashes.
+- New immutable versions for edited source, with compilation metadata and private per-version PDF artifacts.
+- A dark split workspace with project selection, a CodeMirror LaTeX editor, clickable compiler diagnostics, and a zoomable PDF.js preview.
 - Read-only Jake-style and Classic ATS templates, plus persistent user-imported `.tex` templates.
 - Debounced local Tectonic compilation with structured line diagnostics, isolated untrusted workspaces, resource limits, and native `.tex`/`.pdf` export.
 - Versioned JSON backup and atomic restore for all currently supported profile data.
@@ -53,7 +54,7 @@ See [PLAN.md](PLAN.md) for the product architecture and delivery milestones.
 - Node.js 20 or newer
 - pnpm
 - Wails v2 CLI
-- Tectonic available on `PATH` for PDF compilation
+- Tectonic available beside a packaged app in `bin/`, configured through `TAILORCV_TECTONIC`, or available on `PATH`
 - Linux development packages required by Wails, or the corresponding Windows/macOS toolchain
 
 Install the Wails CLI:
@@ -111,6 +112,10 @@ The desktop application stores its SQLite database below the current operating s
 Use **Backup & restore** in the application sidebar to export a portable JSON snapshot. Imports are fully validated before replacing local data in one transaction. Provider credentials, generated PDFs, compiler caches, and local model data are intentionally excluded.
 
 Custom templates are stored locally in the same SQLite database. Use **Templates → Import .tex** for complete, single-file LaTeX documents. Imported files compile as-is; TailorCV data markers are optional and documented in the Templates screen. Built-in templates are read-only, and editing one creates a user-owned copy.
+
+Compiled resume-version PDFs are derived artifacts stored privately in the local `tailorcv/artifacts` application-data folder. JSON backups preserve source, evidence, hashes, and compilation diagnostics, but intentionally exclude generated PDF files and machine-specific artifact paths.
+
+For packaged builds, TailorCV resolves Tectonic in this order: `TAILORCV_TECTONIC`, a `bin/tectonic` executable beside the app, an executable beside the app, then the system `PATH`. Release builds should ship a pinned platform-specific executable in the `bin` location.
 
 ## Repository layout
 

@@ -1,7 +1,14 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import { defaultHighlightStyle, syntaxHighlighting, StreamLanguage } from "@codemirror/language";
+import { stex } from "@codemirror/legacy-modes/mode/stex";
+import { EditorState } from "@codemirror/state";
+import { drawSelection, EditorView, highlightActiveLine, highlightSpecialChars, keymap, lineNumbers } from "@codemirror/view";
+import pdfWorkerURL from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
   AnalyzeJobDescription,
   CompileLatex,
+  CompileResumeVersion,
   CreateResumeVersion,
   DeleteEducation,
   DeleteExperience,
@@ -28,6 +35,7 @@ import {
   SaveProject,
   SaveProfile,
   SaveResumeTemplate,
+  SaveResumeVersionEdit,
   SelectResumeTemplate,
 } from "../wailsjs/go/main/App";
 import { domain } from "../wailsjs/go/models";
@@ -121,6 +129,14 @@ type ResumeVersion = {
   selectedFactIds: string[];
   latexSource: string;
   templateId: string;
+  rankingExplanations: EvidenceMatch[];
+  contentHash: string;
+  compileSuccess: boolean;
+  compileEngine: string;
+  compileDurationMs: number;
+  compileDiagnostics: domain.CompileDiagnostic[];
+  compiledAt: string;
+  pdfAvailable: boolean;
   createdAt: string;
 };
 
@@ -195,6 +211,8 @@ export default function App() {
   const [templateBusyKey, setTemplateBusyKey] = useState("");
   const [compileBusy, setCompileBusy] = useState(false);
   const [versionBusy, setVersionBusy] = useState(false);
+  const [openVersionID, setOpenVersionID] = useState("");
+  const [savedVersionSource, setSavedVersionSource] = useState("");
   const [compileResult, setCompileResult] = useState<domain.CompileResult | null>(null);
   const compileRequestRef = useRef(0);
   const compileTimerRef = useRef<number | undefined>(undefined);
@@ -225,6 +243,8 @@ export default function App() {
     setSelectedFactIDs([]);
     const rendered = await RenderResumeTemplate(savedTemplateID, selectedKeys.filter((key) => !key.startsWith("new-project-")));
     setLatexSource(rendered);
+    setOpenVersionID("");
+    setSavedVersionSource("");
     setCompileResult(null);
   };
 
@@ -315,6 +335,8 @@ export default function App() {
       const version = result.version as unknown as ResumeVersion;
       setApplications((await ListApplications()) as unknown as Application[]);
       setLatexSource(version.latexSource);
+      setOpenVersionID(version.id);
+      setSavedVersionSource(version.latexSource);
       setCompileResult(null);
       setMessage(`Resume version ${version.versionNumber} saved from ${selectedFactIDs.length} selected facts.`);
     } catch (reason) {
@@ -326,9 +348,33 @@ export default function App() {
 
   const openResumeVersion = (version: ResumeVersion) => {
     setLatexSource(version.latexSource);
+    setOpenVersionID(version.id);
+    setSavedVersionSource(version.latexSource);
     setCompileResult(null);
     setView("latex");
     setMessage(`Opened immutable resume version ${version.versionNumber}.`);
+  };
+
+  const saveResumeVersionEdit = async () => {
+    const application = applications.find((item) => item.versions.some((version) => version.id === openVersionID));
+    if (!application || !openVersionID) {
+      setError("Open a saved resume version before saving an edited snapshot.");
+      return;
+    }
+    setVersionBusy(true);
+    setError("");
+    try {
+      const saved = await SaveResumeVersionEdit({ applicationId: application.id, baseVersionId: openVersionID, latexSource });
+      const version = saved as unknown as ResumeVersion;
+      setOpenVersionID(version.id);
+      setSavedVersionSource(version.latexSource);
+      setApplications((await ListApplications()) as unknown as Application[]);
+      setMessage(`Saved edited source as immutable version ${version.versionNumber}.`);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setVersionBusy(false);
+    }
   };
 
   const deleteJob = async (job: Job) => {
@@ -583,6 +629,8 @@ export default function App() {
       const rendered = await RenderResumeTemplate(templateID, selectedSavedProjectIDs());
       setSelectedTemplateID(templateID);
       setLatexSource(rendered);
+      setOpenVersionID("");
+      setSavedVersionSource("");
       setCompileResult(null);
       setMessage(`${template.name} loaded with your saved resume data.`);
       if (openEditor) setView("latex");
@@ -605,6 +653,8 @@ export default function App() {
       await SelectResumeTemplate(imported.id);
       setSelectedTemplateID(imported.id);
       setLatexSource(await RenderResumeTemplate(imported.id, selectedSavedProjectIDs()));
+      setOpenVersionID("");
+      setSavedVersionSource("");
       setCompileResult(null);
       setMessage(`${imported.name} imported into your local template library.`);
     } catch (reason) {
@@ -696,7 +746,8 @@ export default function App() {
       setMessage("");
     }
     try {
-      const result = await CompileLatex(source);
+      const persistArtifact = !automatic && openVersionID !== "" && source === savedVersionSource;
+      const result = persistArtifact ? await CompileResumeVersion(openVersionID) : await CompileLatex(source);
       if (requestID !== compileRequestRef.current) return;
       setCompileResult(result);
       if (!automatic) {
@@ -704,6 +755,7 @@ export default function App() {
           ? `Compiled with ${result.engine} in ${result.durationMs} ms.`
           : `Compilation found ${result.diagnostics?.length || 1} issue${result.diagnostics?.length === 1 ? "" : "s"}.`);
       }
+      if (persistArtifact) setApplications((await ListApplications()) as unknown as Application[]);
     } catch (reason) {
       if (requestID !== compileRequestRef.current) return;
       setCompileResult(null);
@@ -808,7 +860,7 @@ export default function App() {
             {view === "education" && <EducationWorkspace educations={educations} busyKey={educationBusyKey} onAdd={addEducation} onUpdate={updateEducation} onSave={saveEducation} onDelete={deleteEducation} />}
             {view === "skills" && <SkillsWorkspace skillsText={skillsText} busy={busy} message={message} onChange={setSkillsText} onSubmit={saveProfile} />}
             {view === "templates" && <TemplatesWorkspace templates={templates} selectedID={selectedTemplateID} busyKey={templateBusyKey} onImport={importResumeTemplate} onUse={(id) => useResumeTemplate(id)} onEdit={(id) => useResumeTemplate(id, true)} onDuplicate={duplicateResumeTemplate} onDelete={deleteResumeTemplate} />}
-            {view === "latex" && <LatexWorkspace source={latexSource} template={activeTemplate} result={compileResult} busy={templateBusyKey !== ""} compiling={compileBusy} onChange={updateLatexSource} onSave={saveCurrentTemplate} onReload={() => useResumeTemplate(selectedTemplateID)} onCompile={compileLatex} onExport={exportLatexSource} />}
+            {view === "latex" && <LatexWorkspace source={latexSource} template={activeTemplate} result={compileResult} busy={templateBusyKey !== ""} compiling={compileBusy} versionBusy={versionBusy} hasOpenVersion={openVersionID !== ""} versionDirty={openVersionID !== "" && latexSource !== savedVersionSource} onChange={updateLatexSource} onSave={saveCurrentTemplate} onSaveVersion={saveResumeVersionEdit} onReload={() => useResumeTemplate(selectedTemplateID)} onCompile={compileLatex} onExport={exportLatexSource} />}
             {view === "job" && <JobTailor job={jobDraft} jobs={jobs} application={currentApplication} analysis={analysis} selectedFactIDs={selectedFactIDs} busy={busy} versionBusy={versionBusy} hasEvidence={hasCareerEvidence} templateName={activeTemplate?.name ?? "Selected template"} onChange={updateJobDraft} onNew={newJob} onOpen={openJob} onDelete={deleteJob} onToggleEvidence={toggleEvidenceFact} onCreateVersion={createResumeVersion} onOpenVersion={openResumeVersion} onSubmit={analyzeJob} onProfile={() => setView("skills")} />}
             {view === "ai" && <AIWorkspace provider={aiProvider} draft={chatDraft} messages={chatMessages} onProviderChange={setAIProvider} onDraftChange={setChatDraft} onSubmit={sendChatMessage} />}
             {view === "data" && <DataWorkspace profile={profile} experiences={experiences} projects={projects} educations={educations} jobs={jobs} applications={applications} busy={backupBusy} lastResult={lastBackupResult} onExport={exportBackup} onImport={importBackup} />}
@@ -967,10 +1019,59 @@ function TemplatesWorkspace({ templates, selectedID, busyKey, onImport, onUse, o
   </section>;
 }
 
-function LatexWorkspace({ source, template, result, busy, compiling, onChange, onSave, onReload, onCompile, onExport }: { source: string; template?: domain.ResumeTemplate; result: domain.CompileResult | null; busy: boolean; compiling: boolean; onChange: (value: string) => void; onSave: () => void; onReload: () => void; onCompile: () => void; onExport: () => void }) {
+function LatexWorkspace({ source, template, result, busy, compiling, versionBusy, hasOpenVersion, versionDirty, onChange, onSave, onSaveVersion, onReload, onCompile, onExport }: { source: string; template?: domain.ResumeTemplate; result: domain.CompileResult | null; busy: boolean; compiling: boolean; versionBusy: boolean; hasOpenVersion: boolean; versionDirty: boolean; onChange: (value: string) => void; onSave: () => void; onSaveVersion: () => void; onReload: () => void; onCompile: () => void; onExport: () => void }) {
   const diagnostics = result?.diagnostics ?? [];
   const compileState = compiling ? "Compiling…" : result?.success ? "PDF ready" : result ? "Needs attention" : "Draft";
-  return <section className="workspace-panel latex-workspace"><PanelHeader eyebrow="Source editor" title="LaTeX" description={`Editing the rendered source from ${template?.name ?? "the selected template"}. Changes compile locally after a short pause.`} action={<div className="panel-actions latex-actions"><button className="text-button" disabled={busy || compiling || !template} onClick={onReload}>Reload data</button><button className="secondary-button" disabled={busy || compiling || !template} onClick={onSave}>{template?.builtIn ? "Save editable copy" : "Save template"}</button><button className="secondary-button" disabled={compiling} onClick={onExport}>Export .tex</button><button className="primary-button" disabled={compiling} onClick={onCompile}>{compiling ? "Compiling…" : "Compile PDF"}</button></div>} /><div className="editor-tabs"><button className="active">resume.tex</button><span>{template?.builtIn ? "Built-in source · edits are draft-only" : "Custom template · local"}</span></div><div className="latex-editor-body"><div className="code-editor"><div className="line-numbers">{source.split("\n").map((_, index) => <span key={index}>{index + 1}</span>)}</div><textarea spellCheck={false} value={source} onChange={(event) => onChange(event.target.value)} aria-label="LaTeX source" /></div>{diagnostics.length > 0 && <section className="compiler-diagnostics" aria-label="Compiler diagnostics"><header><strong>Compiler diagnostics</strong><span>{diagnostics.length} issue{diagnostics.length === 1 ? "" : "s"}</span></header><div>{diagnostics.map((diagnostic, index) => <article className={`compiler-diagnostic ${diagnostic.severity}`} key={`${diagnostic.line}-${diagnostic.message}-${index}`}><span>{diagnostic.severity}</span><strong>{diagnostic.line > 0 ? `Line ${diagnostic.line}` : "Source"}</strong><p>{diagnostic.message}</p></article>)}</div></section>}</div><footer className="editor-status"><span>{compileState}</span><span>UTF-8</span><span>{template?.name ?? "LaTeX draft"}</span><span>{source.split("\n").length} lines</span></footer></section>;
+  const [diagnosticLine, setDiagnosticLine] = useState(0);
+  const focusLine = (line: number) => {
+    setDiagnosticLine(line > 0 ? line : 0);
+  };
+  return <section className="workspace-panel latex-workspace"><PanelHeader eyebrow="Source editor" title="LaTeX" description={`Editing the rendered source from ${template?.name ?? "the selected template"}. Changes compile locally after a short pause.`} action={<div className="panel-actions latex-actions"><button className="text-button" disabled={busy || compiling || !template} onClick={onReload}>Reload data</button><button className="secondary-button" disabled={busy || compiling || !template} onClick={onSave}>{template?.builtIn ? "Save editable copy" : "Save template"}</button>{hasOpenVersion && <button className="secondary-button" disabled={versionBusy || compiling || !versionDirty} onClick={onSaveVersion}>{versionBusy ? "Saving…" : versionDirty ? "Save new version" : "Version saved"}</button>}<button className="secondary-button" disabled={compiling} onClick={onExport}>Export .tex</button><button className="primary-button" disabled={compiling} onClick={onCompile}>{compiling ? "Compiling…" : "Compile PDF"}</button></div>} /><div className="editor-tabs"><button className="active">resume.tex</button><span>{hasOpenVersion ? versionDirty ? "Saved version · edited draft" : "Immutable saved version" : template?.builtIn ? "Built-in source · edits are draft-only" : "Custom template · local"}</span></div><div className="latex-editor-body"><LatexCodeEditor value={source} focusLine={diagnosticLine} onChange={onChange} />{diagnostics.length > 0 && <section className="compiler-diagnostics" aria-label="Compiler diagnostics"><header><strong>Compiler diagnostics</strong><span>{diagnostics.length} issue{diagnostics.length === 1 ? "" : "s"}</span></header><div>{diagnostics.map((diagnostic, index) => <button type="button" className={`compiler-diagnostic ${diagnostic.severity}`} key={`${diagnostic.line}-${diagnostic.message}-${index}`} onClick={() => focusLine(diagnostic.line)}><span>{diagnostic.severity}</span><strong>{diagnostic.line > 0 ? `Line ${diagnostic.line}` : "Source"}</strong><p>{diagnostic.message}</p></button>)}</div></section>}</div><footer className="editor-status"><span>{compileState}</span><span>UTF-8</span><span>{template?.name ?? "LaTeX draft"}</span><span>{source.split("\n").length} lines</span></footer></section>;
+}
+
+function LatexCodeEditor({ value, focusLine, onChange }: { value: string; focusLine: number; onChange: (value: string) => void }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<EditorView | null>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  useEffect(() => {
+    if (!hostRef.current) return;
+    const view = new EditorView({
+      parent: hostRef.current,
+      state: EditorState.create({
+        doc: value,
+        extensions: [
+          lineNumbers(), highlightSpecialChars(), history(), drawSelection(), highlightActiveLine(),
+          syntaxHighlighting(defaultHighlightStyle), StreamLanguage.define(stex),
+          keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+          EditorView.lineWrapping,
+          EditorView.theme({ "&": { height: "100%" }, ".cm-scroller": { overflow: "auto" } }),
+          EditorView.updateListener.of((update) => {
+            if (update.docChanged) onChangeRef.current(update.state.doc.toString());
+          }),
+        ],
+      }),
+    });
+    viewRef.current = view;
+    return () => { view.destroy(); viewRef.current = null; };
+  }, []);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || view.state.doc.toString() === value) return;
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value } });
+  }, [value]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || focusLine < 1 || focusLine > view.state.doc.lines) return;
+    const line = view.state.doc.line(focusLine);
+    view.dispatch({ selection: { anchor: line.from, head: line.to }, scrollIntoView: true });
+    view.focus();
+  }, [focusLine]);
+
+  return <div className="code-editor" ref={hostRef} aria-label="LaTeX source" />;
 }
 
 function AIWorkspace({ provider, draft, messages, onProviderChange, onDraftChange, onSubmit }: { provider: AIProvider; draft: string; messages: ChatMessage[]; onProviderChange: (provider: AIProvider) => void; onDraftChange: (value: string) => void; onSubmit: (event: FormEvent) => void }) {
@@ -990,7 +1091,7 @@ function ResumePreview({ profile, experiences, projects, educations, compileResu
   const compiled = Boolean(compileResult?.success && compileResult.pdfBase64);
   const previewTitle = compiled ? "Compiled PDF" : compileResult ? "Compilation failed" : "Layout preview";
   const previewDetail = compiled ? `${compileResult?.engine} · ${compileResult?.durationMs} ms` : compileResult ? `${compileResult.diagnostics?.length || 1} compiler issue${compileResult.diagnostics?.length === 1 ? "" : "s"}` : "Draft · compile to verify";
-  return <aside className="preview-pane"><header className="preview-toolbar"><div><strong>{previewTitle}</strong><small>{previewDetail}</small></div><div className="preview-controls"><button aria-label="Zoom out" disabled>−</button><span>Fit</span><button aria-label="Zoom in" disabled>+</button><i /><span>{compiled ? "PDF" : compileResult ? "Error" : "Draft"}</span></div></header>{compiled ? <div className="preview-stage compiled"><iframe title="Compiled resume PDF" src={`data:application/pdf;base64,${compileResult?.pdfBase64}#toolbar=0&navpanes=0&view=FitH`} /></div> : <div className="preview-stage"><article className="resume-paper">
+  return <aside className="preview-pane"><header className="preview-toolbar"><div><strong>{previewTitle}</strong><small>{previewDetail}</small></div>{!compiled && <div className="preview-controls"><span>{compileResult ? "Error" : "Draft"}</span></div>}</header>{compiled ? <PDFPreview data={compileResult?.pdfBase64 ?? ""} /> : <div className="preview-stage"><article className="resume-paper">
     <header className="resume-header"><h1>{profile.name || "Your Name"}</h1><p>{profile.headline || "Backend Engineer"}</p><small>{[profile.email || "your@email.com", profile.phone, profile.location, profile.website].filter(Boolean).join("  ·  ")}</small></header>
     {profile.summary && <ResumeSection title="Summary"><p className="resume-summary">{profile.summary}</p></ResumeSection>}
     <ResumeSection title="Experience">{visibleExperiences.length ? visibleExperiences.map((experience) => <div className="resume-entry" key={experience.key}><div><strong>{experience.title || "Role"} · {experience.company || "Company"}</strong><span>{experience.startDate} — {experience.current ? "Present" : experience.endDate}</span></div>{experience.location && <em>{experience.location}</em>}<ul>{experience.bullets.slice(0, 3).map((bullet, index) => <li key={bullet.id || index}>{bullet.text}</li>)}</ul></div>) : <ResumePlaceholder text="Add experience and evidence bullets" />}</ResumeSection>
@@ -998,6 +1099,52 @@ function ResumePreview({ profile, experiences, projects, educations, compileResu
     {educations.length > 0 && <ResumeSection title="Education">{educations.slice(0, 2).map((education) => <div className="resume-entry education" key={education.key}><div><strong>{education.degree}{education.fieldOfStudy ? `, ${education.fieldOfStudy}` : ""}</strong><span>{education.startDate}{education.startDate && (education.current || education.endDate) ? " — " : ""}{education.current ? "Present" : education.endDate}</span></div><em>{education.institution}{education.location ? ` · ${education.location}` : ""}</em>{education.details && <p>{education.details}</p>}</div>)}</ResumeSection>}
     <ResumeSection title="Skills"><p className="resume-skills">{profile.skills.length ? profile.skills.join("  ·  ") : "Add skills to your profile"}</p></ResumeSection>
   </article></div>}</aside>;
+}
+
+function PDFPreview({ data }: { data: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [zoom, setZoom] = useState(1);
+  const [pageCount, setPageCount] = useState(0);
+  const [renderError, setRenderError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    const bytes = Uint8Array.from(atob(data), (character) => character.charCodeAt(0));
+    let loadingTask: { promise: Promise<any>; destroy: () => Promise<void> } | undefined;
+    let renderTask: { cancel: () => void; promise: Promise<unknown> } | undefined;
+    import("pdfjs-dist").then(({ getDocument, GlobalWorkerOptions }) => {
+      GlobalWorkerOptions.workerSrc = pdfWorkerURL;
+      loadingTask = getDocument({ data: bytes });
+      return loadingTask.promise;
+    }).then(async (document) => {
+        if (cancelled) return;
+        setPageCount(document.numPages);
+        const page = await document.getPage(1);
+        if (cancelled || !canvasRef.current) return;
+        const viewport = page.getViewport({ scale: zoom * 1.35 });
+        const pixelRatio = window.devicePixelRatio || 1;
+        const canvas = canvasRef.current;
+        canvas.width = Math.floor(viewport.width * pixelRatio);
+        canvas.height = Math.floor(viewport.height * pixelRatio);
+        canvas.style.width = `${viewport.width}px`;
+        canvas.style.height = `${viewport.height}px`;
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Canvas rendering is unavailable");
+        const activeRenderTask = page.render({ canvasContext: context, viewport, transform: pixelRatio === 1 ? undefined : [pixelRatio, 0, 0, pixelRatio, 0, 0] });
+        renderTask = activeRenderTask;
+        await activeRenderTask.promise;
+        setRenderError("");
+      }).catch((reason) => {
+      if (!cancelled && reason?.name !== "RenderingCancelledException") setRenderError(errorMessage(reason));
+    });
+    return () => {
+      cancelled = true;
+      renderTask?.cancel();
+      if (loadingTask) void loadingTask.destroy();
+    };
+  }, [data, zoom]);
+
+  return <div className="pdf-preview"><div className="pdf-controls"><button aria-label="Zoom out" disabled={zoom <= 0.7} onClick={() => setZoom((value) => Math.max(0.7, value - 0.15))}>−</button><span>{Math.round(zoom * 100)}%</span><button aria-label="Zoom in" disabled={zoom >= 1.6} onClick={() => setZoom((value) => Math.min(1.6, value + 0.15))}>+</button><i /><span>{pageCount || 1} page{pageCount === 1 ? "" : "s"}</span></div><div className="preview-stage compiled">{renderError ? <div className="pdf-error">{renderError}</div> : <canvas ref={canvasRef} aria-label="Compiled resume PDF page 1" />}</div></div>;
 }
 
 function ResumeSection({ title, children }: { title: string; children: React.ReactNode }) {
@@ -1448,7 +1595,7 @@ function JobTailor({ job, jobs, application, analysis, selectedFactIDs, busy, ve
           {analysis && <div className="version-action"><div><strong>{selectedFactIDs.length} facts selected</strong><span>Render with {templateName} and preserve an immutable job snapshot.</span></div><button className="primary-button" disabled={versionBusy || selectedFactIDs.length === 0} onClick={onCreateVersion}>{versionBusy ? "Saving version…" : "Save resume version"}</button></div>}
         </section>
       </div>
-      {application && application.versions.length > 0 && <section className="version-history"><div className="saved-jobs-heading"><strong>Resume history</strong><span>{application.versions.length}</span></div><div>{application.versions.map((version) => <article key={version.id}><div><strong>Version {version.versionNumber}</strong><span>{version.selectedFactIds.length} facts · {new Date(version.createdAt).toLocaleString()}</span></div><button className="text-button" onClick={() => onOpenVersion(version)}>Open source</button></article>)}</div></section>}
+      {application && application.versions.length > 0 && <section className="version-history"><div className="saved-jobs-heading"><strong>Resume history</strong><span>{application.versions.length}</span></div><div>{application.versions.map((version) => <article key={version.id}><div><strong>Version {version.versionNumber}</strong><span>{version.selectedFactIds.length} facts · {new Date(version.createdAt).toLocaleString()}</span><small>{version.pdfAvailable ? `PDF saved · ${version.compileEngine}` : version.compiledAt ? "Compilation needs attention" : "Not compiled as a saved artifact"}</small></div><button className="text-button" onClick={() => onOpenVersion(version)}>Open source</button></article>)}</div></section>}
     </section>
   );
 }

@@ -215,6 +215,19 @@ var migrations = []migration{
 			)`,
 		},
 	},
+	{
+		version: 10,
+		statements: []string{
+			`ALTER TABLE resume_versions ADD COLUMN ranking_explanations_json TEXT NOT NULL DEFAULT '[]'`,
+			`ALTER TABLE resume_versions ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''`,
+			`ALTER TABLE resume_versions ADD COLUMN compile_success INTEGER NOT NULL DEFAULT 0 CHECK (compile_success IN (0, 1))`,
+			`ALTER TABLE resume_versions ADD COLUMN compile_engine TEXT NOT NULL DEFAULT ''`,
+			`ALTER TABLE resume_versions ADD COLUMN compile_duration_ms INTEGER NOT NULL DEFAULT 0 CHECK (compile_duration_ms >= 0)`,
+			`ALTER TABLE resume_versions ADD COLUMN compile_diagnostics_json TEXT NOT NULL DEFAULT '[]'`,
+			`ALTER TABLE resume_versions ADD COLUMN compiled_at TEXT NOT NULL DEFAULT ''`,
+			`ALTER TABLE resume_versions ADD COLUMN pdf_path TEXT NOT NULL DEFAULT ''`,
+		},
+	},
 }
 
 func (s *Store) applyMigrations(ctx context.Context) error {

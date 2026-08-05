@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"strings"
 )
@@ -18,14 +19,23 @@ type Application struct {
 }
 
 type ResumeVersion struct {
-	ID                     string   `json:"id"`
-	ApplicationID          string   `json:"applicationId"`
-	VersionNumber          int      `json:"versionNumber"`
-	JobDescriptionSnapshot string   `json:"jobDescriptionSnapshot"`
-	SelectedFactIDs        []string `json:"selectedFactIds"`
-	LatexSource            string   `json:"latexSource"`
-	TemplateID             string   `json:"templateId"`
-	CreatedAt              string   `json:"createdAt"`
+	ID                     string              `json:"id"`
+	ApplicationID          string              `json:"applicationId"`
+	VersionNumber          int                 `json:"versionNumber"`
+	JobDescriptionSnapshot string              `json:"jobDescriptionSnapshot"`
+	SelectedFactIDs        []string            `json:"selectedFactIds"`
+	LatexSource            string              `json:"latexSource"`
+	TemplateID             string              `json:"templateId"`
+	RankingExplanations    []EvidenceMatch     `json:"rankingExplanations"`
+	ContentHash            string              `json:"contentHash"`
+	CompileSuccess         bool                `json:"compileSuccess"`
+	CompileEngine          string              `json:"compileEngine"`
+	CompileDurationMS      int64               `json:"compileDurationMs"`
+	CompileDiagnostics     []CompileDiagnostic `json:"compileDiagnostics"`
+	CompiledAt             string              `json:"compiledAt"`
+	PDFPath                string              `json:"-"`
+	PDFAvailable           bool                `json:"pdfAvailable"`
+	CreatedAt              string              `json:"createdAt"`
 }
 
 type CreateResumeVersionInput struct {
@@ -37,6 +47,31 @@ type CreateResumeVersionInput struct {
 type ApplicationResumeResult struct {
 	Application Application   `json:"application"`
 	Version     ResumeVersion `json:"version"`
+}
+
+type SaveResumeVersionEditInput struct {
+	ApplicationID string `json:"applicationId"`
+	BaseVersionID string `json:"baseVersionId"`
+	LatexSource   string `json:"latexSource"`
+}
+
+func (input SaveResumeVersionEditInput) Validate() (SaveResumeVersionEditInput, error) {
+	input.ApplicationID = strings.TrimSpace(input.ApplicationID)
+	input.BaseVersionID = strings.TrimSpace(input.BaseVersionID)
+	if input.ApplicationID == "" || input.BaseVersionID == "" {
+		return SaveResumeVersionEditInput{}, fmt.Errorf("open a saved resume version before saving an edit")
+	}
+	if len(input.LatexSource) == 0 || len(input.LatexSource) > MaxTemplateSourceBytes {
+		return SaveResumeVersionEditInput{}, fmt.Errorf("LaTeX source is empty or exceeds the 1 MiB size limit")
+	}
+	if strings.IndexByte(input.LatexSource, 0) >= 0 {
+		return SaveResumeVersionEditInput{}, fmt.Errorf("LaTeX source contains a null byte")
+	}
+	return input, nil
+}
+
+func ResumeContentHash(source string) string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(source)))
 }
 
 func (input CreateResumeVersionInput) Validate() (CreateResumeVersionInput, error) {

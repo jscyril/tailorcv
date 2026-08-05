@@ -43,9 +43,9 @@ func (compiler *Compiler) Compile(ctx context.Context, source string) (domain.Co
 	executable := compiler.executable
 	if executable == "" {
 		var err error
-		executable, err = exec.LookPath("tectonic")
+		executable, err = resolveTectonicExecutable()
 		if err != nil {
-			return domain.CompileResult{}, nil, fmt.Errorf("Tectonic is not installed; install Tectonic and restart TailorCV")
+			return domain.CompileResult{}, nil, err
 		}
 	}
 	workspace, err := os.MkdirTemp("", "tailorcv-compile-*")
@@ -97,6 +97,33 @@ func (compiler *Compiler) Compile(ctx context.Context, source string) (domain.Co
 	}
 	result.PDFBase64 = base64.StdEncoding.EncodeToString(pdf)
 	return result, pdf, nil
+}
+
+func resolveTectonicExecutable() (string, error) {
+	if configured := strings.TrimSpace(os.Getenv("TAILORCV_TECTONIC")); configured != "" {
+		if info, err := os.Stat(configured); err == nil && !info.IsDir() {
+			return configured, nil
+		}
+		return "", fmt.Errorf("TAILORCV_TECTONIC does not point to a Tectonic executable")
+	}
+	if current, err := os.Executable(); err == nil {
+		name := "tectonic"
+		if strings.EqualFold(filepath.Ext(current), ".exe") {
+			name += ".exe"
+		}
+		for _, candidate := range []string{
+			filepath.Join(filepath.Dir(current), "bin", name),
+			filepath.Join(filepath.Dir(current), name),
+		} {
+			if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+				return candidate, nil
+			}
+		}
+	}
+	if executable, err := exec.LookPath("tectonic"); err == nil {
+		return executable, nil
+	}
+	return "", fmt.Errorf("Tectonic is unavailable; package it in TailorCV's bin directory, set TAILORCV_TECTONIC, or install it on PATH")
 }
 
 var (

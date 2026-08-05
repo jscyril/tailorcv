@@ -204,10 +204,28 @@ func (s *Store) ReplaceProfileFromBackup(ctx context.Context, source domain.Prof
 			if err != nil {
 				return fmt.Errorf("encode imported resume version selection: %w", err)
 			}
+			rankingJSON, err := json.Marshal(version.RankingExplanations)
+			if err != nil {
+				return fmt.Errorf("encode imported resume version ranking explanations: %w", err)
+			}
+			diagnosticsJSON, err := json.Marshal(version.CompileDiagnostics)
+			if err != nil {
+				return fmt.Errorf("encode imported resume version diagnostics: %w", err)
+			}
 			_, err = tx.ExecContext(ctx, `
-				INSERT INTO resume_versions(id, application_id, version_number, job_description_snapshot, selected_fact_ids_json, latex_source, template_id, created_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-			`, version.ID, application.ID, version.VersionNumber, version.JobDescriptionSnapshot, string(selectedJSON), version.LatexSource, version.TemplateID, version.CreatedAt)
+				INSERT INTO resume_versions(
+					id, application_id, version_number, job_description_snapshot,
+					selected_fact_ids_json, latex_source, template_id,
+					ranking_explanations_json, content_hash, compile_success,
+					compile_engine, compile_duration_ms, compile_diagnostics_json,
+					compiled_at, pdf_path, created_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?)
+			`, version.ID, application.ID, version.VersionNumber,
+				version.JobDescriptionSnapshot, string(selectedJSON), version.LatexSource,
+				version.TemplateID, string(rankingJSON), version.ContentHash,
+				boolInt(version.CompileSuccess), version.CompileEngine,
+				version.CompileDurationMS, string(diagnosticsJSON), version.CompiledAt,
+				version.CreatedAt)
 			if err != nil {
 				return fmt.Errorf("import resume version: %w", err)
 			}

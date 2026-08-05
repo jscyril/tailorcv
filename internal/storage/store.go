@@ -67,7 +67,40 @@ func (s *Store) initialize(ctx context.Context) error {
 	if err := s.applyMigrations(ctx); err != nil {
 		return err
 	}
+	if err := s.backfillResumeContentHashes(ctx); err != nil {
+		return err
+	}
 	return rebuildEvidenceSearch(ctx, s.db)
+}
+
+func (s *Store) backfillResumeContentHashes(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, latex_source FROM resume_versions WHERE content_hash = ''`)
+	if err != nil {
+		return fmt.Errorf("find resume versions without content hashes: %w", err)
+	}
+	type missingHash struct{ id, source string }
+	missing := make([]missingHash, 0)
+	for rows.Next() {
+		var item missingHash
+		if err := rows.Scan(&item.id, &item.source); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("scan resume version without content hash: %w", err)
+		}
+		missing = append(missing, item)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return fmt.Errorf("iterate resume versions without content hashes: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close resume content hash rows: %w", err)
+	}
+	for _, item := range missing {
+		if _, err := s.db.ExecContext(ctx, `UPDATE resume_versions SET content_hash = ? WHERE id = ?`, domain.ResumeContentHash(item.source), item.id); err != nil {
+			return fmt.Errorf("backfill resume content hash: %w", err)
+		}
+	}
+	return nil
 }
 
 func (s *Store) GetProfile(ctx context.Context) (domain.Profile, error) {

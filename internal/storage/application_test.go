@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -39,5 +40,54 @@ func TestCreateResumeVersionAppendsImmutableSnapshots(t *testing.T) {
 	}
 	if len(applications) != 1 || len(applications[0].Versions) != 2 || applications[0].Versions[1].LatexSource != "first latex snapshot" || applications[0].SelectedFactIDs[0] != secondFact {
 		t.Fatalf("applications = %#v", applications)
+	}
+}
+
+func TestEditedResumeVersionsAndCompilationMetadataPreserveSnapshots(t *testing.T) {
+	store, err := Open(filepath.Join(t.TempDir(), "tailorcv.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	ctx := context.Background()
+	job, _ := (domain.JobInput{Role: "Platform Engineer", Description: "Build reliable distributed services with Go and PostgreSQL for production workloads."}).Validate()
+	job, err = store.SaveJob(ctx, job)
+	if err != nil {
+		t.Fatalf("SaveJob() error = %v", err)
+	}
+	factID := uuid.NewString()
+	ranking := []domain.EvidenceMatch{{FactID: factID, Score: 88, Reasons: []string{"Matches Go"}}}
+	created, err := store.CreateResumeVersion(ctx, job.ID, []string{factID}, "builtin-jake-style", job.Description, "original source", ranking)
+	if err != nil {
+		t.Fatalf("CreateResumeVersion() error = %v", err)
+	}
+	edited, err := store.CreateEditedResumeVersion(ctx, domain.SaveResumeVersionEditInput{ApplicationID: created.Application.ID, BaseVersionID: created.Version.ID, LatexSource: "edited source"})
+	if err != nil {
+		t.Fatalf("CreateEditedResumeVersion() error = %v", err)
+	}
+	if edited.VersionNumber != 2 || edited.ContentHash != domain.ResumeContentHash("edited source") || len(edited.RankingExplanations) != 1 {
+		t.Fatalf("edited version = %#v", edited)
+	}
+	compile := domain.CompileResult{Success: true, Engine: "Tectonic", DurationMS: 37, Diagnostics: []domain.CompileDiagnostic{{Line: 4, Severity: "warning", Message: "example"}}}
+	artifactPath := filepath.Join(t.TempDir(), edited.ID+".pdf")
+	if err := os.WriteFile(artifactPath, []byte("pdf"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := store.RecordResumeCompilation(ctx, edited.ID, artifactPath, compile); err != nil {
+		t.Fatalf("RecordResumeCompilation() error = %v", err)
+	}
+	applications, err := store.ListApplications(ctx)
+	if err != nil {
+		t.Fatalf("ListApplications() error = %v", err)
+	}
+	if len(applications) != 1 || len(applications[0].Versions) != 2 {
+		t.Fatalf("applications = %#v", applications)
+	}
+	latest, original := applications[0].Versions[0], applications[0].Versions[1]
+	if !latest.CompileSuccess || !latest.PDFAvailable || latest.CompileEngine != "Tectonic" || len(latest.CompileDiagnostics) != 1 {
+		t.Fatalf("latest compilation = %#v", latest)
+	}
+	if original.LatexSource != "original source" || original.CompileSuccess || original.PDFAvailable {
+		t.Fatalf("original snapshot was changed: %#v", original)
 	}
 }

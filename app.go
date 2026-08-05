@@ -394,7 +394,47 @@ func (a *App) CreateResumeVersion(input domain.CreateResumeVersionInput) (domain
 		return domain.ApplicationResumeResult{}, err
 	}
 	source := resume.Render(template.Source, resume.Data{Profile: profile, Experiences: selectedExperiences, Projects: selectedProjects, Educations: educations})
-	return a.store.CreateResumeVersion(a.appContext(), job.ID, validated.SelectedFactIDs, template.ID, job.Description, source)
+	ranking, err := a.rankSelectedEvidence(job, profile, experiences, projects, validated.SelectedFactIDs)
+	if err != nil {
+		return domain.ApplicationResumeResult{}, err
+	}
+	return a.store.CreateResumeVersion(a.appContext(), job.ID, validated.SelectedFactIDs, template.ID, job.Description, source, ranking)
+}
+
+func (a *App) rankSelectedEvidence(job domain.Job, profile domain.Profile, experiences []domain.Experience, projects []domain.Project, selectedFactIDs []string) ([]domain.EvidenceMatch, error) {
+	input := domain.JobAnalysisInput{ID: job.ID, Company: job.Company, Role: job.Role, Description: job.Description}
+	analysis, err := domain.AnalyzeCareerEvidence(input, profile.Skills, experiences, projects)
+	if err != nil {
+		return nil, err
+	}
+	searchHits, err := a.store.SearchEvidence(a.appContext(), analysis.SearchTerms, 50)
+	if err != nil {
+		return nil, err
+	}
+	analysis, err = domain.AnalyzeCareerEvidenceWithSearch(input, profile.Skills, experiences, projects, searchHits)
+	if err != nil {
+		return nil, err
+	}
+	selected := make(map[string]struct{}, len(selectedFactIDs))
+	for _, id := range selectedFactIDs {
+		selected[id] = struct{}{}
+	}
+	ranking := make([]domain.EvidenceMatch, 0, len(selectedFactIDs))
+	for _, evidence := range analysis.RankedEvidence {
+		if _, included := selected[evidence.FactID]; included {
+			ranking = append(ranking, evidence)
+		}
+	}
+	return ranking, nil
+}
+
+// SaveResumeVersionEdit appends the current edited source as a new immutable
+// snapshot, copying the base version's job, evidence, template, and ranking data.
+func (a *App) SaveResumeVersionEdit(input domain.SaveResumeVersionEditInput) (domain.ResumeVersion, error) {
+	if err := a.ready(); err != nil {
+		return domain.ResumeVersion{}, err
+	}
+	return a.store.CreateEditedResumeVersion(a.appContext(), input)
 }
 
 func selectResumeEvidence(selectedFactIDs []string, experiences []domain.Experience, projects []domain.Project) ([]domain.Experience, []domain.Project, error) {
@@ -616,6 +656,51 @@ func (a *App) CompileLatex(source string) (domain.CompileResult, error) {
 		return domain.CompileResult{}, err
 	}
 	return result, nil
+}
+
+// CompileResumeVersion compiles an immutable saved source and records its
+// derived diagnostics and private PDF artifact without changing the snapshot.
+func (a *App) CompileResumeVersion(versionID string) (domain.CompileResult, error) {
+	if err := a.ready(); err != nil {
+		return domain.CompileResult{}, err
+	}
+	version, err := a.store.GetResumeVersion(a.appContext(), versionID)
+	if err != nil {
+		return domain.CompileResult{}, err
+	}
+	result, pdf, err := a.compiler.Compile(a.appContext(), version.LatexSource)
+	if err != nil {
+		return domain.CompileResult{}, err
+	}
+	pdfPath := ""
+	if result.Success {
+		pdfPath, err = a.resumeArtifactPath(version.ID)
+		if err != nil {
+			return domain.CompileResult{}, err
+		}
+		if err := writePrivateFile(pdfPath, pdf); err != nil {
+			return domain.CompileResult{}, fmt.Errorf("save compiled resume artifact: %w", err)
+		}
+	}
+	if err := a.store.RecordResumeCompilation(a.appContext(), version.ID, pdfPath, result); err != nil {
+		return domain.CompileResult{}, err
+	}
+	a.compileMu.Lock()
+	a.lastPDF = append(a.lastPDF[:0], pdf...)
+	a.compileMu.Unlock()
+	return result, nil
+}
+
+func (a *App) resumeArtifactPath(versionID string) (string, error) {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve resume artifact directory: %w", err)
+	}
+	directory := filepath.Join(configDir, "tailorcv", "artifacts")
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		return "", fmt.Errorf("create resume artifact directory: %w", err)
+	}
+	return filepath.Join(directory, versionID+".pdf"), nil
 }
 
 func (a *App) ExportCompiledPDF() (domain.FileResult, error) {

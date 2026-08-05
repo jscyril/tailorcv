@@ -3,9 +3,25 @@ package resume
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestResolveTectonicExecutableUsesConfiguredPath(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "tectonic-test")
+	if err := os.WriteFile(path, []byte("test"), 0o700); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	t.Setenv("TAILORCV_TECTONIC", path)
+	resolved, err := resolveTectonicExecutable()
+	if err != nil {
+		t.Fatalf("resolveTectonicExecutable() error = %v", err)
+	}
+	if resolved != path {
+		t.Fatalf("resolveTectonicExecutable() = %q", resolved)
+	}
+}
 
 func TestCompilerRejectsInvalidInputBeforeExecution(t *testing.T) {
 	compiler := NewCompiler("/path/that/does/not/exist")

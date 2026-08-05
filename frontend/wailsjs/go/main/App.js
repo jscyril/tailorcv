@@ -30,6 +30,10 @@ export function CompileLatex(arg1) {
   return window['go']['main']['App']['CompileLatex'](arg1);
 }
 
+export function CompileResumeVersion(arg1) {
+  return window['go']['main']['App']['CompileResumeVersion'](arg1);
+}
+
 export function CreateResumeVersion(arg1) {
   return window['go']['main']['App']['CreateResumeVersion'](arg1);
 }
@@ -108,6 +112,10 @@ export function SaveProject(arg1) {
 
 export function SaveResumeTemplate(arg1) {
   return window['go']['main']['App']['SaveResumeTemplate'](arg1);
+}
+
+export function SaveResumeVersionEdit(arg1) {
+  return window['go']['main']['App']['SaveResumeVersionEdit'](arg1);
 }
 
 export function SaveProfile(arg1) {

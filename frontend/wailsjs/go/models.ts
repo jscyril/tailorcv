@@ -513,6 +513,14 @@ export namespace domain {
 	    selectedFactIds: string[];
 	    latexSource: string;
 	    templateId: string;
+	    rankingExplanations: EvidenceMatch[];
+	    contentHash: string;
+	    compileSuccess: boolean;
+	    compileEngine: string;
+	    compileDurationMs: number;
+	    compileDiagnostics: CompileDiagnostic[];
+	    compiledAt: string;
+	    pdfAvailable: boolean;
 	    createdAt: string;
 
 	    static createFrom(source: any = {}) { return new ResumeVersion(source); }
@@ -525,7 +533,41 @@ export namespace domain {
 	        this.selectedFactIds = source["selectedFactIds"];
 	        this.latexSource = source["latexSource"];
 	        this.templateId = source["templateId"];
+	        this.rankingExplanations = this.convertValues(source["rankingExplanations"], EvidenceMatch);
+	        this.contentHash = source["contentHash"];
+	        this.compileSuccess = source["compileSuccess"];
+	        this.compileEngine = source["compileEngine"];
+	        this.compileDurationMs = source["compileDurationMs"];
+	        this.compileDiagnostics = this.convertValues(source["compileDiagnostics"], CompileDiagnostic);
+	        this.compiledAt = source["compiledAt"];
+	        this.pdfAvailable = source["pdfAvailable"];
 	        this.createdAt = source["createdAt"];
+	    }
+
+	    convertValues(a: any, classs: any, asMap: boolean = false): any {
+	        if (!a) return a;
+	        if (a.slice && a.map) return (a as any[]).map(elem => this.convertValues(elem, classs));
+	        if ("object" === typeof a) {
+	            if (asMap) {
+	                for (const key of Object.keys(a)) a[key] = new classs(a[key]);
+	                return a;
+	            }
+	            return new classs(a);
+	        }
+	        return a;
+	    }
+	}
+	export class SaveResumeVersionEditInput {
+	    applicationId: string;
+	    baseVersionId: string;
+	    latexSource: string;
+
+	    static createFrom(source: any = {}) { return new SaveResumeVersionEditInput(source); }
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.applicationId = source["applicationId"];
+	        this.baseVersionId = source["baseVersionId"];
+	        this.latexSource = source["latexSource"];
 	    }
 	}
 	export class Application {
