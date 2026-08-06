@@ -6,7 +6,7 @@ The application is being built with Wails, Go, React, TypeScript, SQLite, and Te
 
 ## Current status
 
-TailorCV has a complete deterministic resume-building vertical slice and is finishing its templates-and-compilation milestone. It currently provides:
+TailorCV has a complete deterministic resume-building vertical slice, local compilation, and an evidence-constrained Ollama tailoring workflow. It currently provides:
 
 - A Wails desktop shell with a React interface.
 - A locally persisted career profile backed by SQLite.
@@ -23,6 +23,9 @@ TailorCV has a complete deterministic resume-building vertical slice and is fini
 - Versioned JSON backup and atomic restore for all currently supported profile data.
 - Public GitHub repository sync with complete language detection, user-controlled language selection, and an explicit review gate before resume eligibility.
 - Clear service boundaries for GitHub import, resume generation, templates, and PDF compilation.
+- A provider-neutral AI contract with versioned structured output, strict fact/citation, metric, technology, and traceability validation.
+- Ollama health and model discovery, bounded generation, cancellation, recorded contract tests, and side-by-side proposal review before immutable version creation.
+- Auditable AI-run history without secrets or raw prompts; failed provider and validation runs are recorded safely.
 
 See [PLAN.md](PLAN.md) for the product architecture and delivery milestones.
 
@@ -109,7 +112,7 @@ wails build -tags webkit2_41
 
 The desktop application stores its SQLite database below the current operating system's user configuration directory in a `tailorcv` folder. Development and test databases, generated resumes, credentials, and user PDFs must not be committed.
 
-Use **Backup & restore** in the application sidebar to export a portable JSON snapshot. Imports are fully validated before replacing local data in one transaction. Provider credentials, generated PDFs, compiler caches, and local model data are intentionally excluded.
+Use **Backup & restore** in the application sidebar to export a portable JSON snapshot. Backup format v2 includes custom templates, selected-template state, applications, resume source history, and auditable AI-run metadata. Version 1 backups remain importable. Imports are fully validated before replacing local data in one transaction. Provider credentials, generated PDFs, compiler caches, and local model data are intentionally excluded.
 
 Custom templates are stored locally in the same SQLite database. Use **Templates → Import .tex** for complete, single-file LaTeX documents. Imported files compile as-is; TailorCV data markers are optional and documented in the Templates screen. Built-in templates are read-only, and editing one creates a user-owned copy.
 
@@ -131,6 +134,8 @@ PLAN.md            Product and implementation roadmap
 ## Security
 
 Do not report sensitive personal resume data in a public issue. TailorCV will never store provider tokens in its SQLite database; provider credentials will be kept in the operating system credential store.
+
+The Ollama workflow sends only normalized job requirements and facts explicitly selected by the user. Proposed wording is rejected when it cites unknown facts, introduces unsupported metrics or recognized technologies, or cannot be traced to meaningful terms in its cited evidence. Generated wording is never written back as verified profile evidence.
 
 ## License
 

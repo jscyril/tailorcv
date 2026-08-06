@@ -56,6 +56,20 @@ func TestProfileBackupRoundTripReplacesAllCurrentData(t *testing.T) {
 	if _, err := store.CreateResumeVersion(ctx, savedJob.ID, []string{savedExperience.Bullets[0].ID}, "builtin-jake-style", savedJob.Description, `\documentclass{article}\begin{document}Snapshot\end{document}`); err != nil {
 		t.Fatalf("CreateResumeVersion() error = %v", err)
 	}
+	template, err := (domain.ResumeTemplateInput{Name: "Local ATS", Source: `\documentclass{article}\begin{document}{{TAILORCV_NAME}}\end{document}`}).Validate()
+	if err != nil {
+		t.Fatalf("template Validate() error = %v", err)
+	}
+	savedTemplate, err := store.SaveTemplate(ctx, template)
+	if err != nil {
+		t.Fatalf("SaveTemplate() error = %v", err)
+	}
+	if err := store.SetSelectedTemplateID(ctx, savedTemplate.ID); err != nil {
+		t.Fatalf("SetSelectedTemplateID() error = %v", err)
+	}
+	if _, err := store.SaveAIRun(ctx, domain.AIRun{JobID: savedJob.ID, Provider: "ollama", Model: "recorded", PromptVersion: "prompt-v1", SchemaVersion: "schema-v1", SelectedFactIDs: []string{savedExperience.Bullets[0].ID}, ValidationPassed: false, FailureCategory: "provider", ValidationErrors: []string{"provider unavailable"}, Proposals: []domain.AIProposal{}}); err != nil {
+		t.Fatalf("SaveAIRun() error = %v", err)
+	}
 
 	backup, err := store.CreateProfileBackup(ctx)
 	if err != nil {
@@ -76,7 +90,7 @@ func TestProfileBackupRoundTripReplacesAllCurrentData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateProfileBackup(after import) error = %v", err)
 	}
-	if got.Profile.Name != "Ada Lovelace" || len(got.Experiences) != 1 || len(got.Projects) != 1 || len(got.Educations) != 1 || len(got.Jobs) != 1 || len(got.Applications) != 1 || len(got.Applications[0].Versions) != 1 {
+	if got.Profile.Name != "Ada Lovelace" || len(got.Experiences) != 1 || len(got.Projects) != 1 || len(got.Educations) != 1 || len(got.Jobs) != 1 || len(got.Applications) != 1 || len(got.Applications[0].Versions) != 1 || len(got.Templates) != 1 || got.SelectedTemplateID != savedTemplate.ID || len(got.AIRuns) != 1 {
 		t.Fatalf("restored backup = %#v", got)
 	}
 	if got.Experiences[0].Bullets[0].ID != backup.Experiences[0].Bullets[0].ID || got.Projects[0].Skills[0] != "Go" || len(got.Projects[0].DetectedLanguages) != 2 || got.Projects[0].DetectedLanguages[1].Name != "Shell" {

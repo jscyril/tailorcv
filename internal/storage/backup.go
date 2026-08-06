@@ -35,15 +35,30 @@ func (s *Store) CreateProfileBackup(ctx context.Context) (domain.ProfileBackup, 
 	if err != nil {
 		return domain.ProfileBackup{}, err
 	}
+	templates, err := s.ListTemplates(ctx)
+	if err != nil {
+		return domain.ProfileBackup{}, err
+	}
+	selectedTemplateID, err := s.SelectedTemplateID(ctx)
+	if err != nil {
+		return domain.ProfileBackup{}, err
+	}
+	aiRuns, err := s.ListAIRuns(ctx)
+	if err != nil {
+		return domain.ProfileBackup{}, err
+	}
 	return domain.ProfileBackup{
-		SchemaVersion: domain.ProfileBackupSchemaVersion,
-		ExportedAt:    time.Now().UTC().Format(time.RFC3339),
-		Profile:       profile,
-		Experiences:   experiences,
-		Projects:      projects,
-		Educations:    educations,
-		Jobs:          jobs,
-		Applications:  applications,
+		SchemaVersion:      domain.ProfileBackupSchemaVersion,
+		ExportedAt:         time.Now().UTC().Format(time.RFC3339),
+		Profile:            profile,
+		Experiences:        experiences,
+		Projects:           projects,
+		Educations:         educations,
+		Jobs:               jobs,
+		Applications:       applications,
+		Templates:          templates,
+		SelectedTemplateID: selectedTemplateID,
+		AIRuns:             aiRuns,
 	}, nil
 }
 
@@ -63,6 +78,7 @@ func (s *Store) ReplaceProfileFromBackup(ctx context.Context, source domain.Prof
 	defer func() { _ = tx.Rollback() }()
 
 	for _, statement := range []string{
+		`DELETE FROM ai_runs`,
 		`DELETE FROM applications`,
 		`DELETE FROM jobs`,
 		`DELETE FROM projects`,
@@ -70,6 +86,8 @@ func (s *Store) ReplaceProfileFromBackup(ctx context.Context, source domain.Prof
 		`DELETE FROM educations`,
 		`DELETE FROM profile_skills`,
 		`DELETE FROM profiles`,
+		`DELETE FROM resume_templates`,
+		`DELETE FROM app_settings`,
 	} {
 		if _, err := tx.ExecContext(ctx, statement); err != nil {
 			return fmt.Errorf("clear profile data for import: %w", err)
@@ -232,6 +250,49 @@ func (s *Store) ReplaceProfileFromBackup(ctx context.Context, source domain.Prof
 		}
 	}
 
+	for _, template := range backup.Templates {
+		_, err := tx.ExecContext(ctx, `
+			INSERT INTO resume_templates(id, name, description, source, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?)
+		`, template.ID, template.Name, template.Description, template.Source, template.CreatedAt, template.UpdatedAt)
+		if err != nil {
+			return fmt.Errorf("import resume template: %w", err)
+		}
+	}
+	if backup.SelectedTemplateID != "" {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO app_settings(key, value) VALUES ('selected_template_id', ?)`, backup.SelectedTemplateID); err != nil {
+			return fmt.Errorf("import selected resume template: %w", err)
+		}
+	}
+
+	for _, run := range backup.AIRuns {
+		selectedJSON, err := json.Marshal(run.SelectedFactIDs)
+		if err != nil {
+			return fmt.Errorf("encode imported AI run selection: %w", err)
+		}
+		errorsJSON, err := json.Marshal(run.ValidationErrors)
+		if err != nil {
+			return fmt.Errorf("encode imported AI run validation errors: %w", err)
+		}
+		proposalsJSON, err := json.Marshal(run.Proposals)
+		if err != nil {
+			return fmt.Errorf("encode imported AI run proposals: %w", err)
+		}
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO ai_runs(
+				id, job_id, provider, model, prompt_version, schema_version,
+				selected_fact_ids_json, validation_passed, failure_category, validation_errors_json,
+				proposals_json, resume_version_id, created_at, accepted_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?)
+		`, run.ID, run.JobID, run.Provider, run.Model, run.PromptVersion,
+			run.SchemaVersion, string(selectedJSON), boolInt(run.ValidationPassed),
+			run.FailureCategory, string(errorsJSON), string(proposalsJSON), run.ResumeVersionID,
+			run.CreatedAt, run.AcceptedAt)
+		if err != nil {
+			return fmt.Errorf("import AI run: %w", err)
+		}
+	}
+
 	if err := rebuildEvidenceSearch(ctx, tx); err != nil {
 		return err
 	}
@@ -301,6 +362,49 @@ func validateBackupIDs(backup domain.ProfileBackup) error {
 			for factIndex, factID := range version.SelectedFactIDs {
 				if err := validateUniqueUUID(factID, versionSelectedIDs); err != nil {
 					return fmt.Errorf("application %d resume version %d selected fact %d: %w", index+1, versionIndex+1, factIndex+1, err)
+				}
+			}
+		}
+	}
+	templateIDs := make(map[string]struct{}, len(backup.Templates))
+	for index, template := range backup.Templates {
+		if err := validateUniqueUUID(template.ID, templateIDs); err != nil {
+			return fmt.Errorf("template %d ID: %w", index+1, err)
+		}
+	}
+	if backup.SelectedTemplateID != "" {
+		if selectedID, err := uuid.Parse(backup.SelectedTemplateID); err == nil {
+			if _, exists := templateIDs[selectedID.String()]; !exists {
+				return fmt.Errorf("selected template references an unknown custom template")
+			}
+		}
+	}
+	runIDs := make(map[string]struct{}, len(backup.AIRuns))
+	for index, run := range backup.AIRuns {
+		if err := validateUniqueUUID(run.ID, runIDs); err != nil {
+			return fmt.Errorf("AI run %d ID: %w", index+1, err)
+		}
+		if _, exists := jobIDs[run.JobID]; !exists {
+			return fmt.Errorf("AI run %d references an unknown job", index+1)
+		}
+		if run.ResumeVersionID != "" {
+			if _, exists := versionIDs[run.ResumeVersionID]; !exists {
+				return fmt.Errorf("AI run %d references an unknown resume version", index+1)
+			}
+		}
+		selectedIDs := make(map[string]struct{}, len(run.SelectedFactIDs))
+		for factIndex, factID := range run.SelectedFactIDs {
+			if err := validateUniqueUUID(factID, selectedIDs); err != nil {
+				return fmt.Errorf("AI run %d selected fact %d: %w", index+1, factIndex+1, err)
+			}
+		}
+		for proposalIndex, proposal := range run.Proposals {
+			if _, exists := selectedIDs[proposal.TargetFactID]; !exists {
+				return fmt.Errorf("AI run %d proposal %d targets an unselected fact", index+1, proposalIndex+1)
+			}
+			for citationIndex, factID := range proposal.SupportingFactIDs {
+				if _, exists := selectedIDs[factID]; !exists {
+					return fmt.Errorf("AI run %d proposal %d citation %d references an unselected fact", index+1, proposalIndex+1, citationIndex+1)
 				}
 			}
 		}

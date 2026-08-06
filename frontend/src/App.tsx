@@ -6,7 +6,10 @@ import { EditorState } from "@codemirror/state";
 import { drawSelection, EditorView, highlightActiveLine, highlightSpecialChars, keymap, lineNumbers } from "@codemirror/view";
 import pdfWorkerURL from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
+  AcceptAITailoring,
   AnalyzeJobDescription,
+  CancelAITailoring,
+  CheckOllama,
   CompileLatex,
   CompileResumeVersion,
   CreateResumeVersion,
@@ -20,10 +23,12 @@ import {
   ExportProfileBackup,
   GetProfile,
   GetSelectedResumeTemplateID,
+  GenerateAITailoring,
   ImportGitHubProjects,
   ImportProfileBackup,
   ImportResumeTemplate,
   ListEducations,
+  ListAIRuns,
   ListApplications,
   ListExperiences,
   ListJobs,
@@ -76,13 +81,6 @@ import {
 } from "./lib/profile";
 
 type View = "overview" | "profile" | "experience" | "projects" | "education" | "skills" | "templates" | "latex" | "job" | "ai" | "data";
-
-type AIProvider = "Ollama" | "Gemini" | "Claude" | "OpenAI";
-
-type ChatMessage = {
-  role: "assistant" | "user";
-  text: string;
-};
 
 type JobAnalysis = {
   job: Job;
@@ -148,6 +146,37 @@ type Application = {
   versions: ResumeVersion[];
   createdAt: string;
   updatedAt: string;
+};
+
+type AIProposal = {
+  targetFactId: string;
+  supportingFactIds: string[];
+  text: string;
+};
+
+type AIRun = {
+  id: string;
+  jobId: string;
+  provider: string;
+  model: string;
+  promptVersion: string;
+  schemaVersion: string;
+  selectedFactIds: string[];
+  validationPassed: boolean;
+  failureCategory: string;
+  validationErrors: string[];
+  proposals: AIProposal[];
+  resumeVersionId: string;
+  createdAt: string;
+  acceptedAt: string;
+};
+
+type AIProviderStatus = {
+  provider: string;
+  endpoint: string;
+  available: boolean;
+  models: string[];
+  message: string;
 };
 
 const EMPTY_JOB: Job = { id: "", company: "", role: "", description: "", createdAt: "", updatedAt: "" };
@@ -216,14 +245,17 @@ export default function App() {
   const [compileResult, setCompileResult] = useState<domain.CompileResult | null>(null);
   const compileRequestRef = useRef(0);
   const compileTimerRef = useRef<number | undefined>(undefined);
-  const [aiProvider, setAIProvider] = useState<AIProvider>("Ollama");
-  const [chatDraft, setChatDraft] = useState("");
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    { role: "assistant", text: "I can tighten bullets, compare evidence to a role, or explain what changed. I will not invent facts." },
-  ]);
+  const [ollamaEndpoint, setOllamaEndpoint] = useState("http://127.0.0.1:11434");
+  const [aiProviderStatus, setAIProviderStatus] = useState<AIProviderStatus | null>(null);
+  const [aiModel, setAIModel] = useState("");
+  const [aiRun, setAIRun] = useState<AIRun | null>(null);
+  const [aiRuns, setAIRuns] = useState<AIRun[]>([]);
+  const [reviewedProposals, setReviewedProposals] = useState<AIProposal[]>([]);
+  const [acceptedProposalIDs, setAcceptedProposalIDs] = useState<string[]>([]);
+  const [aiBusy, setAIBusy] = useState<"check" | "generate" | "accept" | "">("");
 
   const loadWorkspaceData = async () => {
-    const [result, savedExperiences, savedProjects, savedEducations, savedTemplates, savedTemplateID, savedJobs, savedApplications] = await Promise.all([GetProfile(), ListExperiences(), ListProjects(), ListEducations(), ListResumeTemplates(), GetSelectedResumeTemplateID(), ListJobs(), ListApplications()]);
+    const [result, savedExperiences, savedProjects, savedEducations, savedTemplates, savedTemplateID, savedJobs, savedApplications, savedAIRuns] = await Promise.all([GetProfile(), ListExperiences(), ListProjects(), ListEducations(), ListResumeTemplates(), GetSelectedResumeTemplateID(), ListJobs(), ListApplications(), ListAIRuns()]);
     const loaded = { ...emptyProfile, ...result } as Profile;
     loaded.skills ??= [];
     setProfile(loaded);
@@ -238,6 +270,7 @@ export default function App() {
     setSelectedTemplateID(savedTemplateID);
     setJobs(savedJobs as unknown as Job[]);
     setApplications(savedApplications as unknown as Application[]);
+    setAIRuns(savedAIRuns as unknown as AIRun[]);
     setJobDraft(EMPTY_JOB);
     setAnalysis(null);
     setSelectedFactIDs([]);
@@ -291,6 +324,9 @@ export default function App() {
       setAnalysis(next);
       setJobDraft(next.job);
       setSelectedFactIDs(next.rankedEvidence.filter((evidence) => evidence.selectable).slice(0, 6).map((evidence) => evidence.factId));
+      setAIRun(null);
+      setReviewedProposals([]);
+      setAcceptedProposalIDs([]);
       setJobs((await ListJobs()) as unknown as Job[]);
       setMessage("Job saved and evidence ranked locally.");
     } catch (reason) {
@@ -304,6 +340,7 @@ export default function App() {
     setJobDraft((current) => ({ ...current, [field]: value }));
     setAnalysis(null);
     setSelectedFactIDs([]);
+    setAIRun(null);
     setMessage("");
   };
 
@@ -311,6 +348,7 @@ export default function App() {
     setJobDraft(EMPTY_JOB);
     setAnalysis(null);
     setSelectedFactIDs([]);
+    setAIRun(null);
     setMessage("");
   };
 
@@ -318,11 +356,15 @@ export default function App() {
     setJobDraft(job);
     setAnalysis(null);
     setSelectedFactIDs(applications.find((application) => application.jobId === job.id)?.selectedFactIds ?? []);
+    setAIRun(null);
     setMessage("");
   };
 
   const toggleEvidenceFact = (factID: string) => {
     setSelectedFactIDs((current) => current.includes(factID) ? current.filter((id) => id !== factID) : [...current, factID]);
+    setAIRun(null);
+    setReviewedProposals([]);
+    setAcceptedProposalIDs([]);
     setMessage("");
   };
 
@@ -549,16 +591,86 @@ export default function App() {
     setSelectedProjectKeys((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
   };
 
-  const sendChatMessage = (event: FormEvent) => {
-    event.preventDefault();
-    const text = chatDraft.trim();
-    if (!text) return;
-    setChatMessages((current) => [
-      ...current,
-      { role: "user", text },
-      { role: "assistant", text: `${aiProvider} is not connected yet. This workspace is ready for the provider adapter; your message has not left this device.` },
-    ]);
-    setChatDraft("");
+  const checkOllama = async () => {
+    setAIBusy("check");
+    setError("");
+    setMessage("");
+    try {
+      const status = await CheckOllama(ollamaEndpoint) as unknown as AIProviderStatus;
+      setAIProviderStatus(status);
+      if (status.endpoint) setOllamaEndpoint(status.endpoint);
+      if (status.models.length && !status.models.includes(aiModel)) setAIModel(status.models[0]);
+      if (status.available) setMessage(status.message);
+      else setError(status.message);
+    } catch (reason) {
+      setAIProviderStatus(null);
+      setError(errorMessage(reason));
+    } finally {
+      setAIBusy("");
+    }
+  };
+
+  const generateAITailoring = async () => {
+    setAIBusy("generate");
+    setError("");
+    setMessage("");
+    setAIRun(null);
+    try {
+      const run = await GenerateAITailoring({
+        jobId: jobDraft.id,
+        selectedFactIds: selectedFactIDs,
+        provider: "ollama",
+        model: aiModel,
+        endpoint: ollamaEndpoint,
+      }) as unknown as AIRun;
+      setAIRun(run);
+      setAIRuns((current) => [run, ...current.filter((item) => item.id !== run.id)]);
+      setReviewedProposals(run.proposals.map((proposal) => ({ ...proposal, supportingFactIds: [...proposal.supportingFactIds] })));
+      setAcceptedProposalIDs(run.proposals.map((proposal) => proposal.targetFactId));
+      setMessage(run.validationPassed ? `${run.proposals.length} evidence-constrained proposals are ready for review.` : "The AI run was recorded but did not pass validation.");
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setAIBusy("");
+    }
+  };
+
+  const cancelAITailoring = async () => {
+    await CancelAITailoring();
+    setMessage("Cancelling the current AI request…");
+  };
+
+  const updateReviewedProposal = (targetFactID: string, text: string) => {
+    setReviewedProposals((current) => current.map((proposal) => proposal.targetFactId === targetFactID ? { ...proposal, text } : proposal));
+  };
+
+  const toggleAcceptedProposal = (targetFactID: string) => {
+    setAcceptedProposalIDs((current) => current.includes(targetFactID) ? current.filter((id) => id !== targetFactID) : [...current, targetFactID]);
+  };
+
+  const acceptAITailoring = async () => {
+    if (!aiRun) return;
+    setAIBusy("accept");
+    setError("");
+    setMessage("");
+    try {
+      const proposals = reviewedProposals.filter((proposal) => acceptedProposalIDs.includes(proposal.targetFactId));
+      const result = await AcceptAITailoring(new domain.AcceptAITailoringInput({ runId: aiRun.id, templateId: selectedTemplateID, proposals }));
+      const version = result.version as unknown as ResumeVersion;
+      setApplications((await ListApplications()) as unknown as Application[]);
+      setAIRuns((await ListAIRuns()) as unknown as AIRun[]);
+      setLatexSource(version.latexSource);
+      setOpenVersionID(version.id);
+      setSavedVersionSource(version.latexSource);
+      setCompileResult(null);
+      setAIRun({ ...aiRun, resumeVersionId: version.id, acceptedAt: new Date().toISOString() });
+      setView("latex");
+      setMessage(`Accepted AI wording into immutable resume version ${version.versionNumber}.`);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setAIBusy("");
+    }
   };
 
   const exportBackup = async () => {
@@ -842,8 +954,8 @@ export default function App() {
           </nav>
 
           <button className="provider-status" onClick={() => setView("ai")}>
-            <span className="status-dot muted" />
-            <span><strong>AI provider</strong><small>{aiProvider} · not connected</small></span>
+            <span className={`status-dot ${aiProviderStatus?.available ? "" : "muted"}`} />
+            <span><strong>AI provider</strong><small>Ollama · {aiProviderStatus?.available ? `${aiProviderStatus.models.length} models` : "not checked"}</small></span>
             <span aria-hidden="true">›</span>
           </button>
         </aside>
@@ -862,7 +974,7 @@ export default function App() {
             {view === "templates" && <TemplatesWorkspace templates={templates} selectedID={selectedTemplateID} busyKey={templateBusyKey} onImport={importResumeTemplate} onUse={(id) => useResumeTemplate(id)} onEdit={(id) => useResumeTemplate(id, true)} onDuplicate={duplicateResumeTemplate} onDelete={deleteResumeTemplate} />}
             {view === "latex" && <LatexWorkspace source={latexSource} template={activeTemplate} result={compileResult} busy={templateBusyKey !== ""} compiling={compileBusy} versionBusy={versionBusy} hasOpenVersion={openVersionID !== ""} versionDirty={openVersionID !== "" && latexSource !== savedVersionSource} onChange={updateLatexSource} onSave={saveCurrentTemplate} onSaveVersion={saveResumeVersionEdit} onReload={() => useResumeTemplate(selectedTemplateID)} onCompile={compileLatex} onExport={exportLatexSource} />}
             {view === "job" && <JobTailor job={jobDraft} jobs={jobs} application={currentApplication} analysis={analysis} selectedFactIDs={selectedFactIDs} busy={busy} versionBusy={versionBusy} hasEvidence={hasCareerEvidence} templateName={activeTemplate?.name ?? "Selected template"} onChange={updateJobDraft} onNew={newJob} onOpen={openJob} onDelete={deleteJob} onToggleEvidence={toggleEvidenceFact} onCreateVersion={createResumeVersion} onOpenVersion={openResumeVersion} onSubmit={analyzeJob} onProfile={() => setView("skills")} />}
-            {view === "ai" && <AIWorkspace provider={aiProvider} draft={chatDraft} messages={chatMessages} onProviderChange={setAIProvider} onDraftChange={setChatDraft} onSubmit={sendChatMessage} />}
+            {view === "ai" && <AIWorkspace endpoint={ollamaEndpoint} status={aiProviderStatus} model={aiModel} run={aiRun} runs={aiRuns} proposals={reviewedProposals} acceptedProposalIDs={acceptedProposalIDs} job={jobDraft} analysis={analysis} selectedFactIDs={selectedFactIDs} templateName={activeTemplate?.name ?? "Selected template"} busy={aiBusy} onEndpointChange={(value) => { setOllamaEndpoint(value); setAIProviderStatus(null); setAIModel(""); }} onModelChange={setAIModel} onCheck={checkOllama} onGenerate={generateAITailoring} onCancel={cancelAITailoring} onProposalChange={updateReviewedProposal} onToggleProposal={toggleAcceptedProposal} onAccept={acceptAITailoring} onOpenJob={() => setView("job")} />}
             {view === "data" && <DataWorkspace profile={profile} experiences={experiences} projects={projects} educations={educations} jobs={jobs} applications={applications} busy={backupBusy} lastResult={lastBackupResult} onExport={exportBackup} onImport={importBackup} />}
           </div>
 
@@ -1074,15 +1186,72 @@ function LatexCodeEditor({ value, focusLine, onChange }: { value: string; focusL
   return <div className="code-editor" ref={hostRef} aria-label="LaTeX source" />;
 }
 
-function AIWorkspace({ provider, draft, messages, onProviderChange, onDraftChange, onSubmit }: { provider: AIProvider; draft: string; messages: ChatMessage[]; onProviderChange: (provider: AIProvider) => void; onDraftChange: (value: string) => void; onSubmit: (event: FormEvent) => void }) {
-  const providers: AIProvider[] = ["Ollama", "Gemini", "Claude", "OpenAI"];
-  return <section className="workspace-panel ai-workspace"><PanelHeader eyebrow="Evidence-aware assistant" title="AI assistant" description="Use local or cloud models without letting them invent facts." /><div className="provider-picker">{providers.map((item) => <button key={item} className={provider === item ? "active" : ""} onClick={() => onProviderChange(item)}><span className="provider-logo">{item.slice(0, 2).toUpperCase()}</span><span><strong>{item}</strong><small>{item === "Ollama" ? "Local · private" : "Cloud · setup required"}</small></span>{provider === item && <Icon name="check" size={15} />}</button>)}</div><div className="chat-thread">{messages.map((item, index) => <div className={`chat-message ${item.role}`} key={`${item.role}-${index}`}><span>{item.role === "assistant" ? "AI" : "You"}</span><p>{item.text}</p></div>)}</div><form className="chat-composer" onSubmit={onSubmit}><textarea rows={3} value={draft} onChange={(event) => onDraftChange(event.target.value)} placeholder="Ask for a tighter bullet or compare selected evidence…" /><div><small>Only selected evidence will be shared.</small><button className="primary-button" type="submit">Send</button></div></form></section>;
+function AIWorkspace({ endpoint, status, model, run, runs, proposals, acceptedProposalIDs, job, analysis, selectedFactIDs, templateName, busy, onEndpointChange, onModelChange, onCheck, onGenerate, onCancel, onProposalChange, onToggleProposal, onAccept, onOpenJob }: {
+  endpoint: string;
+  status: AIProviderStatus | null;
+  model: string;
+  run: AIRun | null;
+  runs: AIRun[];
+  proposals: AIProposal[];
+  acceptedProposalIDs: string[];
+  job: Job;
+  analysis: JobAnalysis | null;
+  selectedFactIDs: string[];
+  templateName: string;
+  busy: "check" | "generate" | "accept" | "";
+  onEndpointChange: (value: string) => void;
+  onModelChange: (value: string) => void;
+  onCheck: () => void;
+  onGenerate: () => void;
+  onCancel: () => void;
+  onProposalChange: (targetFactID: string, text: string) => void;
+  onToggleProposal: (targetFactID: string) => void;
+  onAccept: () => void;
+  onOpenJob: () => void;
+}) {
+  const canGenerate = Boolean(status?.available && model && job.id && analysis && selectedFactIDs.length);
+  const selectedProposals = proposals.filter((proposal) => acceptedProposalIDs.includes(proposal.targetFactId));
+  return (
+    <section className="workspace-panel ai-workspace ai-tailoring-workspace">
+      <PanelHeader eyebrow="Evidence-constrained tailoring" title="Ollama review" description="Rewrite selected facts locally, validate every claim, and accept only wording you approve." />
+      <div className="ai-setup-grid">
+        <section className="ai-setup-card">
+          <header><span className="provider-logo">OL</span><div><strong>Ollama</strong><small>Local provider · no credential required</small></div><span className={`status-dot ${status?.available ? "" : "muted"}`} /></header>
+          <label className="field"><span>Endpoint</span><input value={endpoint} onChange={(event) => onEndpointChange(event.target.value)} placeholder="http://127.0.0.1:11434" /></label>
+          <button className="secondary-button" disabled={busy !== ""} onClick={onCheck}>{busy === "check" ? "Checking…" : "Check connection"}</button>
+          {status && <p className={status.available ? "ai-status-ok" : "ai-status-error"}>{status.message}</p>}
+          <label className="field"><span>Local model</span><select value={model} disabled={!status?.models.length || busy !== ""} onChange={(event) => onModelChange(event.target.value)}><option value="">Select a model</option>{status?.models.map((item) => <option value={item} key={item}>{item}</option>)}</select></label>
+        </section>
+        <section className="ai-context-card">
+          <span className="step-pill">Current context</span>
+          <h2>{job.role || "Analyze a job first"}</h2>
+          <p>{job.company || "No company selected"}</p>
+          <div><strong>{selectedFactIDs.length}</strong><span>selected evidence facts</span></div>
+          {!analysis ? <button className="secondary-button" onClick={onOpenJob}>Open job matching</button> : <small>Only normalized requirements and these selected facts will be sent to Ollama.</small>}
+          <div className="ai-generation-actions"><button className="primary-button" disabled={!canGenerate || busy !== ""} onClick={onGenerate}>{busy === "generate" ? "Generating…" : run ? "Retry tailoring" : "Generate proposals"}</button>{busy === "generate" && <button className="danger-button" onClick={onCancel}>Cancel</button>}</div>
+        </section>
+      </div>
+
+      {run && !run.validationPassed && <section className="ai-validation-failure"><strong>Run blocked by {run.failureCategory || "validation"}</strong><p>No resume source was changed. The failure was recorded without storing credentials.</p><ul>{run.validationErrors.map((item) => <li key={item}>{item}</li>)}</ul></section>}
+
+      {run?.validationPassed && <section className="ai-review-section">
+        <header><div><p className="eyebrow">Review gate</p><h2>Original evidence and proposed wording</h2><p>Edits are revalidated before a version can be saved.</p></div><span>{acceptedProposalIDs.length}/{proposals.length} accepted</span></header>
+        <div className="ai-proposal-list">{proposals.map((proposal) => {
+          const original = analysis?.rankedEvidence.find((evidence) => evidence.factId === proposal.targetFactId);
+          const accepted = acceptedProposalIDs.includes(proposal.targetFactId);
+          return <article className={accepted ? "accepted" : ""} key={proposal.targetFactId}><header><label><input type="checkbox" checked={accepted} onChange={() => onToggleProposal(proposal.targetFactId)} /><span>{accepted ? "Include proposal" : "Keep original"}</span></label><small>{proposal.supportingFactIds.length} cited fact{proposal.supportingFactIds.length === 1 ? "" : "s"}</small></header><div className="ai-comparison"><div><span>Original evidence</span><strong>{original?.sourceLabel ?? "Selected evidence"}</strong><p>{original?.text ?? "The source fact remains stored locally and unchanged."}</p></div><label><span>Proposed wording</span><textarea rows={5} value={proposal.text} disabled={!accepted || busy !== ""} onChange={(event) => onProposalChange(proposal.targetFactId, event.target.value)} /><small>Citations: {proposal.supportingFactIds.join(", ")}</small></label></div></article>;
+        })}</div>
+        <footer><div><strong>{selectedProposals.length} proposals ready</strong><span>Accept into a new immutable version using {templateName}.</span></div><button className="primary-button" disabled={!selectedProposals.length || busy !== "" || Boolean(run.resumeVersionId)} onClick={onAccept}>{run.resumeVersionId ? "Already accepted" : busy === "accept" ? "Validating & saving…" : "Accept new resume version"}</button></footer>
+      </section>}
+      {runs.length > 0 && <section className="ai-run-history"><header><strong>AI run history</strong><span>{runs.length}</span></header><div>{runs.slice(0, 8).map((item) => <article key={item.id}><div><strong>{item.model}</strong><span>{item.validationPassed ? item.resumeVersionId ? "Accepted" : "Validated" : `Blocked · ${item.failureCategory || "validation"}`}</span></div><small>{item.selectedFactIds.length} facts · {new Date(item.createdAt).toLocaleString()}</small></article>)}</div></section>}
+    </section>
+  );
 }
 
 function DataWorkspace({ profile, experiences, projects, educations, jobs, applications, busy, lastResult, onExport, onImport }: { profile: Profile; experiences: ExperienceDraft[]; projects: ProjectDraft[]; educations: EducationDraft[]; jobs: Job[]; applications: Application[]; busy: "export" | "import" | ""; lastResult: domain.BackupResult | null; onExport: () => void; onImport: () => void }) {
   const evidenceCount = experiences.reduce((sum, experience) => sum + experience.bullets.length, 0) + projects.reduce((sum, project) => sum + project.bullets.length, 0);
   const versionCount = applications.reduce((sum, application) => sum + application.versions.length, 0);
-  return <section className="workspace-panel scroll-panel data-workspace"><PanelHeader eyebrow="Local data" title="Backup & restore" description="Keep a portable, versioned copy of your complete TailorCV profile." /><div className="backup-content"><section className="backup-summary"><header><span className="empty-icon"><Icon name="database" size={22} /></span><div><h2>Current local profile</h2><p>Everything listed here is included in one JSON backup.</p></div></header><div className="backup-stat-grid"><div><strong>{profile.name ? "1" : "0"}</strong><span>profile</span></div><div><strong>{experiences.length}</strong><span>roles</span></div><div><strong>{projects.length}</strong><span>projects</span></div><div><strong>{educations.length}</strong><span>education</span></div><div><strong>{jobs.length}</strong><span>jobs</span></div><div><strong>{applications.length}</strong><span>applications</span></div><div><strong>{versionCount}</strong><span>versions</span></div><div><strong>{profile.skills.length}</strong><span>skills</span></div><div><strong>{evidenceCount}</strong><span>evidence</span></div></div></section><section className="backup-action-card"><div><span className="backup-action-icon"><Icon name="download" size={20} /></span><h2>Export backup</h2><p>Write an owner-readable JSON snapshot using a native save dialog. IDs, ordering, verification state, and timestamps are preserved.</p></div><button className="primary-button" disabled={busy !== ""} onClick={onExport}>{busy === "export" ? "Exporting…" : "Choose destination"}</button></section><section className="backup-action-card restore"><div><span className="backup-action-icon"><Icon name="refresh" size={20} /></span><h2>Restore backup</h2><p>The entire file is validated before a single transaction replaces current data. Invalid or unsupported backups leave this profile untouched.</p></div><button className="secondary-button" disabled={busy !== ""} onClick={onImport}>{busy === "import" ? "Restoring…" : "Choose backup"}</button></section>{lastResult && <section className="backup-result"><span className="status-dot" /><div><strong>Last operation completed</strong><p>{lastResult.applicationCount} applications · {lastResult.resumeVersionCount} resume versions · {lastResult.jobCount} jobs</p><small>{lastResult.path}</small></div></section>}<div className="backup-safety"><strong>Backup format v1</strong><p>Backups never include provider credentials, generated PDFs, compiler caches, or local model data.</p></div></div></section>;
+  return <section className="workspace-panel scroll-panel data-workspace"><PanelHeader eyebrow="Local data" title="Backup & restore" description="Keep a portable, versioned copy of your complete TailorCV profile." /><div className="backup-content"><section className="backup-summary"><header><span className="empty-icon"><Icon name="database" size={22} /></span><div><h2>Current local profile</h2><p>Everything listed here is included in one JSON backup.</p></div></header><div className="backup-stat-grid"><div><strong>{profile.name ? "1" : "0"}</strong><span>profile</span></div><div><strong>{experiences.length}</strong><span>roles</span></div><div><strong>{projects.length}</strong><span>projects</span></div><div><strong>{educations.length}</strong><span>education</span></div><div><strong>{jobs.length}</strong><span>jobs</span></div><div><strong>{applications.length}</strong><span>applications</span></div><div><strong>{versionCount}</strong><span>versions</span></div><div><strong>{profile.skills.length}</strong><span>skills</span></div><div><strong>{evidenceCount}</strong><span>evidence</span></div></div></section><section className="backup-action-card"><div><span className="backup-action-icon"><Icon name="download" size={20} /></span><h2>Export backup</h2><p>Write an owner-readable JSON snapshot using a native save dialog. IDs, ordering, verification state, and timestamps are preserved.</p></div><button className="primary-button" disabled={busy !== ""} onClick={onExport}>{busy === "export" ? "Exporting…" : "Choose destination"}</button></section><section className="backup-action-card restore"><div><span className="backup-action-icon"><Icon name="refresh" size={20} /></span><h2>Restore backup</h2><p>The entire file is validated before a single transaction replaces current data. Invalid or unsupported backups leave this profile untouched.</p></div><button className="secondary-button" disabled={busy !== ""} onClick={onImport}>{busy === "import" ? "Restoring…" : "Choose backup"}</button></section>{lastResult && <section className="backup-result"><span className="status-dot" /><div><strong>Last operation completed</strong><p>{lastResult.applicationCount} applications · {lastResult.resumeVersionCount} resume versions · {lastResult.templateCount} templates · {lastResult.aiRunCount} AI runs</p><small>{lastResult.path}</small></div></section>}<div className="backup-safety"><strong>Backup format v2</strong><p>Backups include custom templates and auditable AI-run metadata, but never provider credentials, generated PDFs, compiler caches, or local model data.</p></div></div></section>;
 }
 
 function ResumePreview({ profile, experiences, projects, educations, compileResult }: { profile: Profile; experiences: ExperienceDraft[]; projects: ProjectDraft[]; educations: EducationDraft[]; compileResult: domain.CompileResult | null }) {

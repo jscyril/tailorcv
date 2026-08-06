@@ -11,8 +11,8 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 ## Repository state at this handoff
 
 - Branch: `main`, tracking `origin/main`.
-- Baseline before this delivery: `321164f feat: add live LaTeX diagnostics`.
-- Delivery commit message: `feat: complete immutable resume artifacts`.
+- Baseline before this delivery: `17b33bc feat: complete immutable resume artifacts`.
+- Delivery commit message: `feat: add evidence-constrained Ollama tailoring`.
 - Worktree should be clean after the delivery is pushed.
 - No license has been selected.
 
@@ -31,12 +31,19 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 - Structured compiler diagnostics with clickable navigation into the CodeMirror source editor.
 - PDF.js preview rendering with zoom controls; PDF.js loads only when a compiled preview exists.
 - Successful compilation of a saved immutable version records engine, duration, diagnostics, timestamp, and a private PDF artifact. JSON backup excludes the generated PDF and machine-specific path.
+- Provider-neutral, versioned AI request/response contracts in `internal/ai` with strict structured decoding.
+- Evidence validation rejects unselected citations, duplicate targets/citations, unsupported metrics, new recognized technologies, malformed output, and proposals without meaningful evidence overlap.
+- Ollama connection/model discovery and structured generation with timeouts, cancellation, response limits, recorded contract tests, and no stored credential.
+- Side-by-side original/proposed evidence review with per-proposal edit/include controls before creating a new immutable resume version.
+- Auditable AI runs record provider, model, prompt/schema versions, selected fact IDs, validation outcome, failure category, proposals, acceptance timestamp, and resume-version linkage without raw prompts or secrets.
+- Backup schema 2 includes custom templates, selected-template state, and AI-run metadata while remaining compatible with schema 1 imports.
 
 ## Important architecture and invariants
 
 - React calls Go only through Wails bindings. Frontend code must not access SQLite, GitHub, credentials, or the native filesystem directly.
 - `internal/domain` owns validation and deterministic business rules.
-- `internal/storage` owns SQLite persistence and migrations. Migration 10 adds resume hash, ranking, compilation, and artifact metadata.
+- `internal/storage` owns SQLite persistence and migrations. Migration 10 adds resume hash, ranking, compilation, and artifact metadata; migration 11 adds auditable AI runs.
+- The first AI schema intentionally supports only currently selectable experience bullets and reviewed project facts. New profile evidence entities require a later schema version.
 - `internal/resume` owns trusted template rendering, LaTeX escaping, compiler execution, and diagnostic parsing.
 - Resume source is immutable after a version is created. An edit creates the next numbered version by copying its base version's job snapshot, selected evidence, template, and ranking explanation.
 - Compilation metadata is a derived attachment and may be updated without mutating the saved source snapshot.
@@ -67,14 +74,14 @@ At this handoff:
 
 ## Next implementation set
 
-The next major milestone is evidence-constrained AI tailoring:
+The next major milestone is credential-backed Gemini support and AI workflow hardening:
 
-1. Add an `internal/ai` provider interface and versioned structured request/response schema.
-2. Validate every proposed bullet against selected fact IDs; reject unknown facts, unsupported metrics, new technologies, and malformed output.
-3. Add an Ollama adapter with health/model discovery, timeouts, cancellation, and recorded-response contract tests.
-4. Add side-by-side review of original evidence and proposed wording before accepting a new resume version.
-5. Persist AI-run provider, model, prompt/schema version, selected fact IDs, validation result, and timestamps without secrets.
-6. Add Gemini only after OS credential storage is in place.
+1. Add an operating-system credential-store abstraction with test doubles and platform verification.
+2. Persist only non-secret provider preferences and credential references.
+3. Implement Gemini behind the same provider contract, schema, validator, review gate, and recorded-response contract suite.
+4. Add React component/integration coverage for connection, generation, validation failure, editing, cancellation, and acceptance.
+5. Decide whether certifications, achievements, and arbitrary contact links remain in v1 before adding a later AI schema version.
+6. Add application lifecycle controls and complete the planned GitHub metadata set.
 
 Release-hardening work that remains:
 

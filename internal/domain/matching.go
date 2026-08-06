@@ -254,6 +254,21 @@ var recognizedSkillCatalog = []string{
 	"SQL", "PostgreSQL", "MySQL", "SQLite", "MongoDB", "Redis", "Kafka", "Elasticsearch", "Docker", "Kubernetes", "Terraform", "AWS", "GCP", "Azure", "Linux", "Git", "GitHub Actions", "Jenkins", "GraphQL", "REST", "gRPC", "HTML", "CSS", "Tailwind CSS", "Next.js", "Svelte", "Prometheus", "Grafana", "Spark",
 }
 
+// DetectKnownSkills returns the technology names from TailorCV's matching
+// catalog that are explicitly present in text. AI response validation uses the
+// same vocabulary as deterministic matching so providers cannot introduce a
+// recognized technology that is absent from their cited evidence.
+func DetectKnownSkills(text string) []string {
+	result := make([]string, 0)
+	for _, skill := range normalizeMatchingSkills(recognizedSkillCatalog) {
+		if mentionsSkill(text, skill) {
+			result = appendUniqueFold(result, skill)
+		}
+	}
+	sort.Strings(result)
+	return result
+}
+
 func mentionsSkill(description, skill string) bool {
 	for _, alias := range aliasesFor(skill) {
 		if alias == "go" {

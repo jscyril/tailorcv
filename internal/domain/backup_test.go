@@ -43,3 +43,13 @@ func TestDecodeProfileBackupRejectsUnsupportedOrUnknownData(t *testing.T) {
 		t.Fatalf("unknown field error = %v", err)
 	}
 }
+
+func TestDecodeProfileBackupUpgradesVersionOne(t *testing.T) {
+	decoded, err := DecodeProfileBackup([]byte(`{"schemaVersion":1,"exportedAt":"2026-01-02T03:04:05Z","profile":{},"experiences":[],"projects":[],"educations":[]}`))
+	if err != nil {
+		t.Fatalf("DecodeProfileBackup() error = %v", err)
+	}
+	if decoded.SchemaVersion != ProfileBackupSchemaVersion || decoded.Templates == nil || decoded.AIRuns == nil {
+		t.Fatalf("upgraded backup = %#v", decoded)
+	}
+}

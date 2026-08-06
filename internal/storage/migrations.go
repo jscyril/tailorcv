@@ -228,6 +228,28 @@ var migrations = []migration{
 			`ALTER TABLE resume_versions ADD COLUMN pdf_path TEXT NOT NULL DEFAULT ''`,
 		},
 	},
+	{
+		version: 11,
+		statements: []string{
+			`CREATE TABLE ai_runs (
+				id TEXT PRIMARY KEY,
+				job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+				provider TEXT NOT NULL,
+				model TEXT NOT NULL,
+				prompt_version TEXT NOT NULL,
+				schema_version TEXT NOT NULL,
+				selected_fact_ids_json TEXT NOT NULL,
+				validation_passed INTEGER NOT NULL DEFAULT 0 CHECK (validation_passed IN (0, 1)),
+				failure_category TEXT NOT NULL DEFAULT '',
+				validation_errors_json TEXT NOT NULL DEFAULT '[]',
+				proposals_json TEXT NOT NULL DEFAULT '[]',
+				resume_version_id TEXT REFERENCES resume_versions(id) ON DELETE SET NULL,
+				created_at TEXT NOT NULL,
+				accepted_at TEXT NOT NULL DEFAULT ''
+			)`,
+			`CREATE INDEX ai_runs_job_created_idx ON ai_runs(job_id, created_at DESC)`,
+		},
+	},
 }
 
 func (s *Store) applyMigrations(ctx context.Context) error {

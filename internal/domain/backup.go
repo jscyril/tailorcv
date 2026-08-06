@@ -5,20 +5,24 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 )
 
-const ProfileBackupSchemaVersion = 1
+const ProfileBackupSchemaVersion = 2
 
 type ProfileBackup struct {
-	SchemaVersion int           `json:"schemaVersion"`
-	ExportedAt    string        `json:"exportedAt"`
-	Profile       Profile       `json:"profile"`
-	Experiences   []Experience  `json:"experiences"`
-	Projects      []Project     `json:"projects"`
-	Educations    []Education   `json:"educations"`
-	Jobs          []Job         `json:"jobs,omitempty"`
-	Applications  []Application `json:"applications,omitempty"`
+	SchemaVersion      int              `json:"schemaVersion"`
+	ExportedAt         string           `json:"exportedAt"`
+	Profile            Profile          `json:"profile"`
+	Experiences        []Experience     `json:"experiences"`
+	Projects           []Project        `json:"projects"`
+	Educations         []Education      `json:"educations"`
+	Jobs               []Job            `json:"jobs,omitempty"`
+	Applications       []Application    `json:"applications,omitempty"`
+	Templates          []ResumeTemplate `json:"templates,omitempty"`
+	SelectedTemplateID string           `json:"selectedTemplateId,omitempty"`
+	AIRuns             []AIRun          `json:"aiRuns,omitempty"`
 }
 
 type BackupResult struct {
@@ -30,6 +34,8 @@ type BackupResult struct {
 	JobCount           int    `json:"jobCount"`
 	ApplicationCount   int    `json:"applicationCount"`
 	ResumeVersionCount int    `json:"resumeVersionCount"`
+	TemplateCount      int    `json:"templateCount"`
+	AIRunCount         int    `json:"aiRunCount"`
 }
 
 func DecodeProfileBackup(data []byte) (ProfileBackup, error) {
@@ -49,7 +55,7 @@ func DecodeProfileBackup(data []byte) (ProfileBackup, error) {
 }
 
 func (backup ProfileBackup) Validate() (ProfileBackup, error) {
-	if backup.SchemaVersion != ProfileBackupSchemaVersion {
+	if backup.SchemaVersion != 1 && backup.SchemaVersion != ProfileBackupSchemaVersion {
 		return ProfileBackup{}, fmt.Errorf("backup schema version %d is not supported", backup.SchemaVersion)
 	}
 	if _, err := time.Parse(time.RFC3339, backup.ExportedAt); err != nil {
@@ -251,6 +257,61 @@ func (backup ProfileBackup) Validate() (ProfileBackup, error) {
 		applications = append(applications, application)
 	}
 	backup.Applications = applications
+
+	templates := make([]ResumeTemplate, 0, len(backup.Templates))
+	for index, source := range backup.Templates {
+		if source.BuiltIn {
+			return ProfileBackup{}, fmt.Errorf("template %d cannot be marked as built in", index+1)
+		}
+		if err := validateBackupTimestamp(fmt.Sprintf("template %d creation time", index+1), source.CreatedAt, true); err != nil {
+			return ProfileBackup{}, err
+		}
+		if err := validateBackupTimestamp(fmt.Sprintf("template %d update time", index+1), source.UpdatedAt, true); err != nil {
+			return ProfileBackup{}, err
+		}
+		validated, err := (ResumeTemplateInput{ID: source.ID, Name: source.Name, Description: source.Description, Source: source.Source}).Validate()
+		if err != nil {
+			return ProfileBackup{}, fmt.Errorf("template %d: %w", index+1, err)
+		}
+		validated.CreatedAt, validated.UpdatedAt = source.CreatedAt, source.UpdatedAt
+		templates = append(templates, validated)
+	}
+	backup.Templates = templates
+	backup.SelectedTemplateID = strings.TrimSpace(backup.SelectedTemplateID)
+	if len(backup.SelectedTemplateID) > 200 {
+		return ProfileBackup{}, fmt.Errorf("selected template ID is not valid")
+	}
+
+	runs := make([]AIRun, 0, len(backup.AIRuns))
+	for index, source := range backup.AIRuns {
+		if strings.TrimSpace(source.Provider) == "" || strings.TrimSpace(source.Model) == "" || strings.TrimSpace(source.PromptVersion) == "" || strings.TrimSpace(source.SchemaVersion) == "" {
+			return ProfileBackup{}, fmt.Errorf("AI run %d metadata is incomplete", index+1)
+		}
+		if err := validateBackupTimestamp(fmt.Sprintf("AI run %d creation time", index+1), source.CreatedAt, true); err != nil {
+			return ProfileBackup{}, err
+		}
+		if err := validateBackupTimestamp(fmt.Sprintf("AI run %d acceptance time", index+1), source.AcceptedAt, false); err != nil {
+			return ProfileBackup{}, err
+		}
+		if source.ResumeVersionID == "" && source.AcceptedAt != "" {
+			return ProfileBackup{}, fmt.Errorf("AI run %d has an acceptance time without a resume version", index+1)
+		}
+		if !source.ValidationPassed && source.ResumeVersionID != "" {
+			return ProfileBackup{}, fmt.Errorf("AI run %d was accepted without passing validation", index+1)
+		}
+		for proposalIndex, proposal := range source.Proposals {
+			if strings.TrimSpace(proposal.TargetFactID) == "" || len(proposal.SupportingFactIDs) == 0 || len(strings.TrimSpace(proposal.Text)) < 20 || len(proposal.Text) > 1200 {
+				return ProfileBackup{}, fmt.Errorf("AI run %d proposal %d is not valid", index+1, proposalIndex+1)
+			}
+		}
+		source.Provider = strings.TrimSpace(source.Provider)
+		source.Model = strings.TrimSpace(source.Model)
+		source.PromptVersion = strings.TrimSpace(source.PromptVersion)
+		source.SchemaVersion = strings.TrimSpace(source.SchemaVersion)
+		runs = append(runs, source)
+	}
+	backup.AIRuns = runs
+	backup.SchemaVersion = ProfileBackupSchemaVersion
 	return backup, nil
 }
 
@@ -269,5 +330,5 @@ func (backup ProfileBackup) Result(path string) BackupResult {
 	for _, application := range backup.Applications {
 		versionCount += len(application.Versions)
 	}
-	return BackupResult{Path: path, ExperienceCount: len(backup.Experiences), ProjectCount: len(backup.Projects), EducationCount: len(backup.Educations), JobCount: len(backup.Jobs), ApplicationCount: len(backup.Applications), ResumeVersionCount: versionCount}
+	return BackupResult{Path: path, ExperienceCount: len(backup.Experiences), ProjectCount: len(backup.Projects), EducationCount: len(backup.Educations), JobCount: len(backup.Jobs), ApplicationCount: len(backup.Applications), ResumeVersionCount: versionCount, TemplateCount: len(backup.Templates), AIRunCount: len(backup.AIRuns)}
 }

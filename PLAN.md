@@ -73,6 +73,11 @@ User data is stored in the operating system's application-data directory. The ap
 
 The no-AI path selects and orders existing user-authored bullets using deterministic ranking and produces a complete resume from them.
 
+The first structured AI schema is intentionally limited to the evidence kinds
+that the application can currently select: experience bullets and reviewed
+project facts. Certifications, achievements, and additional link types require
+their own domain models before a later schema version can include them.
+
 ## LaTeX and PDF safety
 
 - Models generate structured resume content, never executable LaTeX.
@@ -115,6 +120,9 @@ The no-AI path selects and orders existing user-authored bullets using determini
 - Add the provider interface, Ollama adapter, Gemini adapter, credential management, JSON Schema output, validation, retry rules, and cancellation.
 - Add side-by-side review of original facts and proposed wording.
 - Record provider and prompt metadata while excluding secrets and unnecessary private data.
+
+Ollama is delivered first and requires no stored credential. Gemini follows
+only after operating-system credential storage is implemented.
 
 ### 6. Release hardening
 

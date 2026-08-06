@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/jscyril/tailorcv/internal/ai"
 	backupfile "github.com/jscyril/tailorcv/internal/backup"
 	"github.com/jscyril/tailorcv/internal/domain"
 	githubclient "github.com/jscyril/tailorcv/internal/github"
@@ -20,13 +21,17 @@ import (
 // App is the Wails-facing application service. Domain and persistence details
 // stay behind this deliberately small API.
 type App struct {
-	ctx       context.Context
-	store     *storage.Store
-	github    *githubclient.Client
-	compiler  *resume.Compiler
-	initErr   error
-	compileMu sync.RWMutex
-	lastPDF   []byte
+	ctx               context.Context
+	store             *storage.Store
+	github            *githubclient.Client
+	compiler          *resume.Compiler
+	initErr           error
+	compileMu         sync.RWMutex
+	lastPDF           []byte
+	aiMu              sync.Mutex
+	aiCancel          context.CancelFunc
+	aiGeneration      uint64
+	aiProviderFactory func(string) (ai.Provider, error)
 }
 
 func NewApp() *App {
