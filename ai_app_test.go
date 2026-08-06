@@ -44,7 +44,7 @@ func TestGenerateAITailoringUsesOllamaAndPersistsValidatedRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SaveJob() error = %v", err)
 	}
-	app.aiProviderFactory = func(string) (ai.Provider, error) {
+	app.aiProviderFactory = func(string, string) (ai.Provider, error) {
 		proposal := fmt.Sprintf(`{"schemaVersion":"tailorcv.ai.tailoring.v1","proposals":[{"targetFactId":%q,"supportingFactIds":[%q],"text":"Reduced deployment time by 40%% through an audited Go release pipeline."}]}`, factID, factID)
 		return recordedAIProvider{response: []byte(proposal), inspect: func(request ai.Request) {
 			if len(request.Facts) != 1 || request.Facts[0].ID != factID || request.Job.Role != "Platform Engineer" {

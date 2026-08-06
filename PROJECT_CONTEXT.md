@@ -11,8 +11,8 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 ## Repository state at this handoff
 
 - Branch: `main`, tracking `origin/main`.
-- Baseline before this delivery: `17b33bc feat: complete immutable resume artifacts`.
-- Delivery commit message: `feat: add evidence-constrained Ollama tailoring`.
+- Baseline before this delivery: `0b4724e feat: add evidence-constrained Ollama tailoring`.
+- Delivery commit message: `feat: add credential-backed Gemini tailoring`.
 - Worktree should be clean after the delivery is pushed.
 - No license has been selected.
 
@@ -34,9 +34,11 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 - Provider-neutral, versioned AI request/response contracts in `internal/ai` with strict structured decoding.
 - Evidence validation rejects unselected citations, duplicate targets/citations, unsupported metrics, new recognized technologies, malformed output, and proposals without meaningful evidence overlap.
 - Ollama connection/model discovery and structured generation with timeouts, cancellation, response limits, recorded contract tests, and no stored credential.
+- Gemini model discovery and JSON-constrained generation behind the shared provider contract, evidence validator, cancellation, response limits, and recorded contract tests.
+- Gemini API keys live only in the native operating-system keyring. The React credential field is write-only after save; SQLite stores only provider, endpoint, and model preferences.
 - Side-by-side original/proposed evidence review with per-proposal edit/include controls before creating a new immutable resume version.
 - Auditable AI runs record provider, model, prompt/schema versions, selected fact IDs, validation outcome, failure category, proposals, acceptance timestamp, and resume-version linkage without raw prompts or secrets.
-- Backup schema 2 includes custom templates, selected-template state, and AI-run metadata while remaining compatible with schema 1 imports.
+- Backup schema 3 includes custom templates, selected-template state, AI-run metadata, and non-secret AI preferences while remaining compatible with schema 1 and 2 imports. Credentials are explicitly excluded.
 
 ## Important architecture and invariants
 
@@ -61,7 +63,7 @@ Run these from the repository root unless noted:
 GOCACHE=/tmp/tailorcv-go-cache go test ./...
 frontend/node_modules/.bin/vitest run --root frontend
 frontend/node_modules/.bin/tsc --noEmit -p frontend/tsconfig.json
-pnpm --dir frontend build
+npm --prefix frontend run build
 ```
 
 At this handoff:
@@ -70,18 +72,18 @@ At this handoff:
 - All 11 frontend unit tests pass.
 - TypeScript checking passes.
 - The Vite production build passes.
+- A live manual smoke test against local `gemma4:12b` returned valid, grounded schema output for fictional evidence without inventing a metric or technology.
 - The real Tectonic integration suite remains opt-in with `TAILORCV_TECTONIC_INTEGRATION=1`.
 
 ## Next implementation set
 
-The next major milestone is credential-backed Gemini support and AI workflow hardening:
+The next major milestone is AI workflow hardening and remaining v1 product gaps:
 
-1. Add an operating-system credential-store abstraction with test doubles and platform verification.
-2. Persist only non-secret provider preferences and credential references.
-3. Implement Gemini behind the same provider contract, schema, validator, review gate, and recorded-response contract suite.
-4. Add React component/integration coverage for connection, generation, validation failure, editing, cancellation, and acceptance.
-5. Decide whether certifications, achievements, and arbitrary contact links remain in v1 before adding a later AI schema version.
-6. Add application lifecycle controls and complete the planned GitHub metadata set.
+1. Add React component/integration coverage for both providers: connection, credential states, generation, validation failure, editing, cancellation, and acceptance.
+2. Add an opt-in live-provider harness that reuses the production validator without placing credentials or private evidence in fixtures.
+3. Decide whether certifications, achievements, and arbitrary contact links remain in v1 before adding a later AI schema version.
+4. Add application lifecycle controls and complete the planned GitHub metadata set.
+5. Verify native credential behavior in packaged Windows, macOS, and Linux builds.
 
 Release-hardening work that remains:
 

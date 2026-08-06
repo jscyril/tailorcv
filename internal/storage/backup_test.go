@@ -70,6 +70,9 @@ func TestProfileBackupRoundTripReplacesAllCurrentData(t *testing.T) {
 	if _, err := store.SaveAIRun(ctx, domain.AIRun{JobID: savedJob.ID, Provider: "ollama", Model: "recorded", PromptVersion: "prompt-v1", SchemaVersion: "schema-v1", SelectedFactIDs: []string{savedExperience.Bullets[0].ID}, ValidationPassed: false, FailureCategory: "provider", ValidationErrors: []string{"provider unavailable"}, Proposals: []domain.AIProposal{}}); err != nil {
 		t.Fatalf("SaveAIRun() error = %v", err)
 	}
+	if _, err := store.SaveAISettings(ctx, domain.AISettings{Provider: "gemini", OllamaEndpoint: domain.DefaultOllamaEndpoint, GeminiModel: "gemini-test"}); err != nil {
+		t.Fatalf("SaveAISettings() error = %v", err)
+	}
 
 	backup, err := store.CreateProfileBackup(ctx)
 	if err != nil {
@@ -95,6 +98,9 @@ func TestProfileBackupRoundTripReplacesAllCurrentData(t *testing.T) {
 	}
 	if got.Experiences[0].Bullets[0].ID != backup.Experiences[0].Bullets[0].ID || got.Projects[0].Skills[0] != "Go" || len(got.Projects[0].DetectedLanguages) != 2 || got.Projects[0].DetectedLanguages[1].Name != "Shell" {
 		t.Fatalf("restored child data = %#v", got)
+	}
+	if got.AISettings.Provider != "gemini" || got.AISettings.GeminiModel != "gemini-test" {
+		t.Fatalf("restored AI settings = %#v", got.AISettings)
 	}
 }
 

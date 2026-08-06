@@ -8,6 +8,8 @@ export function AnalyzeJobDescription(arg1:domain.JobAnalysisInput):Promise<doma
 
 export function CancelAITailoring():Promise<void>;
 
+export function CheckGemini():Promise<domain.AIProviderStatus>;
+
 export function CheckOllama(arg1:string):Promise<domain.AIProviderStatus>;
 
 export function CompileLatex(arg1:string):Promise<domain.CompileResult>;
@@ -19,6 +21,8 @@ export function CreateResumeVersion(arg1:domain.CreateResumeVersionInput):Promis
 export function DeleteEducation(arg1:string):Promise<void>;
 
 export function DeleteExperience(arg1:string):Promise<void>;
+
+export function DeleteGeminiAPIKey():Promise<domain.CredentialStatus>;
 
 export function DeleteJob(arg1:string):Promise<void>;
 
@@ -33,6 +37,10 @@ export function ExportLatexSource(arg1:string):Promise<domain.FileResult>;
 export function ExportProfileBackup():Promise<domain.BackupResult>;
 
 export function GenerateAITailoring(arg1:domain.GenerateAITailoringInput):Promise<domain.AIRun>;
+
+export function GetAISettings():Promise<domain.AISettings>;
+
+export function GetGeminiCredentialStatus():Promise<domain.CredentialStatus>;
 
 export function GetProfile():Promise<domain.Profile>;
 
@@ -60,9 +68,13 @@ export function ListResumeTemplates():Promise<Array<domain.ResumeTemplate>>;
 
 export function RenderResumeTemplate(arg1:string,arg2:Array<string>):Promise<string>;
 
+export function SaveAISettings(arg1:domain.AISettings):Promise<domain.AISettings>;
+
 export function SaveEducation(arg1:domain.EducationInput):Promise<domain.Education>;
 
 export function SaveExperience(arg1:domain.ExperienceInput):Promise<domain.Experience>;
+
+export function SaveGeminiAPIKey(arg1:string):Promise<domain.CredentialStatus>;
 
 export function SaveProfile(arg1:domain.ProfileInput):Promise<domain.Profile>;
 

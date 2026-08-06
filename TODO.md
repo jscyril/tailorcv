@@ -19,9 +19,9 @@ Last audited: 2026-08-06
 - [x] Export and atomically restore versioned JSON backups for the currently supported profile, job, application, and resume-source data.
 - [x] Pass the Go tests, 11 frontend unit tests, TypeScript check, production frontend build, and `go vet` as of the audit date.
 
-## Next implementation set: evidence-constrained AI
+## Evidence-constrained AI
 
-Complete these in order. Ollama is the first provider; Gemini remains blocked on credential storage.
+The provider contract, Ollama path, Gemini path, persistence, and review gate are delivered. React integration coverage remains.
 
 ### 1. Freeze the contract and trust boundary
 
@@ -79,11 +79,11 @@ These are already named or implied by `PLAN.md`, but are not implemented in the 
 
 ## Gemini and credential storage
 
-- [ ] Add an operating-system credential-store abstraction with platform tests or test doubles.
-- [ ] Add settings that store only credential references and non-secret provider preferences in SQLite.
-- [ ] Verify credentials are excluded from logs, backups, errors, and AI-run records.
-- [ ] Implement the Gemini adapter behind the same contract and validator used by Ollama.
-- [ ] Add recorded Gemini contract tests; keep live-provider tests opt-in.
+- [x] Add an operating-system credential-store abstraction with platform tests or test doubles.
+- [x] Add settings that store only credential references and non-secret provider preferences in SQLite.
+- [x] Verify credentials are excluded from logs, backups, errors, and AI-run records.
+- [x] Implement the Gemini adapter behind the same contract and validator used by Ollama.
+- [x] Add recorded Gemini contract tests; keep live-provider tests opt-in.
 
 ## Release hardening
 

@@ -44,7 +44,7 @@ func (provider *Ollama) Models(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("connect to Ollama: %w", err)
 	}
 	defer response.Body.Close()
-	data, err := readLimited(response.Body)
+	data, err := readLimited(response.Body, "Ollama")
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func (provider *Ollama) Generate(ctx context.Context, model string, input Reques
 		return nil, fmt.Errorf("generate with Ollama: %w", err)
 	}
 	defer response.Body.Close()
-	data, err := readLimited(response.Body)
+	data, err := readLimited(response.Body, "Ollama")
 	if err != nil {
 		return nil, err
 	}
@@ -128,13 +128,13 @@ func (provider *Ollama) Generate(ctx context.Context, model string, input Reques
 	return []byte(result.Response), nil
 }
 
-func readLimited(reader io.Reader) ([]byte, error) {
+func readLimited(reader io.Reader, provider string) ([]byte, error) {
 	data, err := io.ReadAll(io.LimitReader(reader, maxOllamaResponseSize+1))
 	if err != nil {
-		return nil, fmt.Errorf("read Ollama response: %w", err)
+		return nil, fmt.Errorf("read %s response: %w", provider, err)
 	}
 	if len(data) > maxOllamaResponseSize {
-		return nil, fmt.Errorf("Ollama response exceeded the 4 MiB size limit")
+		return nil, fmt.Errorf("%s response exceeded the 4 MiB size limit", provider)
 	}
 	return data, nil
 }

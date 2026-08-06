@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const ProfileBackupSchemaVersion = 2
+const ProfileBackupSchemaVersion = 3
 
 type ProfileBackup struct {
 	SchemaVersion      int              `json:"schemaVersion"`
@@ -23,6 +23,7 @@ type ProfileBackup struct {
 	Templates          []ResumeTemplate `json:"templates,omitempty"`
 	SelectedTemplateID string           `json:"selectedTemplateId,omitempty"`
 	AIRuns             []AIRun          `json:"aiRuns,omitempty"`
+	AISettings         AISettings       `json:"aiSettings"`
 }
 
 type BackupResult struct {
@@ -55,7 +56,7 @@ func DecodeProfileBackup(data []byte) (ProfileBackup, error) {
 }
 
 func (backup ProfileBackup) Validate() (ProfileBackup, error) {
-	if backup.SchemaVersion != 1 && backup.SchemaVersion != ProfileBackupSchemaVersion {
+	if backup.SchemaVersion < 1 || backup.SchemaVersion > ProfileBackupSchemaVersion {
 		return ProfileBackup{}, fmt.Errorf("backup schema version %d is not supported", backup.SchemaVersion)
 	}
 	if _, err := time.Parse(time.RFC3339, backup.ExportedAt); err != nil {
@@ -311,6 +312,14 @@ func (backup ProfileBackup) Validate() (ProfileBackup, error) {
 		runs = append(runs, source)
 	}
 	backup.AIRuns = runs
+	if backup.SchemaVersion < 3 {
+		backup.AISettings = DefaultAISettings()
+	}
+	settings, err := backup.AISettings.Validate()
+	if err != nil {
+		return ProfileBackup{}, fmt.Errorf("AI settings: %w", err)
+	}
+	backup.AISettings = settings
 	backup.SchemaVersion = ProfileBackupSchemaVersion
 	return backup, nil
 }

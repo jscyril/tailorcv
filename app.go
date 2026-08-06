@@ -11,6 +11,7 @@ import (
 
 	"github.com/jscyril/tailorcv/internal/ai"
 	backupfile "github.com/jscyril/tailorcv/internal/backup"
+	"github.com/jscyril/tailorcv/internal/credentials"
 	"github.com/jscyril/tailorcv/internal/domain"
 	githubclient "github.com/jscyril/tailorcv/internal/github"
 	"github.com/jscyril/tailorcv/internal/resume"
@@ -31,11 +32,12 @@ type App struct {
 	aiMu              sync.Mutex
 	aiCancel          context.CancelFunc
 	aiGeneration      uint64
-	aiProviderFactory func(string) (ai.Provider, error)
+	aiProviderFactory func(string, string) (ai.Provider, error)
+	credentials       credentials.Store
 }
 
 func NewApp() *App {
-	return &App{github: githubclient.NewClient(nil), compiler: resume.NewCompiler("")}
+	return &App{github: githubclient.NewClient(nil), compiler: resume.NewCompiler(""), credentials: credentials.OSStore{}}
 }
 
 func (a *App) startup(ctx context.Context) {

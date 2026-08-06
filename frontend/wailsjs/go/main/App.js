@@ -14,6 +14,10 @@ export function CancelAITailoring() {
   return window['go']['main']['App']['CancelAITailoring']();
 }
 
+export function CheckGemini() {
+  return window['go']['main']['App']['CheckGemini']();
+}
+
 export function CheckOllama(arg1) {
   return window['go']['main']['App']['CheckOllama'](arg1);
 }
@@ -36,6 +40,10 @@ export function DeleteEducation(arg1) {
 
 export function DeleteExperience(arg1) {
   return window['go']['main']['App']['DeleteExperience'](arg1);
+}
+
+export function DeleteGeminiAPIKey() {
+  return window['go']['main']['App']['DeleteGeminiAPIKey']();
 }
 
 export function DeleteJob(arg1) {
@@ -64,6 +72,14 @@ export function ExportProfileBackup() {
 
 export function GenerateAITailoring(arg1) {
   return window['go']['main']['App']['GenerateAITailoring'](arg1);
+}
+
+export function GetAISettings() {
+  return window['go']['main']['App']['GetAISettings']();
+}
+
+export function GetGeminiCredentialStatus() {
+  return window['go']['main']['App']['GetGeminiCredentialStatus']();
 }
 
 export function GetProfile() {
@@ -118,12 +134,20 @@ export function RenderResumeTemplate(arg1, arg2) {
   return window['go']['main']['App']['RenderResumeTemplate'](arg1, arg2);
 }
 
+export function SaveAISettings(arg1) {
+  return window['go']['main']['App']['SaveAISettings'](arg1);
+}
+
 export function SaveEducation(arg1) {
   return window['go']['main']['App']['SaveEducation'](arg1);
 }
 
 export function SaveExperience(arg1) {
   return window['go']['main']['App']['SaveExperience'](arg1);
+}
+
+export function SaveGeminiAPIKey(arg1) {
+  return window['go']['main']['App']['SaveGeminiAPIKey'](arg1);
 }
 
 export function SaveProfile(arg1) {

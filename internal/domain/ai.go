@@ -50,18 +50,23 @@ func (input GenerateAITailoringInput) Validate() (GenerateAITailoringInput, erro
 	if input.Provider == "" {
 		input.Provider = "ollama"
 	}
-	if input.Provider != "ollama" {
+	if input.Provider != "ollama" && input.Provider != "gemini" {
 		return GenerateAITailoringInput{}, fmt.Errorf("AI provider %q is not supported", input.Provider)
 	}
 	input.Model = strings.TrimSpace(input.Model)
 	if input.Model == "" || len(input.Model) > 200 {
-		return GenerateAITailoringInput{}, fmt.Errorf("select an Ollama model")
+		return GenerateAITailoringInput{}, fmt.Errorf("select a model for %s", input.Provider)
 	}
-	endpoint, err := ValidateOllamaEndpoint(input.Endpoint)
-	if err != nil {
-		return GenerateAITailoringInput{}, err
+	if input.Provider == "ollama" {
+		endpoint, err := ValidateOllamaEndpoint(input.Endpoint)
+		if err != nil {
+			return GenerateAITailoringInput{}, err
+		}
+		input.Endpoint = endpoint
+	} else {
+		input.Model = strings.TrimPrefix(input.Model, "models/")
+		input.Endpoint = ""
 	}
-	input.Endpoint = endpoint
 	return input, nil
 }
 

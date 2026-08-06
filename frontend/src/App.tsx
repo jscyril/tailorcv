@@ -9,12 +9,14 @@ import {
   AcceptAITailoring,
   AnalyzeJobDescription,
   CancelAITailoring,
+  CheckGemini,
   CheckOllama,
   CompileLatex,
   CompileResumeVersion,
   CreateResumeVersion,
   DeleteEducation,
   DeleteExperience,
+  DeleteGeminiAPIKey,
   DeleteJob,
   DeleteProject,
   DeleteResumeTemplate,
@@ -22,6 +24,8 @@ import {
   ExportLatexSource,
   ExportProfileBackup,
   GetProfile,
+  GetAISettings,
+  GetGeminiCredentialStatus,
   GetSelectedResumeTemplateID,
   GenerateAITailoring,
   ImportGitHubProjects,
@@ -36,7 +40,9 @@ import {
   ListResumeTemplates,
   RenderResumeTemplate,
   SaveEducation,
+  SaveAISettings,
   SaveExperience,
+  SaveGeminiAPIKey,
   SaveProject,
   SaveProfile,
   SaveResumeTemplate,
@@ -179,6 +185,13 @@ type AIProviderStatus = {
   message: string;
 };
 
+type AIProvider = "ollama" | "gemini";
+
+type CredentialStatus = {
+  configured: boolean;
+  message: string;
+};
+
 const EMPTY_JOB: Job = { id: "", company: "", role: "", description: "", createdAt: "", updatedAt: "" };
 
 const DEFAULT_LATEX = String.raw`\documentclass[10pt]{article}
@@ -246,16 +259,20 @@ export default function App() {
   const compileRequestRef = useRef(0);
   const compileTimerRef = useRef<number | undefined>(undefined);
   const [ollamaEndpoint, setOllamaEndpoint] = useState("http://127.0.0.1:11434");
+	const [aiProvider, setAIProvider] = useState<AIProvider>("ollama");
   const [aiProviderStatus, setAIProviderStatus] = useState<AIProviderStatus | null>(null);
-  const [aiModel, setAIModel] = useState("");
+	const [ollamaModel, setOllamaModel] = useState("");
+	const [geminiModel, setGeminiModel] = useState("");
+	const [geminiAPIKey, setGeminiAPIKey] = useState("");
+	const [geminiCredential, setGeminiCredential] = useState<CredentialStatus>({ configured: false, message: "Gemini API key is not configured." });
   const [aiRun, setAIRun] = useState<AIRun | null>(null);
   const [aiRuns, setAIRuns] = useState<AIRun[]>([]);
   const [reviewedProposals, setReviewedProposals] = useState<AIProposal[]>([]);
   const [acceptedProposalIDs, setAcceptedProposalIDs] = useState<string[]>([]);
-  const [aiBusy, setAIBusy] = useState<"check" | "generate" | "accept" | "">("");
+  const [aiBusy, setAIBusy] = useState<"check" | "credential" | "generate" | "accept" | "">("");
 
   const loadWorkspaceData = async () => {
-    const [result, savedExperiences, savedProjects, savedEducations, savedTemplates, savedTemplateID, savedJobs, savedApplications, savedAIRuns] = await Promise.all([GetProfile(), ListExperiences(), ListProjects(), ListEducations(), ListResumeTemplates(), GetSelectedResumeTemplateID(), ListJobs(), ListApplications(), ListAIRuns()]);
+    const [result, savedExperiences, savedProjects, savedEducations, savedTemplates, savedTemplateID, savedJobs, savedApplications, savedAIRuns, savedAISettings, credentialStatus] = await Promise.all([GetProfile(), ListExperiences(), ListProjects(), ListEducations(), ListResumeTemplates(), GetSelectedResumeTemplateID(), ListJobs(), ListApplications(), ListAIRuns(), GetAISettings(), GetGeminiCredentialStatus().catch((reason) => ({ configured: false, message: errorMessage(reason) }))]);
     const loaded = { ...emptyProfile, ...result } as Profile;
     loaded.skills ??= [];
     setProfile(loaded);
@@ -271,6 +288,12 @@ export default function App() {
     setJobs(savedJobs as unknown as Job[]);
     setApplications(savedApplications as unknown as Application[]);
     setAIRuns(savedAIRuns as unknown as AIRun[]);
+		setAIProvider(savedAISettings.provider as AIProvider);
+		setOllamaEndpoint(savedAISettings.ollamaEndpoint);
+		setOllamaModel(savedAISettings.ollamaModel);
+		setGeminiModel(savedAISettings.geminiModel);
+		setGeminiCredential(credentialStatus as CredentialStatus);
+		setAIProviderStatus(null);
     setJobDraft(EMPTY_JOB);
     setAnalysis(null);
     setSelectedFactIDs([]);
@@ -591,15 +614,25 @@ export default function App() {
     setSelectedProjectKeys((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
   };
 
-  const checkOllama = async () => {
+  const saveCurrentAISettings = async (provider = aiProvider, nextOllamaModel = ollamaModel, nextGeminiModel = geminiModel) => {
+    await SaveAISettings({ provider, ollamaEndpoint, ollamaModel: nextOllamaModel, geminiModel: nextGeminiModel });
+  };
+
+  const checkAIProvider = async () => {
     setAIBusy("check");
     setError("");
     setMessage("");
     try {
-      const status = await CheckOllama(ollamaEndpoint) as unknown as AIProviderStatus;
+      await saveCurrentAISettings();
+      const status = await (aiProvider === "ollama" ? CheckOllama(ollamaEndpoint) : CheckGemini()) as unknown as AIProviderStatus;
       setAIProviderStatus(status);
       if (status.endpoint) setOllamaEndpoint(status.endpoint);
-      if (status.models.length && !status.models.includes(aiModel)) setAIModel(status.models[0]);
+			const currentModel = aiProvider === "ollama" ? ollamaModel : geminiModel;
+			if (status.models.length && !status.models.includes(currentModel)) {
+				if (aiProvider === "ollama") setOllamaModel(status.models[0]);
+				else setGeminiModel(status.models[0]);
+				await saveCurrentAISettings(aiProvider, aiProvider === "ollama" ? status.models[0] : ollamaModel, aiProvider === "gemini" ? status.models[0] : geminiModel);
+			}
       if (status.available) setMessage(status.message);
       else setError(status.message);
     } catch (reason) {
@@ -610,6 +643,60 @@ export default function App() {
     }
   };
 
+	const changeAIProvider = async (provider: AIProvider) => {
+		setAIProvider(provider);
+		setAIProviderStatus(null);
+		setAIRun(null);
+		try {
+			await saveCurrentAISettings(provider);
+		} catch (reason) {
+			setError(errorMessage(reason));
+		}
+	};
+
+	const changeAIModel = async (model: string) => {
+		if (aiProvider === "ollama") setOllamaModel(model);
+		else setGeminiModel(model);
+		try {
+			await saveCurrentAISettings(aiProvider, aiProvider === "ollama" ? model : ollamaModel, aiProvider === "gemini" ? model : geminiModel);
+		} catch (reason) {
+			setError(errorMessage(reason));
+		}
+	};
+
+	const saveGeminiCredential = async () => {
+		setAIBusy("credential");
+		setError("");
+		try {
+			const status = await SaveGeminiAPIKey(geminiAPIKey) as unknown as CredentialStatus;
+			setGeminiCredential(status);
+			setGeminiAPIKey("");
+			setAIProviderStatus(null);
+			setMessage(status.message);
+		} catch (reason) {
+			setError(errorMessage(reason));
+		} finally {
+			setAIBusy("");
+		}
+	};
+
+	const deleteGeminiCredential = async () => {
+		setAIBusy("credential");
+		setError("");
+		try {
+			const status = await DeleteGeminiAPIKey() as unknown as CredentialStatus;
+			setGeminiCredential(status);
+			setGeminiAPIKey("");
+			setAIProviderStatus(null);
+			setGeminiModel("");
+			setMessage(status.message);
+		} catch (reason) {
+			setError(errorMessage(reason));
+		} finally {
+			setAIBusy("");
+		}
+	};
+
   const generateAITailoring = async () => {
     setAIBusy("generate");
     setError("");
@@ -619,9 +706,9 @@ export default function App() {
       const run = await GenerateAITailoring({
         jobId: jobDraft.id,
         selectedFactIds: selectedFactIDs,
-        provider: "ollama",
-        model: aiModel,
-        endpoint: ollamaEndpoint,
+			provider: aiProvider,
+			model: aiProvider === "ollama" ? ollamaModel : geminiModel,
+			endpoint: aiProvider === "ollama" ? ollamaEndpoint : "",
       }) as unknown as AIRun;
       setAIRun(run);
       setAIRuns((current) => [run, ...current.filter((item) => item.id !== run.id)]);
@@ -955,7 +1042,7 @@ export default function App() {
 
           <button className="provider-status" onClick={() => setView("ai")}>
             <span className={`status-dot ${aiProviderStatus?.available ? "" : "muted"}`} />
-            <span><strong>AI provider</strong><small>Ollama · {aiProviderStatus?.available ? `${aiProviderStatus.models.length} models` : "not checked"}</small></span>
+            <span><strong>AI provider</strong><small>{aiProvider === "ollama" ? "Ollama" : "Gemini"} · {aiProviderStatus?.available ? `${aiProviderStatus.models.length} models` : "not checked"}</small></span>
             <span aria-hidden="true">›</span>
           </button>
         </aside>
@@ -974,7 +1061,7 @@ export default function App() {
             {view === "templates" && <TemplatesWorkspace templates={templates} selectedID={selectedTemplateID} busyKey={templateBusyKey} onImport={importResumeTemplate} onUse={(id) => useResumeTemplate(id)} onEdit={(id) => useResumeTemplate(id, true)} onDuplicate={duplicateResumeTemplate} onDelete={deleteResumeTemplate} />}
             {view === "latex" && <LatexWorkspace source={latexSource} template={activeTemplate} result={compileResult} busy={templateBusyKey !== ""} compiling={compileBusy} versionBusy={versionBusy} hasOpenVersion={openVersionID !== ""} versionDirty={openVersionID !== "" && latexSource !== savedVersionSource} onChange={updateLatexSource} onSave={saveCurrentTemplate} onSaveVersion={saveResumeVersionEdit} onReload={() => useResumeTemplate(selectedTemplateID)} onCompile={compileLatex} onExport={exportLatexSource} />}
             {view === "job" && <JobTailor job={jobDraft} jobs={jobs} application={currentApplication} analysis={analysis} selectedFactIDs={selectedFactIDs} busy={busy} versionBusy={versionBusy} hasEvidence={hasCareerEvidence} templateName={activeTemplate?.name ?? "Selected template"} onChange={updateJobDraft} onNew={newJob} onOpen={openJob} onDelete={deleteJob} onToggleEvidence={toggleEvidenceFact} onCreateVersion={createResumeVersion} onOpenVersion={openResumeVersion} onSubmit={analyzeJob} onProfile={() => setView("skills")} />}
-            {view === "ai" && <AIWorkspace endpoint={ollamaEndpoint} status={aiProviderStatus} model={aiModel} run={aiRun} runs={aiRuns} proposals={reviewedProposals} acceptedProposalIDs={acceptedProposalIDs} job={jobDraft} analysis={analysis} selectedFactIDs={selectedFactIDs} templateName={activeTemplate?.name ?? "Selected template"} busy={aiBusy} onEndpointChange={(value) => { setOllamaEndpoint(value); setAIProviderStatus(null); setAIModel(""); }} onModelChange={setAIModel} onCheck={checkOllama} onGenerate={generateAITailoring} onCancel={cancelAITailoring} onProposalChange={updateReviewedProposal} onToggleProposal={toggleAcceptedProposal} onAccept={acceptAITailoring} onOpenJob={() => setView("job")} />}
+            {view === "ai" && <AIWorkspace provider={aiProvider} endpoint={ollamaEndpoint} status={aiProviderStatus} model={aiProvider === "ollama" ? ollamaModel : geminiModel} credential={geminiCredential} apiKey={geminiAPIKey} run={aiRun} runs={aiRuns} proposals={reviewedProposals} acceptedProposalIDs={acceptedProposalIDs} job={jobDraft} analysis={analysis} selectedFactIDs={selectedFactIDs} templateName={activeTemplate?.name ?? "Selected template"} busy={aiBusy} onProviderChange={changeAIProvider} onEndpointChange={(value) => { setOllamaEndpoint(value); setAIProviderStatus(null); }} onModelChange={changeAIModel} onAPIKeyChange={setGeminiAPIKey} onSaveCredential={saveGeminiCredential} onDeleteCredential={deleteGeminiCredential} onCheck={checkAIProvider} onGenerate={generateAITailoring} onCancel={cancelAITailoring} onProposalChange={updateReviewedProposal} onToggleProposal={toggleAcceptedProposal} onAccept={acceptAITailoring} onOpenJob={() => setView("job")} />}
             {view === "data" && <DataWorkspace profile={profile} experiences={experiences} projects={projects} educations={educations} jobs={jobs} applications={applications} busy={backupBusy} lastResult={lastBackupResult} onExport={exportBackup} onImport={importBackup} />}
           </div>
 
@@ -1186,10 +1273,13 @@ function LatexCodeEditor({ value, focusLine, onChange }: { value: string; focusL
   return <div className="code-editor" ref={hostRef} aria-label="LaTeX source" />;
 }
 
-function AIWorkspace({ endpoint, status, model, run, runs, proposals, acceptedProposalIDs, job, analysis, selectedFactIDs, templateName, busy, onEndpointChange, onModelChange, onCheck, onGenerate, onCancel, onProposalChange, onToggleProposal, onAccept, onOpenJob }: {
+function AIWorkspace({ provider, endpoint, status, model, credential, apiKey, run, runs, proposals, acceptedProposalIDs, job, analysis, selectedFactIDs, templateName, busy, onProviderChange, onEndpointChange, onModelChange, onAPIKeyChange, onSaveCredential, onDeleteCredential, onCheck, onGenerate, onCancel, onProposalChange, onToggleProposal, onAccept, onOpenJob }: {
+  provider: AIProvider;
   endpoint: string;
   status: AIProviderStatus | null;
   model: string;
+  credential: CredentialStatus;
+  apiKey: string;
   run: AIRun | null;
   runs: AIRun[];
   proposals: AIProposal[];
@@ -1198,9 +1288,13 @@ function AIWorkspace({ endpoint, status, model, run, runs, proposals, acceptedPr
   analysis: JobAnalysis | null;
   selectedFactIDs: string[];
   templateName: string;
-  busy: "check" | "generate" | "accept" | "";
+  busy: "check" | "credential" | "generate" | "accept" | "";
+  onProviderChange: (value: AIProvider) => void;
   onEndpointChange: (value: string) => void;
   onModelChange: (value: string) => void;
+  onAPIKeyChange: (value: string) => void;
+  onSaveCredential: () => void;
+  onDeleteCredential: () => void;
   onCheck: () => void;
   onGenerate: () => void;
   onCancel: () => void;
@@ -1213,21 +1307,22 @@ function AIWorkspace({ endpoint, status, model, run, runs, proposals, acceptedPr
   const selectedProposals = proposals.filter((proposal) => acceptedProposalIDs.includes(proposal.targetFactId));
   return (
     <section className="workspace-panel ai-workspace ai-tailoring-workspace">
-      <PanelHeader eyebrow="Evidence-constrained tailoring" title="Ollama review" description="Rewrite selected facts locally, validate every claim, and accept only wording you approve." />
+      <PanelHeader eyebrow="Evidence-constrained tailoring" title={`${provider === "ollama" ? "Ollama" : "Gemini"} review`} description="Rewrite selected facts, validate every claim, and accept only wording you approve." />
       <div className="ai-setup-grid">
         <section className="ai-setup-card">
-          <header><span className="provider-logo">OL</span><div><strong>Ollama</strong><small>Local provider · no credential required</small></div><span className={`status-dot ${status?.available ? "" : "muted"}`} /></header>
-          <label className="field"><span>Endpoint</span><input value={endpoint} onChange={(event) => onEndpointChange(event.target.value)} placeholder="http://127.0.0.1:11434" /></label>
+          <div className="ai-provider-switch" role="group" aria-label="AI provider"><button className={provider === "ollama" ? "active" : ""} disabled={busy !== ""} onClick={() => onProviderChange("ollama")}>Ollama</button><button className={provider === "gemini" ? "active" : ""} disabled={busy !== ""} onClick={() => onProviderChange("gemini")}>Gemini</button></div>
+          <header><span className="provider-logo">{provider === "ollama" ? "OL" : "GM"}</span><div><strong>{provider === "ollama" ? "Ollama" : "Google Gemini"}</strong><small>{provider === "ollama" ? "Local provider · no credential required" : "Cloud provider · API key stays in the OS keyring"}</small></div><span className={`status-dot ${status?.available ? "" : "muted"}`} /></header>
+          {provider === "ollama" ? <label className="field"><span>Endpoint</span><input value={endpoint} onChange={(event) => onEndpointChange(event.target.value)} placeholder="http://127.0.0.1:11434" /></label> : <div className="gemini-credential"><label className="field"><span>Gemini API key</span><input type="password" autoComplete="off" value={apiKey} onChange={(event) => onAPIKeyChange(event.target.value)} placeholder={credential.configured ? "Stored securely · enter a replacement" : "Enter API key"} /></label><div><button className="secondary-button" disabled={!apiKey.trim() || busy !== ""} onClick={onSaveCredential}>{busy === "credential" ? "Saving…" : credential.configured ? "Replace key" : "Save to keyring"}</button>{credential.configured && <button className="danger-button" disabled={busy !== ""} onClick={onDeleteCredential}>Remove key</button>}</div><small className={credential.configured ? "ai-status-ok" : "ai-status-error"}>{credential.message}</small></div>}
           <button className="secondary-button" disabled={busy !== ""} onClick={onCheck}>{busy === "check" ? "Checking…" : "Check connection"}</button>
           {status && <p className={status.available ? "ai-status-ok" : "ai-status-error"}>{status.message}</p>}
-          <label className="field"><span>Local model</span><select value={model} disabled={!status?.models.length || busy !== ""} onChange={(event) => onModelChange(event.target.value)}><option value="">Select a model</option>{status?.models.map((item) => <option value={item} key={item}>{item}</option>)}</select></label>
+          <label className="field"><span>{provider === "ollama" ? "Local model" : "Gemini model"}</span><select value={model} disabled={!status?.models.length || busy !== ""} onChange={(event) => onModelChange(event.target.value)}><option value="">Select a model</option>{status?.models.map((item) => <option value={item} key={item}>{item}</option>)}</select></label>
         </section>
         <section className="ai-context-card">
           <span className="step-pill">Current context</span>
           <h2>{job.role || "Analyze a job first"}</h2>
           <p>{job.company || "No company selected"}</p>
           <div><strong>{selectedFactIDs.length}</strong><span>selected evidence facts</span></div>
-          {!analysis ? <button className="secondary-button" onClick={onOpenJob}>Open job matching</button> : <small>Only normalized requirements and these selected facts will be sent to Ollama.</small>}
+          {!analysis ? <button className="secondary-button" onClick={onOpenJob}>Open job matching</button> : <small>Only normalized requirements and these selected facts will be sent to {provider === "ollama" ? "Ollama" : "Gemini"}.</small>}
           <div className="ai-generation-actions"><button className="primary-button" disabled={!canGenerate || busy !== ""} onClick={onGenerate}>{busy === "generate" ? "Generating…" : run ? "Retry tailoring" : "Generate proposals"}</button>{busy === "generate" && <button className="danger-button" onClick={onCancel}>Cancel</button>}</div>
         </section>
       </div>
@@ -1251,7 +1346,7 @@ function AIWorkspace({ endpoint, status, model, run, runs, proposals, acceptedPr
 function DataWorkspace({ profile, experiences, projects, educations, jobs, applications, busy, lastResult, onExport, onImport }: { profile: Profile; experiences: ExperienceDraft[]; projects: ProjectDraft[]; educations: EducationDraft[]; jobs: Job[]; applications: Application[]; busy: "export" | "import" | ""; lastResult: domain.BackupResult | null; onExport: () => void; onImport: () => void }) {
   const evidenceCount = experiences.reduce((sum, experience) => sum + experience.bullets.length, 0) + projects.reduce((sum, project) => sum + project.bullets.length, 0);
   const versionCount = applications.reduce((sum, application) => sum + application.versions.length, 0);
-  return <section className="workspace-panel scroll-panel data-workspace"><PanelHeader eyebrow="Local data" title="Backup & restore" description="Keep a portable, versioned copy of your complete TailorCV profile." /><div className="backup-content"><section className="backup-summary"><header><span className="empty-icon"><Icon name="database" size={22} /></span><div><h2>Current local profile</h2><p>Everything listed here is included in one JSON backup.</p></div></header><div className="backup-stat-grid"><div><strong>{profile.name ? "1" : "0"}</strong><span>profile</span></div><div><strong>{experiences.length}</strong><span>roles</span></div><div><strong>{projects.length}</strong><span>projects</span></div><div><strong>{educations.length}</strong><span>education</span></div><div><strong>{jobs.length}</strong><span>jobs</span></div><div><strong>{applications.length}</strong><span>applications</span></div><div><strong>{versionCount}</strong><span>versions</span></div><div><strong>{profile.skills.length}</strong><span>skills</span></div><div><strong>{evidenceCount}</strong><span>evidence</span></div></div></section><section className="backup-action-card"><div><span className="backup-action-icon"><Icon name="download" size={20} /></span><h2>Export backup</h2><p>Write an owner-readable JSON snapshot using a native save dialog. IDs, ordering, verification state, and timestamps are preserved.</p></div><button className="primary-button" disabled={busy !== ""} onClick={onExport}>{busy === "export" ? "Exporting…" : "Choose destination"}</button></section><section className="backup-action-card restore"><div><span className="backup-action-icon"><Icon name="refresh" size={20} /></span><h2>Restore backup</h2><p>The entire file is validated before a single transaction replaces current data. Invalid or unsupported backups leave this profile untouched.</p></div><button className="secondary-button" disabled={busy !== ""} onClick={onImport}>{busy === "import" ? "Restoring…" : "Choose backup"}</button></section>{lastResult && <section className="backup-result"><span className="status-dot" /><div><strong>Last operation completed</strong><p>{lastResult.applicationCount} applications · {lastResult.resumeVersionCount} resume versions · {lastResult.templateCount} templates · {lastResult.aiRunCount} AI runs</p><small>{lastResult.path}</small></div></section>}<div className="backup-safety"><strong>Backup format v2</strong><p>Backups include custom templates and auditable AI-run metadata, but never provider credentials, generated PDFs, compiler caches, or local model data.</p></div></div></section>;
+  return <section className="workspace-panel scroll-panel data-workspace"><PanelHeader eyebrow="Local data" title="Backup & restore" description="Keep a portable, versioned copy of your complete TailorCV profile." /><div className="backup-content"><section className="backup-summary"><header><span className="empty-icon"><Icon name="database" size={22} /></span><div><h2>Current local profile</h2><p>Everything listed here is included in one JSON backup.</p></div></header><div className="backup-stat-grid"><div><strong>{profile.name ? "1" : "0"}</strong><span>profile</span></div><div><strong>{experiences.length}</strong><span>roles</span></div><div><strong>{projects.length}</strong><span>projects</span></div><div><strong>{educations.length}</strong><span>education</span></div><div><strong>{jobs.length}</strong><span>jobs</span></div><div><strong>{applications.length}</strong><span>applications</span></div><div><strong>{versionCount}</strong><span>versions</span></div><div><strong>{profile.skills.length}</strong><span>skills</span></div><div><strong>{evidenceCount}</strong><span>evidence</span></div></div></section><section className="backup-action-card"><div><span className="backup-action-icon"><Icon name="download" size={20} /></span><h2>Export backup</h2><p>Write an owner-readable JSON snapshot using a native save dialog. IDs, ordering, verification state, and timestamps are preserved.</p></div><button className="primary-button" disabled={busy !== ""} onClick={onExport}>{busy === "export" ? "Exporting…" : "Choose destination"}</button></section><section className="backup-action-card restore"><div><span className="backup-action-icon"><Icon name="refresh" size={20} /></span><h2>Restore backup</h2><p>The entire file is validated before a single transaction replaces current data. Invalid or unsupported backups leave this profile untouched.</p></div><button className="secondary-button" disabled={busy !== ""} onClick={onImport}>{busy === "import" ? "Restoring…" : "Choose backup"}</button></section>{lastResult && <section className="backup-result"><span className="status-dot" /><div><strong>Last operation completed</strong><p>{lastResult.applicationCount} applications · {lastResult.resumeVersionCount} resume versions · {lastResult.templateCount} templates · {lastResult.aiRunCount} AI runs</p><small>{lastResult.path}</small></div></section>}<div className="backup-safety"><strong>Backup format v3</strong><p>Backups include custom templates, auditable AI runs, and non-secret AI preferences, but never provider credentials, generated PDFs, compiler caches, or local model data.</p></div></div></section>;
 }
 
 function ResumePreview({ profile, experiences, projects, educations, compileResult }: { profile: Profile; experiences: ExperienceDraft[]; projects: ProjectDraft[]; educations: EducationDraft[]; compileResult: domain.CompileResult | null }) {

@@ -92,6 +92,24 @@ export namespace domain {
 		    return a;
 		}
 	}
+	export class AISettings {
+	    provider: string;
+	    ollamaEndpoint: string;
+	    ollamaModel: string;
+	    geminiModel: string;
+
+	    static createFrom(source: any = {}) {
+	        return new AISettings(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.provider = source["provider"];
+	        this.ollamaEndpoint = source["ollamaEndpoint"];
+	        this.ollamaModel = source["ollamaModel"];
+	        this.geminiModel = source["geminiModel"];
+	    }
+	}
 	export class AcceptAITailoringInput {
 	    runId: string;
 	    templateId: string;
@@ -391,6 +409,20 @@ export namespace domain {
 	        this.jobId = source["jobId"];
 	        this.selectedFactIds = source["selectedFactIds"];
 	        this.templateId = source["templateId"];
+	    }
+	}
+	export class CredentialStatus {
+	    configured: boolean;
+	    message: string;
+
+	    static createFrom(source: any = {}) {
+	        return new CredentialStatus(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.configured = source["configured"];
+	        this.message = source["message"];
 	    }
 	}
 	export class Education {

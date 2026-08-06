@@ -47,6 +47,10 @@ func (s *Store) CreateProfileBackup(ctx context.Context) (domain.ProfileBackup, 
 	if err != nil {
 		return domain.ProfileBackup{}, err
 	}
+	aiSettings, err := s.GetAISettings(ctx)
+	if err != nil {
+		return domain.ProfileBackup{}, err
+	}
 	return domain.ProfileBackup{
 		SchemaVersion:      domain.ProfileBackupSchemaVersion,
 		ExportedAt:         time.Now().UTC().Format(time.RFC3339),
@@ -59,6 +63,7 @@ func (s *Store) CreateProfileBackup(ctx context.Context) (domain.ProfileBackup, 
 		Templates:          templates,
 		SelectedTemplateID: selectedTemplateID,
 		AIRuns:             aiRuns,
+		AISettings:         aiSettings,
 	}, nil
 }
 
@@ -263,6 +268,13 @@ func (s *Store) ReplaceProfileFromBackup(ctx context.Context, source domain.Prof
 		if _, err := tx.ExecContext(ctx, `INSERT INTO app_settings(key, value) VALUES ('selected_template_id', ?)`, backup.SelectedTemplateID); err != nil {
 			return fmt.Errorf("import selected resume template: %w", err)
 		}
+	}
+	settingsJSON, err := json.Marshal(backup.AISettings)
+	if err != nil {
+		return fmt.Errorf("encode imported AI settings: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO app_settings(key, value) VALUES (?, ?)`, aiSettingsKey, string(settingsJSON)); err != nil {
+		return fmt.Errorf("import AI settings: %w", err)
 	}
 
 	for _, run := range backup.AIRuns {

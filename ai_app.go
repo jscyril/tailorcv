@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/jscyril/tailorcv/internal/ai"
+	"github.com/jscyril/tailorcv/internal/credentials"
 	"github.com/jscyril/tailorcv/internal/domain"
 	"github.com/jscyril/tailorcv/internal/resume"
 )
@@ -18,7 +20,7 @@ func (a *App) CheckOllama(endpoint string) (domain.AIProviderStatus, error) {
 	if err := a.ready(); err != nil {
 		return domain.AIProviderStatus{}, err
 	}
-	provider, err := a.newAIProvider(endpoint)
+	provider, err := a.newAIProvider("ollama", endpoint)
 	if err != nil {
 		return domain.AIProviderStatus{}, err
 	}
@@ -36,8 +38,84 @@ func (a *App) CheckOllama(endpoint string) (domain.AIProviderStatus, error) {
 	return domain.AIProviderStatus{Provider: provider.Name(), Endpoint: validatedEndpoint, Available: true, Models: models, Message: message}, nil
 }
 
+// CheckGemini verifies the OS-stored credential and returns models that
+// currently support generateContent. It never returns the API key.
+func (a *App) CheckGemini() (domain.AIProviderStatus, error) {
+	if err := a.ready(); err != nil {
+		return domain.AIProviderStatus{}, err
+	}
+	provider, err := a.newAIProvider("gemini", "")
+	if err != nil {
+		return domain.AIProviderStatus{Provider: "gemini", Models: []string{}, Message: err.Error()}, nil
+	}
+	ctx, cancel := context.WithTimeout(a.appContext(), 12*time.Second)
+	defer cancel()
+	models, err := provider.Models(ctx)
+	if err != nil {
+		return domain.AIProviderStatus{Provider: "gemini", Models: []string{}, Message: err.Error()}, nil
+	}
+	message := fmt.Sprintf("Gemini is available with %d generation model(s).", len(models))
+	if len(models) == 0 {
+		message = "Gemini is available, but no generation models were found."
+	}
+	return domain.AIProviderStatus{Provider: "gemini", Available: true, Models: models, Message: message}, nil
+}
+
+func (a *App) GetAISettings() (domain.AISettings, error) {
+	if err := a.ready(); err != nil {
+		return domain.AISettings{}, err
+	}
+	return a.store.GetAISettings(a.appContext())
+}
+
+func (a *App) SaveAISettings(input domain.AISettings) (domain.AISettings, error) {
+	if err := a.ready(); err != nil {
+		return domain.AISettings{}, err
+	}
+	return a.store.SaveAISettings(a.appContext(), input)
+}
+
+func (a *App) GetGeminiCredentialStatus() (domain.CredentialStatus, error) {
+	if err := a.ready(); err != nil {
+		return domain.CredentialStatus{}, err
+	}
+	_, err := a.credentialStore().Get(credentials.Service, credentials.GeminiAPIKey)
+	if errors.Is(err, credentials.ErrNotFound) {
+		return domain.CredentialStatus{Message: "Gemini API key is not configured."}, nil
+	}
+	if err != nil {
+		return domain.CredentialStatus{}, fmt.Errorf("read Gemini credential from OS keyring: %w", err)
+	}
+	return domain.CredentialStatus{Configured: true, Message: "Gemini API key is stored in the OS keyring."}, nil
+}
+
+func (a *App) SaveGeminiAPIKey(apiKey string) (domain.CredentialStatus, error) {
+	if err := a.ready(); err != nil {
+		return domain.CredentialStatus{}, err
+	}
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey == "" || len(apiKey) > 4096 {
+		return domain.CredentialStatus{}, fmt.Errorf("enter a valid Gemini API key")
+	}
+	if err := a.credentialStore().Set(credentials.Service, credentials.GeminiAPIKey, apiKey); err != nil {
+		return domain.CredentialStatus{}, fmt.Errorf("save Gemini credential in OS keyring: %w", err)
+	}
+	return domain.CredentialStatus{Configured: true, Message: "Gemini API key is stored in the OS keyring."}, nil
+}
+
+func (a *App) DeleteGeminiAPIKey() (domain.CredentialStatus, error) {
+	if err := a.ready(); err != nil {
+		return domain.CredentialStatus{}, err
+	}
+	err := a.credentialStore().Delete(credentials.Service, credentials.GeminiAPIKey)
+	if err != nil && !errors.Is(err, credentials.ErrNotFound) {
+		return domain.CredentialStatus{}, fmt.Errorf("delete Gemini credential from OS keyring: %w", err)
+	}
+	return domain.CredentialStatus{Message: "Gemini API key is not configured."}, nil
+}
+
 // GenerateAITailoring sends only normalized job requirements and explicitly
-// selected evidence to Ollama. Provider and validation failures are persisted
+// selected evidence to the configured provider. Provider and validation failures are persisted
 // as auditable runs and returned to the review UI.
 func (a *App) GenerateAITailoring(input domain.GenerateAITailoringInput) (domain.AIRun, error) {
 	if err := a.ready(); err != nil {
@@ -51,7 +129,7 @@ func (a *App) GenerateAITailoring(input domain.GenerateAITailoringInput) (domain
 	if err != nil {
 		return domain.AIRun{}, err
 	}
-	provider, err := a.newAIProvider(validated.Endpoint)
+	provider, err := a.newAIProvider(validated.Provider, validated.Endpoint)
 	if err != nil {
 		return domain.AIRun{}, err
 	}
@@ -95,11 +173,32 @@ func (a *App) GenerateAITailoring(input domain.GenerateAITailoringInput) (domain
 	return a.store.SaveAIRun(a.appContext(), run)
 }
 
-func (a *App) newAIProvider(endpoint string) (ai.Provider, error) {
+func (a *App) newAIProvider(name, endpoint string) (ai.Provider, error) {
 	if a.aiProviderFactory != nil {
-		return a.aiProviderFactory(endpoint)
+		return a.aiProviderFactory(name, endpoint)
 	}
-	return ai.NewOllama(endpoint, nil)
+	switch name {
+	case "ollama":
+		return ai.NewOllama(endpoint, nil)
+	case "gemini":
+		apiKey, err := a.credentialStore().Get(credentials.Service, credentials.GeminiAPIKey)
+		if errors.Is(err, credentials.ErrNotFound) {
+			return nil, fmt.Errorf("Gemini API key is not configured")
+		}
+		if err != nil {
+			return nil, fmt.Errorf("read Gemini credential from OS keyring: %w", err)
+		}
+		return ai.NewGemini(apiKey, nil)
+	default:
+		return nil, fmt.Errorf("AI provider %q is not supported", name)
+	}
+}
+
+func (a *App) credentialStore() credentials.Store {
+	if a.credentials == nil {
+		return credentials.OSStore{}
+	}
+	return a.credentials
 }
 
 func (a *App) CancelAITailoring() {

@@ -12,7 +12,11 @@ func TestGenerateAITailoringInputValidation(t *testing.T) {
 	if valid.Provider != "ollama" || valid.Model != "qwen3:8b" || valid.Endpoint != DefaultOllamaEndpoint {
 		t.Fatalf("validated input = %#v", valid)
 	}
-	if _, err := (GenerateAITailoringInput{JobID: "job", SelectedFactIDs: []string{"fact"}, Model: "model", Provider: "gemini"}).Validate(); err == nil {
+	gemini, err := (GenerateAITailoringInput{JobID: "job", SelectedFactIDs: []string{"fact"}, Model: " models/gemini-test ", Provider: "gemini"}).Validate()
+	if err != nil || gemini.Model != "gemini-test" || gemini.Endpoint != "" {
+		t.Fatalf("Gemini Validate() = %#v, %v", gemini, err)
+	}
+	if _, err := (GenerateAITailoringInput{JobID: "job", SelectedFactIDs: []string{"fact"}, Model: "model", Provider: "unknown"}).Validate(); err == nil {
 		t.Fatal("Validate() accepted an unsupported provider")
 	}
 }

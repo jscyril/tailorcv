@@ -121,8 +121,8 @@ their own domain models before a later schema version can include them.
 - Add side-by-side review of original facts and proposed wording.
 - Record provider and prompt metadata while excluding secrets and unnecessary private data.
 
-Ollama is delivered first and requires no stored credential. Gemini follows
-only after operating-system credential storage is implemented.
+Ollama and Gemini now share the same structured contract and review gate.
+Ollama requires no credential; Gemini keys are stored only in the operating-system credential store.
 
 ### 6. Release hardening
 

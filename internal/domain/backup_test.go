@@ -19,6 +19,7 @@ func TestProfileBackupJSONRoundTripPreservesMetadata(t *testing.T) {
 		Projects:   []Project{},
 		Educations: []Education{},
 		Jobs:       []Job{{ID: "f79dd67f-84c1-4452-9689-34ad2b282851", Company: "Example", Role: "Engineer", Description: "Build reliable services and deployment systems for a growing software platform.", CreatedAt: "2024-01-01T00:00:00Z", UpdatedAt: "2025-01-01T00:00:00Z"}},
+		AISettings: AISettings{Provider: "gemini", OllamaEndpoint: DefaultOllamaEndpoint, GeminiModel: "gemini-test"},
 	}
 	data, err := json.Marshal(backup)
 	if err != nil {
@@ -28,7 +29,7 @@ func TestProfileBackupJSONRoundTripPreservesMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DecodeProfileBackup() error = %v", err)
 	}
-	if decoded.Profile.UpdatedAt != backup.Profile.UpdatedAt || decoded.Experiences[0].Position != 3 || decoded.Experiences[0].Bullets[0].Position != 2 || len(decoded.Jobs) != 1 {
+	if decoded.Profile.UpdatedAt != backup.Profile.UpdatedAt || decoded.Experiences[0].Position != 3 || decoded.Experiences[0].Bullets[0].Position != 2 || len(decoded.Jobs) != 1 || decoded.AISettings.Provider != "gemini" {
 		t.Fatalf("decoded backup lost metadata: %#v", decoded)
 	}
 }
@@ -49,7 +50,7 @@ func TestDecodeProfileBackupUpgradesVersionOne(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DecodeProfileBackup() error = %v", err)
 	}
-	if decoded.SchemaVersion != ProfileBackupSchemaVersion || decoded.Templates == nil || decoded.AIRuns == nil {
+	if decoded.SchemaVersion != ProfileBackupSchemaVersion || decoded.Templates == nil || decoded.AIRuns == nil || decoded.AISettings.Provider != "ollama" {
 		t.Fatalf("upgraded backup = %#v", decoded)
 	}
 }
