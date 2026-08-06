@@ -11,8 +11,8 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 ## Repository state at this handoff
 
 - Branch: `main`, tracking `origin/main`.
-- Baseline before this delivery: `0b4724e feat: add evidence-constrained Ollama tailoring`.
-- Delivery commit message: `feat: add credential-backed Gemini tailoring`.
+- Baseline before this delivery: `3a9b274 feat: add credential-backed Gemini tailoring`.
+- Delivery commit message: `test: harden AI provider workflows`.
 - Worktree should be clean after the delivery is pushed.
 - No license has been selected.
 
@@ -36,6 +36,8 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 - Ollama connection/model discovery and structured generation with timeouts, cancellation, response limits, recorded contract tests, and no stored credential.
 - Gemini model discovery and JSON-constrained generation behind the shared provider contract, evidence validator, cancellation, response limits, and recorded contract tests.
 - Gemini API keys live only in the native operating-system keyring. The React credential field is write-only after save; SQLite stores only provider, endpoint, and model preferences.
+- The AI workspace is isolated in `frontend/src/features/ai/AIWorkspace.tsx`; React DOM integration tests cover both provider setup paths, credential states, connection/model selection, cancellation, blocked validation, proposal editing/exclusion, and acceptance.
+- `TestLiveProviderContract` is an opt-in Ollama/Gemini harness using fictional evidence and the production decoder. It never prints raw provider output or persists an API key.
 - Side-by-side original/proposed evidence review with per-proposal edit/include controls before creating a new immutable resume version.
 - Auditable AI runs record provider, model, prompt/schema versions, selected fact IDs, validation outcome, failure category, proposals, acceptance timestamp, and resume-version linkage without raw prompts or secrets.
 - Backup schema 3 includes custom templates, selected-template state, AI-run metadata, and non-secret AI preferences while remaining compatible with schema 1 and 2 imports. Credentials are explicitly excluded.
@@ -69,21 +71,21 @@ npm --prefix frontend run build
 At this handoff:
 
 - All Go package tests pass.
-- All 11 frontend unit tests pass.
+- All 18 frontend unit and React integration tests pass.
 - TypeScript checking passes.
 - The Vite production build passes.
-- A live manual smoke test against local `gemma4:12b` returned valid, grounded schema output for fictional evidence without inventing a metric or technology.
+- The opt-in production-contract test passes against local `gemma4:12b` using fictional evidence.
+- The credential adapter test binary cross-compiles with CGO disabled for Linux amd64, macOS amd64/arm64, and Windows amd64. Native packaged-app credential prompts still require verification on each operating system.
 - The real Tectonic integration suite remains opt-in with `TAILORCV_TECTONIC_INTEGRATION=1`.
 
 ## Next implementation set
 
-The next major milestone is AI workflow hardening and remaining v1 product gaps:
+The next major milestone is remaining v1 product work and platform hardening:
 
-1. Add React component/integration coverage for both providers: connection, credential states, generation, validation failure, editing, cancellation, and acceptance.
-2. Add an opt-in live-provider harness that reuses the production validator without placing credentials or private evidence in fixtures.
-3. Decide whether certifications, achievements, and arbitrary contact links remain in v1 before adding a later AI schema version.
-4. Add application lifecycle controls and complete the planned GitHub metadata set.
-5. Verify native credential behavior in packaged Windows, macOS, and Linux builds.
+1. Decide whether certifications, achievements, and arbitrary contact links remain in v1 before adding a later AI schema version.
+2. Add application lifecycle controls and complete the planned GitHub metadata set.
+3. Verify native credential set/get/delete behavior in packaged Windows, macOS, and Linux builds.
+4. Expand from the focused AI component tests to end-to-end no-AI and provider workflows through Wails bindings.
 
 Release-hardening work that remains:
 

@@ -98,6 +98,14 @@ pnpm --dir frontend test
 pnpm --dir frontend build
 ```
 
+Live AI contract checks are opt-in and always use fictional evidence. Set `TAILORCV_AI_LIVE_PROVIDER` to `ollama` or `gemini`, set `TAILORCV_AI_LIVE_MODEL`, and run:
+
+```bash
+go test -count=1 -run TestLiveProviderContract -v ./internal/ai
+```
+
+Ollama uses `TAILORCV_OLLAMA_ENDPOINT` when set, otherwise the local default. Gemini additionally requires `TAILORCV_GEMINI_API_KEY` to be supplied by the current shell or secure CI secret store. The harness does not persist credentials or print raw provider responses.
+
 Build the desktop application:
 
 ```bash

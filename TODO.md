@@ -21,7 +21,7 @@ Last audited: 2026-08-06
 
 ## Evidence-constrained AI
 
-The provider contract, Ollama path, Gemini path, persistence, and review gate are delivered. React integration coverage remains.
+The provider contract, Ollama and Gemini paths, persistence, review gate, focused React integration coverage, and opt-in live validation harness are delivered. Full Wails end-to-end coverage remains.
 
 ### 1. Freeze the contract and trust boundary
 
@@ -61,6 +61,8 @@ The provider contract, Ollama path, Gemini path, persistence, and review gate ar
 - [x] Allow proposals to be accepted, edited, or rejected individually before rendering.
 - [x] On acceptance, create a new immutable resume version without changing its source facts or prior versions.
 - [x] Add retry and cancel controls without allowing duplicate accepted versions.
+- [x] Add focused React integration coverage for provider setup, write-only credentials, connection/model selection, cancellation, blocked runs, proposal editing, exclusion, and acceptance.
+- [x] Add an opt-in live-provider harness that uses fictional evidence and the production validator without logging raw output.
 - [ ] Test the full no-AI and Ollama paths at the Go service boundary and in the React UI.
 
 ## Product and data-model gaps
@@ -91,6 +93,8 @@ These are already named or implied by `PLAN.md`, but are not implemented in the 
 - [ ] Ensure ordinary compilation cannot attempt network access and add a true offline integration fixture.
 - [ ] Make atomic file replacement work consistently on Windows, including recompiling or re-exporting to an existing destination.
 - [ ] Add platform CI for Go tests, frontend tests/type checking/builds, migrations, and packaged Wails builds.
+- [x] Compile-check the OS credential adapter for Linux amd64, macOS amd64/arm64, and Windows amd64.
+- [ ] Run native credential set/get/delete verification in packaged Windows, macOS, and Linux applications.
 - [ ] Add end-to-end coverage for onboarding, profile creation, GitHub import/review, job analysis, evidence selection, version creation, edit, compile, reopen, backup/restore, and export.
 - [ ] Add security tests proving malicious job/model/template content cannot enable shell escape, read arbitrary files, or write outside the compile workspace.
 - [ ] Add accessibility testing and keyboard/focus checks for dialogs, navigation, forms, evidence selection, diagnostics, and the PDF workspace.
