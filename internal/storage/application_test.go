@@ -43,6 +43,34 @@ func TestCreateResumeVersionAppendsImmutableSnapshots(t *testing.T) {
 	}
 }
 
+func TestUpdateApplicationStatusPreservesResumeVersions(t *testing.T) {
+	store, err := Open(filepath.Join(t.TempDir(), "tailorcv.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	ctx := context.Background()
+	job, _ := (domain.JobInput{Role: "Platform Engineer", Description: "Build reliable distributed services with Go and PostgreSQL for production workloads."}).Validate()
+	job, err = store.SaveJob(ctx, job)
+	if err != nil {
+		t.Fatalf("SaveJob() error = %v", err)
+	}
+	created, err := store.CreateResumeVersion(ctx, job.ID, []string{uuid.NewString()}, "builtin-jake-style", job.Description, "immutable source")
+	if err != nil {
+		t.Fatalf("CreateResumeVersion() error = %v", err)
+	}
+	updated, err := store.UpdateApplicationStatus(ctx, domain.UpdateApplicationStatusInput{ApplicationID: created.Application.ID, Status: domain.ApplicationStatusSubmitted})
+	if err != nil {
+		t.Fatalf("UpdateApplicationStatus() error = %v", err)
+	}
+	if updated.Status != domain.ApplicationStatusSubmitted || len(updated.Versions) != 1 || updated.Versions[0].LatexSource != "immutable source" || updated.UpdatedAt == created.Application.UpdatedAt {
+		t.Fatalf("updated application = %#v", updated)
+	}
+	if _, err := store.UpdateApplicationStatus(ctx, domain.UpdateApplicationStatusInput{ApplicationID: uuid.NewString(), Status: domain.ApplicationStatusArchived}); err == nil {
+		t.Fatal("UpdateApplicationStatus() expected missing application error")
+	}
+}
+
 func TestEditedResumeVersionsAndCompilationMetadataPreserveSnapshots(t *testing.T) {
 	store, err := Open(filepath.Join(t.TempDir(), "tailorcv.db"))
 	if err != nil {

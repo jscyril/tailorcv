@@ -250,6 +250,16 @@ var migrations = []migration{
 			`CREATE INDEX ai_runs_job_created_idx ON ai_runs(job_id, created_at DESC)`,
 		},
 	},
+	{
+		version: 12,
+		statements: []string{
+			`ALTER TABLE projects ADD COLUMN repository_id INTEGER NOT NULL DEFAULT 0 CHECK (repository_id >= 0)`,
+			`ALTER TABLE projects ADD COLUMN repository_readme TEXT NOT NULL DEFAULT ''`,
+			`ALTER TABLE projects ADD COLUMN repository_visibility TEXT NOT NULL DEFAULT '' CHECK (repository_visibility IN ('', 'public', 'private', 'internal'))`,
+			`ALTER TABLE projects ADD COLUMN repository_updated_at TEXT NOT NULL DEFAULT ''`,
+			`CREATE UNIQUE INDEX projects_repository_id_idx ON projects(repository_id) WHERE repository_id > 0`,
+		},
+	},
 }
 
 func (s *Store) applyMigrations(ctx context.Context) error {

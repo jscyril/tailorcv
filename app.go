@@ -257,7 +257,11 @@ func (a *App) ImportGitHubProjects() (domain.GitHubImportResult, error) {
 		return domain.GitHubImportResult{}, err
 	}
 	existingByRepository := make(map[string]domain.Project, len(existingProjects))
+	existingByRepositoryID := make(map[int64]domain.Project, len(existingProjects))
 	for _, project := range existingProjects {
+		if project.RepositoryID > 0 {
+			existingByRepositoryID[project.RepositoryID] = project
+		}
 		if project.RepositoryURL != "" {
 			existingByRepository[strings.ToLower(project.RepositoryURL)] = project
 		}
@@ -273,7 +277,11 @@ func (a *App) ImportGitHubProjects() (domain.GitHubImportResult, error) {
 			result.LanguageFallbacks++
 		}
 		var existing *domain.Project
-		if project, found := existingByRepository[strings.ToLower(repository.HTMLURL)]; found {
+		project, found := existingByRepositoryID[repository.ID]
+		if !found {
+			project, found = existingByRepository[strings.ToLower(repository.HTMLURL)]
+		}
+		if found {
 			if project.Provenance != domain.ProvenanceGitHub {
 				result.Skipped++
 				continue
@@ -291,6 +299,9 @@ func (a *App) ImportGitHubProjects() (domain.GitHubImportResult, error) {
 			result.Imported++
 		} else {
 			result.Updated++
+		}
+		if !repository.ReadmeComplete {
+			result.ReadmeFallbacks++
 		}
 	}
 	return result, nil
@@ -360,6 +371,15 @@ func (a *App) ListApplications() ([]domain.Application, error) {
 		return nil, err
 	}
 	return a.store.ListApplications(a.appContext())
+}
+
+// UpdateApplicationStatus moves a saved application through its local
+// lifecycle without changing any immutable resume version.
+func (a *App) UpdateApplicationStatus(input domain.UpdateApplicationStatusInput) (domain.Application, error) {
+	if err := a.ready(); err != nil {
+		return domain.Application{}, err
+	}
+	return a.store.UpdateApplicationStatus(a.appContext(), input)
 }
 
 // CreateResumeVersion renders only explicitly selected evidence and appends an

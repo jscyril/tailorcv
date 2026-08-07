@@ -46,6 +46,48 @@ func TestDetectedLanguageMigrationUpgradesExistingDatabase(t *testing.T) {
 	}
 }
 
+func TestRepositoryMetadataMigrationUpgradesExistingProjects(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "legacy-project.db")
+	database, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open legacy database: %v", err)
+	}
+	if _, err := database.Exec(`CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)`); err != nil {
+		t.Fatalf("create migration table: %v", err)
+	}
+	for _, item := range migrations[:11] {
+		for _, statement := range item.statements {
+			if _, err := database.Exec(statement); err != nil {
+				t.Fatalf("apply legacy migration %d: %v", item.version, err)
+			}
+		}
+		if _, err := database.Exec(`INSERT INTO schema_migrations(version, applied_at) VALUES (?, CURRENT_TIMESTAMP)`, item.version); err != nil {
+			t.Fatalf("record legacy migration %d: %v", item.version, err)
+		}
+	}
+	_, err = database.Exec(`INSERT INTO projects(id, name, provenance, verification_state, position, created_at, updated_at) VALUES ('legacy-project', 'Legacy', 'manual', 'verified', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+	if err != nil {
+		t.Fatalf("insert legacy project: %v", err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatalf("close legacy database: %v", err)
+	}
+
+	store, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open(upgrade) error = %v", err)
+	}
+	defer store.Close()
+	var repositoryID int64
+	var readme, visibility, updatedAt string
+	if err := store.db.QueryRow(`SELECT repository_id, repository_readme, repository_visibility, repository_updated_at FROM projects WHERE id = 'legacy-project'`).Scan(&repositoryID, &readme, &visibility, &updatedAt); err != nil {
+		t.Fatalf("read migrated repository metadata: %v", err)
+	}
+	if repositoryID != 0 || readme != "" || visibility != "" || updatedAt != "" {
+		t.Fatalf("migrated defaults = %d, %q, %q, %q", repositoryID, readme, visibility, updatedAt)
+	}
+}
+
 func TestProjectCRUDPreservesSkillsEvidenceAndReviewState(t *testing.T) {
 	store, err := Open(filepath.Join(t.TempDir(), "tailorcv.db"))
 	if err != nil {
@@ -54,13 +96,17 @@ func TestProjectCRUDPreservesSkillsEvidenceAndReviewState(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 
 	validated, err := (domain.ProjectInput{
-		Name:           "Release Console",
-		Role:           "Maintainer",
-		RepositoryURL:  "https://github.com/example/release-console",
-		Provenance:     domain.ProvenanceManual,
-		Verification:   domain.VerificationVerified,
-		ResumeEligible: true,
-		Skills:         []string{"Go", "SQLite"},
+		Name:                 "Release Console",
+		Role:                 "Maintainer",
+		RepositoryURL:        "https://github.com/example/release-console",
+		RepositoryID:         42,
+		RepositoryReadme:     "# Release Console",
+		RepositoryVisibility: "public",
+		RepositoryUpdatedAt:  "2026-08-01T12:00:00Z",
+		Provenance:           domain.ProvenanceManual,
+		Verification:         domain.VerificationVerified,
+		ResumeEligible:       true,
+		Skills:               []string{"Go", "SQLite"},
 		DetectedLanguages: []domain.RepositoryLanguage{
 			{Name: "Go", Bytes: 800},
 			{Name: "Shell", Bytes: 200},
@@ -97,7 +143,7 @@ func TestProjectCRUDPreservesSkillsEvidenceAndReviewState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListProjects() error = %v", err)
 	}
-	if len(got) != 1 || got[0].Bullets[1].ID != firstID || got[0].Skills[1] != "React" || len(got[0].DetectedLanguages) != 2 || got[0].DetectedLanguages[1].Name != "Shell" || got[0].ResumeEligible {
+	if len(got) != 1 || got[0].RepositoryID != 42 || got[0].RepositoryReadme != "# Release Console" || got[0].RepositoryVisibility != "public" || got[0].RepositoryUpdatedAt != "2026-08-01T12:00:00Z" || got[0].Bullets[1].ID != firstID || got[0].Skills[1] != "React" || len(got[0].DetectedLanguages) != 2 || got[0].DetectedLanguages[1].Name != "Shell" || got[0].ResumeEligible {
 		t.Fatalf("ListProjects() = %#v", got)
 	}
 

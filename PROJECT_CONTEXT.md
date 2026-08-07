@@ -11,8 +11,8 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 ## Repository state at this handoff
 
 - Branch: `main`, tracking `origin/main`.
-- Baseline before this delivery: `3a9b274 feat: add credential-backed Gemini tailoring`.
-- Delivery commit message: `test: harden AI provider workflows`.
+- Baseline before this delivery: `9fccb20 test: harden AI provider workflows`.
+- Delivery commit message: `feat: add application lifecycle and GitHub metadata`.
 - Worktree should be clean after the delivery is pushed.
 - No license has been selected.
 
@@ -40,13 +40,15 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 - `TestLiveProviderContract` is an opt-in Ollama/Gemini harness using fictional evidence and the production decoder. It never prints raw provider output or persists an API key.
 - Side-by-side original/proposed evidence review with per-proposal edit/include controls before creating a new immutable resume version.
 - Auditable AI runs record provider, model, prompt/schema versions, selected fact IDs, validation outcome, failure category, proposals, acceptance timestamp, and resume-version linkage without raw prompts or secrets.
-- Backup schema 3 includes custom templates, selected-template state, AI-run metadata, and non-secret AI preferences while remaining compatible with schema 1 and 2 imports. Credentials are explicitly excluded.
+- Application lifecycle controls transition saved applications between `draft`, `submitted`, and `archived` without changing immutable resume versions.
+- Public GitHub sync stores stable repository IDs, visibility, upstream update timestamps, bounded README snapshots, complete languages, and review state. README/language rate-limit fallbacks do not discard previously imported metadata.
+- Backup schema 4 includes GitHub repository metadata, custom templates, selected-template state, AI-run metadata, and non-secret AI preferences while remaining compatible with schema 1 through 3 imports. Credentials are explicitly excluded.
 
 ## Important architecture and invariants
 
 - React calls Go only through Wails bindings. Frontend code must not access SQLite, GitHub, credentials, or the native filesystem directly.
 - `internal/domain` owns validation and deterministic business rules.
-- `internal/storage` owns SQLite persistence and migrations. Migration 10 adds resume hash, ranking, compilation, and artifact metadata; migration 11 adds auditable AI runs.
+- `internal/storage` owns SQLite persistence and migrations. Migration 10 adds resume hash, ranking, compilation, and artifact metadata; migration 11 adds auditable AI runs; migration 12 adds public GitHub repository identity and snapshot metadata.
 - The first AI schema intentionally supports only currently selectable experience bullets and reviewed project facts. New profile evidence entities require a later schema version.
 - `internal/resume` owns trusted template rendering, LaTeX escaping, compiler execution, and diagnostic parsing.
 - Resume source is immutable after a version is created. An edit creates the next numbered version by copying its base version's job snapshot, selected evidence, template, and ranking explanation.
@@ -71,7 +73,7 @@ npm --prefix frontend run build
 At this handoff:
 
 - All Go package tests pass.
-- All 18 frontend unit and React integration tests pass.
+- All 20 frontend unit and React integration tests pass.
 - TypeScript checking passes.
 - The Vite production build passes.
 - The opt-in production-contract test passes against local `gemma4:12b` using fictional evidence.
@@ -82,10 +84,12 @@ At this handoff:
 
 The next major milestone is remaining v1 product work and platform hardening:
 
-1. Decide whether certifications, achievements, and arbitrary contact links remain in v1 before adding a later AI schema version.
-2. Add application lifecycle controls and complete the planned GitHub metadata set.
+1. Add evidence-backed certifications, achievements, and arbitrary professional links; these remain in v1 but require a later AI schema before model use.
+2. Add the planned user-importance and recency ranking signals, or revise the roadmap scoring model explicitly.
 3. Verify native credential set/get/delete behavior in packaged Windows, macOS, and Linux builds.
-4. Expand from the focused AI component tests to end-to-end no-AI and provider workflows through Wails bindings.
+4. Expand from focused component/service tests to end-to-end no-AI and provider workflows through Wails bindings.
+
+Authenticated/private GitHub access is explicitly post-v1. The v1 UI remains public-only and stores no GitHub credential.
 
 Release-hardening work that remains:
 

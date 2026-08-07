@@ -8,6 +8,10 @@ export type Project = {
   description: string;
   url: string;
   repositoryUrl: string;
+  repositoryId: number;
+  repositoryReadme: string;
+  repositoryVisibility: string;
+  repositoryUpdatedAt: string;
   startDate: string;
   endDate: string;
   ongoing: boolean;
@@ -41,6 +45,10 @@ export function newProjectDraft(): ProjectDraft {
     description: "",
     url: "",
     repositoryUrl: "",
+    repositoryId: 0,
+    repositoryReadme: "",
+    repositoryVisibility: "",
+    repositoryUpdatedAt: "",
     startDate: "",
     endDate: "",
     ongoing: false,
@@ -74,6 +82,10 @@ export function toProjectInput(draft: ProjectDraft) {
     description: draft.description,
     url: draft.url,
     repositoryUrl: draft.repositoryUrl,
+    repositoryId: draft.repositoryId,
+    repositoryReadme: draft.repositoryReadme,
+    repositoryVisibility: draft.repositoryVisibility,
+    repositoryUpdatedAt: draft.repositoryUpdatedAt,
     startDate: draft.startDate,
     endDate: draft.ongoing ? "" : draft.endDate,
     ongoing: draft.ongoing,

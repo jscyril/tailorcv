@@ -6,6 +6,7 @@ import (
 )
 
 type GitHubRepository struct {
+	ID                int64                `json:"id"`
 	Name              string               `json:"name"`
 	Description       string               `json:"description"`
 	HTMLURL           string               `json:"htmlUrl"`
@@ -16,6 +17,10 @@ type GitHubRepository struct {
 	Topics            []string             `json:"topics"`
 	Fork              bool                 `json:"fork"`
 	Archived          bool                 `json:"archived"`
+	Visibility        string               `json:"visibility"`
+	UpdatedAt         string               `json:"updatedAt"`
+	Readme            string               `json:"readme"`
+	ReadmeComplete    bool                 `json:"readmeComplete"`
 }
 
 type GitHubImportResult struct {
@@ -24,6 +29,7 @@ type GitHubImportResult struct {
 	Updated           int `json:"updated"`
 	Skipped           int `json:"skipped"`
 	LanguageFallbacks int `json:"languageFallbacks"`
+	ReadmeFallbacks   int `json:"readmeFallbacks"`
 }
 
 func (repository GitHubRepository) Project(existing *Project) (Project, error) {
@@ -41,19 +47,26 @@ func (repository GitHubRepository) Project(existing *Project) (Project, error) {
 		homepage = ""
 	}
 	input := ProjectInput{
-		Name:              repository.Name,
-		Description:       repository.Description,
-		URL:               homepage,
-		RepositoryURL:     repository.HTMLURL,
-		Provenance:        ProvenanceGitHub,
-		Verification:      VerificationUnverified,
-		ResumeEligible:    false,
-		Skills:            skills,
-		DetectedLanguages: detectedLanguages,
+		Name:                 repository.Name,
+		Description:          repository.Description,
+		URL:                  homepage,
+		RepositoryURL:        repository.HTMLURL,
+		RepositoryID:         repository.ID,
+		RepositoryReadme:     repository.Readme,
+		RepositoryVisibility: repository.Visibility,
+		RepositoryUpdatedAt:  repository.UpdatedAt,
+		Provenance:           ProvenanceGitHub,
+		Verification:         VerificationUnverified,
+		ResumeEligible:       false,
+		Skills:               skills,
+		DetectedLanguages:    detectedLanguages,
 	}
 	if existing != nil {
 		input.ID = existing.ID
 		input.Role = existing.Role
+		if !repository.ReadmeComplete {
+			input.RepositoryReadme = existing.RepositoryReadme
+		}
 		if input.URL == "" {
 			input.URL = existing.URL
 		}

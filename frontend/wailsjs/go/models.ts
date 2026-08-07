@@ -324,6 +324,20 @@ export namespace domain {
 		    return a;
 		}
 	}
+	export class UpdateApplicationStatusInput {
+	    applicationId: string;
+	    status: string;
+
+	    static createFrom(source: any = {}) {
+	        return new UpdateApplicationStatusInput(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.applicationId = source["applicationId"];
+	        this.status = source["status"];
+	    }
+	}
 	export class BackupResult {
 	    path: string;
 	    cancelled: boolean;
@@ -668,6 +682,7 @@ export namespace domain {
 	    updated: number;
 	    skipped: number;
 	    languageFallbacks: number;
+	    readmeFallbacks: number;
 
 	    static createFrom(source: any = {}) {
 	        return new GitHubImportResult(source);
@@ -680,6 +695,7 @@ export namespace domain {
 	        this.updated = source["updated"];
 	        this.skipped = source["skipped"];
 	        this.languageFallbacks = source["languageFallbacks"];
+	        this.readmeFallbacks = source["readmeFallbacks"];
 	    }
 	}
 	export class Job {
@@ -857,6 +873,10 @@ export namespace domain {
 	    description: string;
 	    url: string;
 	    repositoryUrl: string;
+	    repositoryId: number;
+	    repositoryReadme: string;
+	    repositoryVisibility: string;
+	    repositoryUpdatedAt: string;
 	    startDate: string;
 	    endDate: string;
 	    ongoing: boolean;
@@ -882,6 +902,10 @@ export namespace domain {
 	        this.description = source["description"];
 	        this.url = source["url"];
 	        this.repositoryUrl = source["repositoryUrl"];
+	        this.repositoryId = source["repositoryId"];
+	        this.repositoryReadme = source["repositoryReadme"];
+	        this.repositoryVisibility = source["repositoryVisibility"];
+	        this.repositoryUpdatedAt = source["repositoryUpdatedAt"];
 	        this.startDate = source["startDate"];
 	        this.endDate = source["endDate"];
 	        this.ongoing = source["ongoing"];
@@ -921,6 +945,10 @@ export namespace domain {
 	    description: string;
 	    url: string;
 	    repositoryUrl: string;
+	    repositoryId: number;
+	    repositoryReadme: string;
+	    repositoryVisibility: string;
+	    repositoryUpdatedAt: string;
 	    startDate: string;
 	    endDate: string;
 	    ongoing: boolean;
@@ -943,6 +971,10 @@ export namespace domain {
 	        this.description = source["description"];
 	        this.url = source["url"];
 	        this.repositoryUrl = source["repositoryUrl"];
+	        this.repositoryId = source["repositoryId"];
+	        this.repositoryReadme = source["repositoryReadme"];
+	        this.repositoryVisibility = source["repositoryVisibility"];
+	        this.repositoryUpdatedAt = source["repositoryUpdatedAt"];
 	        this.startDate = source["startDate"];
 	        this.endDate = source["endDate"];
 	        this.ongoing = source["ongoing"];

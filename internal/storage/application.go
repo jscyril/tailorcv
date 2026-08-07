@@ -49,6 +49,34 @@ func (s *Store) ListApplications(ctx context.Context) ([]domain.Application, err
 	return applications, nil
 }
 
+func (s *Store) UpdateApplicationStatus(ctx context.Context, input domain.UpdateApplicationStatusInput) (domain.Application, error) {
+	validated, err := input.Validate()
+	if err != nil {
+		return domain.Application{}, err
+	}
+	if _, err := uuid.Parse(validated.ApplicationID); err != nil {
+		return domain.Application{}, fmt.Errorf("application ID is not valid")
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	result, err := s.db.ExecContext(ctx, `UPDATE applications SET status = ?, updated_at = ? WHERE id = ?`, validated.Status, now, validated.ApplicationID)
+	if err != nil {
+		return domain.Application{}, fmt.Errorf("update application status: %w", err)
+	}
+	if count, err := result.RowsAffected(); err != nil || count != 1 {
+		return domain.Application{}, fmt.Errorf("application was not found")
+	}
+	applications, err := s.ListApplications(ctx)
+	if err != nil {
+		return domain.Application{}, err
+	}
+	for _, application := range applications {
+		if application.ID == validated.ApplicationID {
+			return application, nil
+		}
+	}
+	return domain.Application{}, fmt.Errorf("application was not found")
+}
+
 func (s *Store) listApplicationSelectedFacts(ctx context.Context, applicationID string) ([]string, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT fact_id FROM application_selected_facts WHERE application_id = ? ORDER BY position`, applicationID)
 	if err != nil {
@@ -154,7 +182,7 @@ func (s *Store) CreateResumeVersion(ctx context.Context, jobID string, selectedF
 	defer func() { _ = tx.Rollback() }()
 
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	application := domain.Application{JobID: jobID, Status: "draft", SelectedFactIDs: append([]string(nil), selectedFactIDs...), Versions: []domain.ResumeVersion{}}
+	application := domain.Application{JobID: jobID, Status: domain.ApplicationStatusDraft, SelectedFactIDs: append([]string(nil), selectedFactIDs...), Versions: []domain.ResumeVersion{}}
 	err = tx.QueryRowContext(ctx, `SELECT id, status, created_at FROM applications WHERE job_id = ?`, jobID).Scan(&application.ID, &application.Status, &application.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		application.ID = uuid.NewString()

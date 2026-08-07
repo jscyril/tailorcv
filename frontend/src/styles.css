@@ -512,6 +512,24 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .version-action strong { font-size: var(--text-sm); }
 .version-action span { color: var(--muted); font-size: var(--text-xs); }
 .version-history { margin-top: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: #0d100e; }
+.application-history-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 9px; }
+.application-history-heading .saved-jobs-heading { flex: 1; margin: 0; }
+.application-status-control { display: flex; align-items: center; gap: 8px; }
+.application-status-control > span { color: var(--muted); font-size: var(--text-xs); }
+.application-status-control > div { display: flex; padding: 2px; border: 1px solid var(--line); border-radius: 7px; background: #090b0a; }
+.application-status-control button { padding: 5px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font-size: var(--text-xs); }
+.application-status-control button.active { background: var(--hover); color: var(--accent); }
+.application-status-control button:disabled:not(.active) { opacity: .55; }
+.repository-metadata { padding: 12px; border: 1px solid var(--line-soft); border-radius: 9px; background: #0a0d0b; }
+.repository-metadata header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.repository-metadata header strong { font-size: var(--text-sm); }
+.repository-metadata header p { margin: 3px 0 0; color: var(--muted); font-size: var(--text-xs); }
+.repository-metadata header > span { padding: 4px 7px; border-radius: 999px; background: var(--hover); color: var(--accent); font-size: var(--text-xs); text-transform: capitalize; }
+.repository-metadata > div { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 8px; margin-top: 11px; font-size: var(--text-xs); }
+.repository-metadata > div small { color: var(--muted); }
+.repository-metadata details { margin-top: 10px; }
+.repository-metadata summary { color: var(--secondary); cursor: pointer; font-size: var(--text-xs); }
+.repository-metadata pre { max-height: 220px; overflow: auto; margin: 9px 0 0; padding: 10px; border-radius: 7px; background: #060806; color: var(--muted); font: 10px/1.5 ui-monospace, monospace; white-space: pre-wrap; }
 .version-history > div:last-child { display: grid; gap: 7px; }
 .version-history article { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; border-radius: 7px; background: var(--elevated); }
 .version-history article > div { display: grid; gap: 2px; }

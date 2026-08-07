@@ -2,7 +2,7 @@
 
 This is the working execution checklist for [PLAN.md](PLAN.md), which remains the authoritative product roadmap. [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) remains the durable engineering handoff. Keep this file short, checkable, and ordered; update the context file after completing a meaningful implementation set.
 
-Last audited: 2026-08-06
+Last audited: 2026-08-07
 
 ## Completed baseline
 
@@ -17,7 +17,7 @@ Last audited: 2026-08-06
 - [x] Compile LaTeX with Tectonic in an isolated untrusted workspace and return structured diagnostics.
 - [x] Preview compiled PDFs with lazy-loaded PDF.js and persist private PDF artifacts for saved versions.
 - [x] Export and atomically restore versioned JSON backups for the currently supported profile, job, application, and resume-source data.
-- [x] Pass the Go tests, 11 frontend unit tests, TypeScript check, production frontend build, and `go vet` as of the audit date.
+- [x] Pass the Go tests, 20 frontend unit and React integration tests, TypeScript check, production frontend build, and `go vet` as of the audit date.
 
 ## Evidence-constrained AI
 
@@ -69,12 +69,12 @@ The provider contract, Ollama and Gemini paths, persistence, review gate, focuse
 
 These are already named or implied by `PLAN.md`, but are not implemented in the audited code.
 
-- [ ] Add certifications and achievements as first-class, evidence-backed profile entities, or explicitly move them out of the v1 boundary.
-- [ ] Decide whether arbitrary contact links need their own table instead of the current fixed website/GitHub/LinkedIn fields.
-- [ ] Add application lifecycle controls for `draft`, `submitted`, and `archived`; the database supports the states but the service/UI cannot change them.
+- [ ] Add certifications and achievements as first-class, evidence-backed profile entities. They remain in v1 but are deferred from the current AI schema.
+- [ ] Add an arbitrary contact-link table alongside the current fixed website/GitHub/LinkedIn fields. Flexible professional links remain in v1 but are deferred from the current AI schema.
+- [x] Add application lifecycle controls for `draft`, `submitted`, and `archived`; status changes preserve immutable resume versions and backup history.
 - [x] Extend backup/restore to include custom resume templates and relevant non-secret settings. Bump the backup schema with backward-compatible import tests.
-- [ ] Complete the planned GitHub metadata set: README content, visibility, repository update timestamps, and a stable repository identity.
-- [ ] Decide whether authenticated/private GitHub access is v1 or post-v1, then align `PLAN.md`, the UI, and credential work.
+- [x] Complete the planned public GitHub metadata set: bounded README content, visibility, repository update timestamps, and stable repository IDs.
+- [x] Defer authenticated/private GitHub access until post-v1; align `PLAN.md` and retain the public-only UI without a GitHub credential.
 - [ ] Add the planned user-importance and recency ranking signals, or revise the roadmap to match the current skill/term/search/verification scoring model.
 - [ ] Resolve stack drift deliberately: Tailwind, shadcn/ui, React Hook Form, and Zod are listed in `PLAN.md` but the app currently uses custom CSS and component state. Avoid a migration unless it has a concrete maintenance or UX benefit.
 - [x] Update `README.md` status after the next delivery; it currently says the templates-and-compilation milestone is still being finished even though the handoff marks it complete.

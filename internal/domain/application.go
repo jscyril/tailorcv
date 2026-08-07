@@ -8,14 +8,40 @@ import (
 
 const maxSelectedFacts = 50
 
+type ApplicationStatus string
+
+const (
+	ApplicationStatusDraft     ApplicationStatus = "draft"
+	ApplicationStatusSubmitted ApplicationStatus = "submitted"
+	ApplicationStatusArchived  ApplicationStatus = "archived"
+)
+
 type Application struct {
-	ID              string          `json:"id"`
-	JobID           string          `json:"jobId"`
-	Status          string          `json:"status"`
-	SelectedFactIDs []string        `json:"selectedFactIds"`
-	Versions        []ResumeVersion `json:"versions"`
-	CreatedAt       string          `json:"createdAt"`
-	UpdatedAt       string          `json:"updatedAt"`
+	ID              string            `json:"id"`
+	JobID           string            `json:"jobId"`
+	Status          ApplicationStatus `json:"status"`
+	SelectedFactIDs []string          `json:"selectedFactIds"`
+	Versions        []ResumeVersion   `json:"versions"`
+	CreatedAt       string            `json:"createdAt"`
+	UpdatedAt       string            `json:"updatedAt"`
+}
+
+type UpdateApplicationStatusInput struct {
+	ApplicationID string            `json:"applicationId"`
+	Status        ApplicationStatus `json:"status"`
+}
+
+func (input UpdateApplicationStatusInput) Validate() (UpdateApplicationStatusInput, error) {
+	input.ApplicationID = strings.TrimSpace(input.ApplicationID)
+	if input.ApplicationID == "" {
+		return UpdateApplicationStatusInput{}, fmt.Errorf("application ID is required")
+	}
+	switch input.Status {
+	case ApplicationStatusDraft, ApplicationStatusSubmitted, ApplicationStatusArchived:
+		return input, nil
+	default:
+		return UpdateApplicationStatusInput{}, fmt.Errorf("application status is not valid")
+	}
 }
 
 type ResumeVersion struct {

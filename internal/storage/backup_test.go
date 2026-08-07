@@ -31,7 +31,7 @@ func TestProfileBackupRoundTripReplacesAllCurrentData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SaveExperience() error = %v", err)
 	}
-	project, err := (domain.ProjectInput{Name: "Release Console", Skills: []string{"Go"}, DetectedLanguages: []domain.RepositoryLanguage{{Name: "Go", Bytes: 900}, {Name: "Shell", Bytes: 100}}, ResumeEligible: true}).Validate()
+	project, err := (domain.ProjectInput{Name: "Release Console", RepositoryURL: "https://github.com/example/release-console", RepositoryID: 42, RepositoryReadme: "# Release Console", RepositoryVisibility: "public", RepositoryUpdatedAt: "2026-08-01T12:00:00Z", Skills: []string{"Go"}, DetectedLanguages: []domain.RepositoryLanguage{{Name: "Go", Bytes: 900}, {Name: "Shell", Bytes: 100}}, ResumeEligible: true}).Validate()
 	if err != nil {
 		t.Fatalf("project Validate() error = %v", err)
 	}
@@ -96,7 +96,7 @@ func TestProfileBackupRoundTripReplacesAllCurrentData(t *testing.T) {
 	if got.Profile.Name != "Ada Lovelace" || len(got.Experiences) != 1 || len(got.Projects) != 1 || len(got.Educations) != 1 || len(got.Jobs) != 1 || len(got.Applications) != 1 || len(got.Applications[0].Versions) != 1 || len(got.Templates) != 1 || got.SelectedTemplateID != savedTemplate.ID || len(got.AIRuns) != 1 {
 		t.Fatalf("restored backup = %#v", got)
 	}
-	if got.Experiences[0].Bullets[0].ID != backup.Experiences[0].Bullets[0].ID || got.Projects[0].Skills[0] != "Go" || len(got.Projects[0].DetectedLanguages) != 2 || got.Projects[0].DetectedLanguages[1].Name != "Shell" {
+	if got.Experiences[0].Bullets[0].ID != backup.Experiences[0].Bullets[0].ID || got.Projects[0].RepositoryID != 42 || got.Projects[0].RepositoryReadme != "# Release Console" || got.Projects[0].Skills[0] != "Go" || len(got.Projects[0].DetectedLanguages) != 2 || got.Projects[0].DetectedLanguages[1].Name != "Shell" {
 		t.Fatalf("restored child data = %#v", got)
 	}
 	if got.AISettings.Provider != "gemini" || got.AISettings.GeminiModel != "gemini-test" {

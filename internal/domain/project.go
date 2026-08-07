@@ -3,9 +3,11 @@ package domain
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 const maxProjectDescriptionLength = 2400
+const MaxGitHubReadmeBytes = 512 << 10
 
 type RepositoryLanguage struct {
 	Name  string `json:"name"`
@@ -13,61 +15,73 @@ type RepositoryLanguage struct {
 }
 
 type Project struct {
-	ID                string               `json:"id"`
-	Name              string               `json:"name"`
-	Role              string               `json:"role"`
-	Description       string               `json:"description"`
-	URL               string               `json:"url"`
-	RepositoryURL     string               `json:"repositoryUrl"`
-	StartDate         string               `json:"startDate"`
-	EndDate           string               `json:"endDate"`
-	Ongoing           bool                 `json:"ongoing"`
-	Provenance        Provenance           `json:"provenance"`
-	Verification      VerificationState    `json:"verification"`
-	ResumeEligible    bool                 `json:"resumeEligible"`
-	Position          int                  `json:"position"`
-	Skills            []string             `json:"skills"`
-	DetectedLanguages []RepositoryLanguage `json:"detectedLanguages"`
-	Bullets           []EvidenceBullet     `json:"bullets"`
-	CreatedAt         string               `json:"createdAt"`
-	UpdatedAt         string               `json:"updatedAt"`
+	ID                   string               `json:"id"`
+	Name                 string               `json:"name"`
+	Role                 string               `json:"role"`
+	Description          string               `json:"description"`
+	URL                  string               `json:"url"`
+	RepositoryURL        string               `json:"repositoryUrl"`
+	RepositoryID         int64                `json:"repositoryId"`
+	RepositoryReadme     string               `json:"repositoryReadme"`
+	RepositoryVisibility string               `json:"repositoryVisibility"`
+	RepositoryUpdatedAt  string               `json:"repositoryUpdatedAt"`
+	StartDate            string               `json:"startDate"`
+	EndDate              string               `json:"endDate"`
+	Ongoing              bool                 `json:"ongoing"`
+	Provenance           Provenance           `json:"provenance"`
+	Verification         VerificationState    `json:"verification"`
+	ResumeEligible       bool                 `json:"resumeEligible"`
+	Position             int                  `json:"position"`
+	Skills               []string             `json:"skills"`
+	DetectedLanguages    []RepositoryLanguage `json:"detectedLanguages"`
+	Bullets              []EvidenceBullet     `json:"bullets"`
+	CreatedAt            string               `json:"createdAt"`
+	UpdatedAt            string               `json:"updatedAt"`
 }
 
 type ProjectInput struct {
-	ID                string                `json:"id"`
-	Name              string                `json:"name"`
-	Role              string                `json:"role"`
-	Description       string                `json:"description"`
-	URL               string                `json:"url"`
-	RepositoryURL     string                `json:"repositoryUrl"`
-	StartDate         string                `json:"startDate"`
-	EndDate           string                `json:"endDate"`
-	Ongoing           bool                  `json:"ongoing"`
-	Provenance        Provenance            `json:"provenance"`
-	Verification      VerificationState     `json:"verification"`
-	ResumeEligible    bool                  `json:"resumeEligible"`
-	Skills            []string              `json:"skills"`
-	DetectedLanguages []RepositoryLanguage  `json:"detectedLanguages"`
-	Bullets           []EvidenceBulletInput `json:"bullets"`
+	ID                   string                `json:"id"`
+	Name                 string                `json:"name"`
+	Role                 string                `json:"role"`
+	Description          string                `json:"description"`
+	URL                  string                `json:"url"`
+	RepositoryURL        string                `json:"repositoryUrl"`
+	RepositoryID         int64                 `json:"repositoryId"`
+	RepositoryReadme     string                `json:"repositoryReadme"`
+	RepositoryVisibility string                `json:"repositoryVisibility"`
+	RepositoryUpdatedAt  string                `json:"repositoryUpdatedAt"`
+	StartDate            string                `json:"startDate"`
+	EndDate              string                `json:"endDate"`
+	Ongoing              bool                  `json:"ongoing"`
+	Provenance           Provenance            `json:"provenance"`
+	Verification         VerificationState     `json:"verification"`
+	ResumeEligible       bool                  `json:"resumeEligible"`
+	Skills               []string              `json:"skills"`
+	DetectedLanguages    []RepositoryLanguage  `json:"detectedLanguages"`
+	Bullets              []EvidenceBulletInput `json:"bullets"`
 }
 
 func (input ProjectInput) Validate() (Project, error) {
 	project := Project{
-		ID:                strings.TrimSpace(input.ID),
-		Name:              strings.Join(strings.Fields(input.Name), " "),
-		Role:              strings.Join(strings.Fields(input.Role), " "),
-		Description:       strings.TrimSpace(input.Description),
-		URL:               strings.TrimSpace(input.URL),
-		RepositoryURL:     strings.TrimSpace(input.RepositoryURL),
-		StartDate:         strings.TrimSpace(input.StartDate),
-		EndDate:           strings.TrimSpace(input.EndDate),
-		Ongoing:           input.Ongoing,
-		Provenance:        input.Provenance,
-		Verification:      input.Verification,
-		ResumeEligible:    input.ResumeEligible,
-		Skills:            normalizeSkills(input.Skills),
-		DetectedLanguages: normalizeRepositoryLanguages(input.DetectedLanguages),
-		Bullets:           make([]EvidenceBullet, 0, len(input.Bullets)),
+		ID:                   strings.TrimSpace(input.ID),
+		Name:                 strings.Join(strings.Fields(input.Name), " "),
+		Role:                 strings.Join(strings.Fields(input.Role), " "),
+		Description:          strings.TrimSpace(input.Description),
+		URL:                  strings.TrimSpace(input.URL),
+		RepositoryURL:        strings.TrimSpace(input.RepositoryURL),
+		RepositoryID:         input.RepositoryID,
+		RepositoryReadme:     strings.TrimSpace(input.RepositoryReadme),
+		RepositoryVisibility: strings.ToLower(strings.TrimSpace(input.RepositoryVisibility)),
+		RepositoryUpdatedAt:  strings.TrimSpace(input.RepositoryUpdatedAt),
+		StartDate:            strings.TrimSpace(input.StartDate),
+		EndDate:              strings.TrimSpace(input.EndDate),
+		Ongoing:              input.Ongoing,
+		Provenance:           input.Provenance,
+		Verification:         input.Verification,
+		ResumeEligible:       input.ResumeEligible,
+		Skills:               normalizeSkills(input.Skills),
+		DetectedLanguages:    normalizeRepositoryLanguages(input.DetectedLanguages),
+		Bullets:              make([]EvidenceBullet, 0, len(input.Bullets)),
 	}
 
 	if project.Name == "" {
@@ -87,6 +101,20 @@ func (input ProjectInput) Validate() (Project, error) {
 	}
 	if err := validateEvidenceURL(project.RepositoryURL); err != nil {
 		return Project{}, fmt.Errorf("repository URL: %w", err)
+	}
+	if project.RepositoryID < 0 {
+		return Project{}, fmt.Errorf("repository ID is not valid")
+	}
+	if len(project.RepositoryReadme) > MaxGitHubReadmeBytes {
+		return Project{}, fmt.Errorf("repository README exceeds the 512 KiB size limit")
+	}
+	if project.RepositoryVisibility != "" && project.RepositoryVisibility != "public" && project.RepositoryVisibility != "private" && project.RepositoryVisibility != "internal" {
+		return Project{}, fmt.Errorf("repository visibility is not valid")
+	}
+	if project.RepositoryUpdatedAt != "" {
+		if _, err := time.Parse(time.RFC3339, project.RepositoryUpdatedAt); err != nil {
+			return Project{}, fmt.Errorf("repository update time is not valid")
+		}
 	}
 	if err := validateMonth("start date", project.StartDate, false); err != nil {
 		return Project{}, err

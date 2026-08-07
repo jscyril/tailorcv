@@ -148,10 +148,12 @@ func (s *Store) ReplaceProfileFromBackup(ctx context.Context, source domain.Prof
 		updatedAt := timestampOr(project.UpdatedAt, createdAt)
 		_, err := tx.ExecContext(ctx, `
 			INSERT INTO projects (
-				id, name, role, description, url, repository_url, start_date, end_date,
+				id, name, role, description, url, repository_url, repository_id,
+				repository_readme, repository_visibility, repository_updated_at, start_date, end_date,
 				is_ongoing, provenance, verification_state, resume_eligible, position, created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`, project.ID, project.Name, project.Role, project.Description, project.URL, project.RepositoryURL,
+			project.RepositoryID, project.RepositoryReadme, project.RepositoryVisibility, project.RepositoryUpdatedAt,
 			project.StartDate, project.EndDate, boolInt(project.Ongoing), project.Provenance, project.Verification,
 			boolInt(project.ResumeEligible), project.Position, createdAt, updatedAt)
 		if err != nil {

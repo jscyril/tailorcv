@@ -169,3 +169,7 @@ export function SaveResumeVersionEdit(arg1) {
 export function SelectResumeTemplate(arg1) {
   return window['go']['main']['App']['SelectResumeTemplate'](arg1);
 }
+
+export function UpdateApplicationStatus(arg1) {
+  return window['go']['main']['App']['UpdateApplicationStatus'](arg1);
+}

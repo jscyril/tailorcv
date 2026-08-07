@@ -20,11 +20,14 @@ func TestListPublicRepositoriesUsesRequiredHeadersAndPagination(t *testing.T) {
 	requests := 0
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		requests++
-		if request.Header.Get("Accept") != "application/vnd.github+json" || request.Header.Get("X-GitHub-Api-Version") != apiVersion || request.Header.Get("User-Agent") == "" {
+		if request.Header.Get("X-GitHub-Api-Version") != apiVersion || request.Header.Get("User-Agent") == "" {
 			t.Errorf("request headers = %#v", request.Header)
 		}
-		if request.URL.Query().Get("type") != "owner" || request.URL.Query().Get("per_page") != "100" {
-			t.Errorf("query = %s", request.URL.RawQuery)
+		if request.URL.Path != "/users/example/repos" {
+			return &http.Response{StatusCode: http.StatusNotFound, Status: "404 Not Found", Body: io.NopCloser(bytes.NewReader(nil)), Header: make(http.Header)}, nil
+		}
+		if request.Header.Get("Accept") != "application/vnd.github+json" || request.URL.Query().Get("type") != "owner" || request.URL.Query().Get("per_page") != "100" {
+			t.Errorf("repository request = %s %#v", request.URL.String(), request.Header)
 		}
 		page, _ := strconv.Atoi(request.URL.Query().Get("page"))
 		count := 100
@@ -45,7 +48,7 @@ func TestListPublicRepositoriesUsesRequiredHeadersAndPagination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListPublicRepositories() error = %v", err)
 	}
-	if len(repositories) != 101 || requests != 2 {
+	if len(repositories) != 101 || requests != 103 {
 		t.Fatalf("repositories = %d, requests = %d", len(repositories), requests)
 	}
 }
@@ -67,9 +70,14 @@ func TestListPublicRepositoriesFetchesCompleteLanguages(t *testing.T) {
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		var data []byte
 		if request.URL.Path == "/users/example/repos" {
-			data, _ = json.Marshal([]repositoryResponse{{Name: "polyglot", HTMLURL: "https://github.com/example/polyglot", Language: "Go"}})
+			data, _ = json.Marshal([]repositoryResponse{{ID: 42, Name: "polyglot", HTMLURL: "https://github.com/example/polyglot", Language: "Go", Visibility: "public", UpdatedAt: "2026-08-01T12:00:00Z"}})
 		} else if request.URL.Path == "/repos/example/polyglot/languages" {
 			data = []byte(`{"TypeScript":120,"Go":900,"Shell":45}`)
+		} else if request.URL.Path == "/repos/example/polyglot/readme" {
+			if request.Header.Get("Accept") != "application/vnd.github.raw+json" {
+				t.Errorf("README Accept = %q", request.Header.Get("Accept"))
+			}
+			data = []byte("# Polyglot\n\nA fictional repository.")
 		} else {
 			t.Fatalf("unexpected request path %q", request.URL.Path)
 		}
@@ -87,6 +95,9 @@ func TestListPublicRepositoriesFetchesCompleteLanguages(t *testing.T) {
 	}
 	if repositories[0].Languages[0].Name != "Go" || repositories[0].Languages[1].Name != "TypeScript" {
 		t.Fatalf("languages are not sorted by byte count: %#v", repositories[0].Languages)
+	}
+	if repositories[0].ID != 42 || repositories[0].Visibility != "public" || repositories[0].UpdatedAt != "2026-08-01T12:00:00Z" || repositories[0].Readme != "# Polyglot\n\nA fictional repository." || !repositories[0].ReadmeComplete {
+		t.Fatalf("repository metadata = %#v", repositories[0])
 	}
 }
 
@@ -107,7 +118,7 @@ func TestListPublicRepositoriesFallsBackAfterLanguageRateLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListPublicRepositories() error = %v", err)
 	}
-	if len(repositories) != 2 || repositories[0].LanguagesComplete || repositories[1].LanguagesComplete || requests != 2 {
+	if len(repositories) != 2 || repositories[0].LanguagesComplete || repositories[1].LanguagesComplete || repositories[0].ReadmeComplete || repositories[1].ReadmeComplete || requests != 3 {
 		t.Fatalf("fallback repositories = %#v, requests = %d", repositories, requests)
 	}
 }

@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const ProfileBackupSchemaVersion = 3
+const ProfileBackupSchemaVersion = 4
 
 type ProfileBackup struct {
 	SchemaVersion      int              `json:"schemaVersion"`
@@ -146,7 +146,7 @@ func (backup ProfileBackup) Validate() (ProfileBackup, error) {
 			}
 			bulletInputs[bulletIndex] = EvidenceBulletInput{ID: bullet.ID, Text: bullet.Text, Provenance: bullet.Provenance, SourceURL: bullet.SourceURL, Verification: bullet.Verification}
 		}
-		validated, err := (ProjectInput{ID: source.ID, Name: source.Name, Role: source.Role, Description: source.Description, URL: source.URL, RepositoryURL: source.RepositoryURL, StartDate: source.StartDate, EndDate: source.EndDate, Ongoing: source.Ongoing, Provenance: source.Provenance, Verification: source.Verification, ResumeEligible: source.ResumeEligible, Skills: source.Skills, DetectedLanguages: source.DetectedLanguages, Bullets: bulletInputs}).Validate()
+		validated, err := (ProjectInput{ID: source.ID, Name: source.Name, Role: source.Role, Description: source.Description, URL: source.URL, RepositoryURL: source.RepositoryURL, RepositoryID: source.RepositoryID, RepositoryReadme: source.RepositoryReadme, RepositoryVisibility: source.RepositoryVisibility, RepositoryUpdatedAt: source.RepositoryUpdatedAt, StartDate: source.StartDate, EndDate: source.EndDate, Ongoing: source.Ongoing, Provenance: source.Provenance, Verification: source.Verification, ResumeEligible: source.ResumeEligible, Skills: source.Skills, DetectedLanguages: source.DetectedLanguages, Bullets: bulletInputs}).Validate()
 		if err != nil {
 			return ProfileBackup{}, fmt.Errorf("project %d: %w", index+1, err)
 		}
@@ -199,7 +199,7 @@ func (backup ProfileBackup) Validate() (ProfileBackup, error) {
 
 	applications := make([]Application, 0, len(backup.Applications))
 	for index, source := range backup.Applications {
-		if source.Status != "draft" && source.Status != "submitted" && source.Status != "archived" {
+		if _, err := (UpdateApplicationStatusInput{ApplicationID: source.ID, Status: source.Status}).Validate(); err != nil {
 			return ProfileBackup{}, fmt.Errorf("application %d status is not valid", index+1)
 		}
 		if err := validateBackupTimestamp(fmt.Sprintf("application %d creation time", index+1), source.CreatedAt, true); err != nil {

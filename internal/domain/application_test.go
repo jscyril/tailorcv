@@ -2,6 +2,21 @@ package domain
 
 import "testing"
 
+func TestUpdateApplicationStatusInputValidate(t *testing.T) {
+	for _, status := range []ApplicationStatus{ApplicationStatusDraft, ApplicationStatusSubmitted, ApplicationStatusArchived} {
+		validated, err := (UpdateApplicationStatusInput{ApplicationID: " application-id ", Status: status}).Validate()
+		if err != nil || validated.ApplicationID != "application-id" {
+			t.Fatalf("status %q validation = %#v, %v", status, validated, err)
+		}
+	}
+	if _, err := (UpdateApplicationStatusInput{ApplicationID: "application-id", Status: "deleted"}).Validate(); err == nil {
+		t.Fatal("Validate() accepted an unsupported application status")
+	}
+	if _, err := (UpdateApplicationStatusInput{Status: ApplicationStatusDraft}).Validate(); err == nil {
+		t.Fatal("Validate() accepted an empty application ID")
+	}
+}
+
 func TestCreateResumeVersionInputRequiresUniqueSelectedFacts(t *testing.T) {
 	_, err := (CreateResumeVersionInput{JobID: "job", TemplateID: "template", SelectedFactIDs: []string{"fact", "fact"}}).Validate()
 	if err == nil {

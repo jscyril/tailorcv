@@ -15,13 +15,13 @@ TailorCV has a complete deterministic resume-building vertical slice, local comp
 - Education records with validated study dates and live resume-preview rendering.
 - Persisted job opportunities with alias-aware skill matching and explainable ranking of career evidence.
 - Structured required/preferred skill and responsibility extraction backed by a synchronized SQLite FTS5 evidence index.
-- Manual evidence selection with saved applications and immutable, numbered LaTeX resume snapshots, including evidence-ranking explanations and content hashes.
+- Manual evidence selection with saved applications, `draft`/`submitted`/`archived` lifecycle controls, and immutable numbered LaTeX resume snapshots, including evidence-ranking explanations and content hashes.
 - New immutable versions for edited source, with compilation metadata and private per-version PDF artifacts.
 - A dark split workspace with project selection, a CodeMirror LaTeX editor, clickable compiler diagnostics, and a zoomable PDF.js preview.
 - Read-only Jake-style and Classic ATS templates, plus persistent user-imported `.tex` templates.
 - Debounced local Tectonic compilation with structured line diagnostics, isolated untrusted workspaces, resource limits, and native `.tex`/`.pdf` export.
 - Versioned JSON backup and atomic restore for all currently supported profile data.
-- Public GitHub repository sync with complete language detection, user-controlled language selection, and an explicit review gate before resume eligibility.
+- Public GitHub repository sync with stable repository identity, visibility, update timestamps, bounded README snapshots, complete language detection, user-controlled language selection, and an explicit review gate before resume eligibility.
 - Clear service boundaries for GitHub import, resume generation, templates, and PDF compilation.
 - A provider-neutral AI contract with versioned structured output, strict fact/citation, metric, technology, and traceability validation.
 - Ollama health and model discovery, bounded generation, cancellation, recorded contract tests, and side-by-side proposal review before immutable version creation.
@@ -122,7 +122,7 @@ wails build -tags webkit2_41
 
 The desktop application stores its SQLite database below the current operating system's user configuration directory in a `tailorcv` folder. Development and test databases, generated resumes, credentials, and user PDFs must not be committed.
 
-Use **Backup & restore** in the application sidebar to export a portable JSON snapshot. Backup format v3 includes custom templates, selected-template state, applications, resume source history, auditable AI-run metadata, and non-secret AI preferences. Versions 1 and 2 remain importable. Imports are fully validated before replacing local data in one transaction. Provider credentials, generated PDFs, compiler caches, and local model data are intentionally excluded.
+Use **Backup & restore** in the application sidebar to export a portable JSON snapshot. Backup format v4 includes public GitHub repository metadata, custom templates, selected-template state, applications, resume source history, auditable AI-run metadata, and non-secret AI preferences. Versions 1 through 3 remain importable. Imports are fully validated before replacing local data in one transaction. Provider credentials, generated PDFs, compiler caches, and local model data are intentionally excluded.
 
 Custom templates are stored locally in the same SQLite database. Use **Templates → Import .tex** for complete, single-file LaTeX documents. Imported files compile as-is; TailorCV data markers are optional and documented in the Templates screen. Built-in templates are read-only, and editing one creates a user-owned copy.
 

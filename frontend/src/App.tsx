@@ -48,6 +48,7 @@ import {
   SaveResumeTemplate,
   SaveResumeVersionEdit,
   SelectResumeTemplate,
+  UpdateApplicationStatus,
 } from "../wailsjs/go/main/App";
 import { domain } from "../wailsjs/go/models";
 import {
@@ -96,6 +97,7 @@ import {
   type Job,
   type JobAnalysis,
 } from "./features/ai/AIWorkspace";
+import { ApplicationStatusControl, type ApplicationStatus } from "./features/applications/ApplicationStatusControl";
 
 type View = "overview" | "profile" | "experience" | "projects" | "education" | "skills" | "templates" | "latex" | "job" | "ai" | "data";
 
@@ -121,7 +123,7 @@ type ResumeVersion = {
 type Application = {
   id: string;
   jobId: string;
-  status: string;
+  status: ApplicationStatus;
   selectedFactIds: string[];
   versions: ResumeVersion[];
   createdAt: string;
@@ -170,6 +172,7 @@ export default function App() {
   const [jobDraft, setJobDraft] = useState<Job>(EMPTY_JOB);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
+  const [applicationStatusBusy, setApplicationStatusBusy] = useState(false);
   const [selectedFactIDs, setSelectedFactIDs] = useState<string[]>([]);
   const [analysis, setAnalysis] = useState<JobAnalysis | null>(null);
   const [busy, setBusy] = useState(true);
@@ -344,6 +347,22 @@ export default function App() {
       setError(errorMessage(reason));
     } finally {
       setVersionBusy(false);
+    }
+  };
+
+  const updateApplicationStatus = async (status: ApplicationStatus) => {
+    if (!currentApplication || currentApplication.status === status) return;
+    setApplicationStatusBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const updated = await UpdateApplicationStatus({ applicationId: currentApplication.id, status });
+      setApplications((current) => current.map((application) => application.id === currentApplication.id ? updated as unknown as Application : application));
+      setMessage(`Application marked ${status}.`);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setApplicationStatusBusy(false);
     }
   };
 
@@ -742,8 +761,9 @@ export default function App() {
       const projectDrafts = (savedProjects as unknown as Project[]).map(projectToDraft);
       setProjects(projectDrafts);
       setSelectedProjectKeys((current) => current.filter((key) => projectDrafts.some((project) => project.key === key && isProjectSelectable(project))));
-      const fallbackNote = result.languageFallbacks ? ` ${result.languageFallbacks} repositories used primary-language fallback because GitHub language details were unavailable.` : "";
-      setMessage(`GitHub sync complete: ${result.imported} imported, ${result.updated} refreshed, ${result.skipped} skipped.${fallbackNote}`);
+      const languageNote = result.languageFallbacks ? ` ${result.languageFallbacks} repositories used primary-language fallback because GitHub language details were unavailable.` : "";
+      const readmeNote = result.readmeFallbacks ? ` ${result.readmeFallbacks} README snapshots could not be refreshed.` : "";
+      setMessage(`GitHub sync complete: ${result.imported} imported, ${result.updated} refreshed, ${result.skipped} skipped.${languageNote}${readmeNote}`);
     } catch (reason) {
       setError(errorMessage(reason));
     } finally {
@@ -996,7 +1016,7 @@ export default function App() {
             {view === "skills" && <SkillsWorkspace skillsText={skillsText} busy={busy} message={message} onChange={setSkillsText} onSubmit={saveProfile} />}
             {view === "templates" && <TemplatesWorkspace templates={templates} selectedID={selectedTemplateID} busyKey={templateBusyKey} onImport={importResumeTemplate} onUse={(id) => useResumeTemplate(id)} onEdit={(id) => useResumeTemplate(id, true)} onDuplicate={duplicateResumeTemplate} onDelete={deleteResumeTemplate} />}
             {view === "latex" && <LatexWorkspace source={latexSource} template={activeTemplate} result={compileResult} busy={templateBusyKey !== ""} compiling={compileBusy} versionBusy={versionBusy} hasOpenVersion={openVersionID !== ""} versionDirty={openVersionID !== "" && latexSource !== savedVersionSource} onChange={updateLatexSource} onSave={saveCurrentTemplate} onSaveVersion={saveResumeVersionEdit} onReload={() => useResumeTemplate(selectedTemplateID)} onCompile={compileLatex} onExport={exportLatexSource} />}
-            {view === "job" && <JobTailor job={jobDraft} jobs={jobs} application={currentApplication} analysis={analysis} selectedFactIDs={selectedFactIDs} busy={busy} versionBusy={versionBusy} hasEvidence={hasCareerEvidence} templateName={activeTemplate?.name ?? "Selected template"} onChange={updateJobDraft} onNew={newJob} onOpen={openJob} onDelete={deleteJob} onToggleEvidence={toggleEvidenceFact} onCreateVersion={createResumeVersion} onOpenVersion={openResumeVersion} onSubmit={analyzeJob} onProfile={() => setView("skills")} />}
+            {view === "job" && <JobTailor job={jobDraft} jobs={jobs} application={currentApplication} analysis={analysis} selectedFactIDs={selectedFactIDs} busy={busy} versionBusy={versionBusy} statusBusy={applicationStatusBusy} hasEvidence={hasCareerEvidence} templateName={activeTemplate?.name ?? "Selected template"} onChange={updateJobDraft} onNew={newJob} onOpen={openJob} onDelete={deleteJob} onToggleEvidence={toggleEvidenceFact} onCreateVersion={createResumeVersion} onOpenVersion={openResumeVersion} onStatusChange={updateApplicationStatus} onSubmit={analyzeJob} onProfile={() => setView("skills")} />}
             {view === "ai" && <AIWorkspace provider={aiProvider} endpoint={ollamaEndpoint} status={aiProviderStatus} model={aiProvider === "ollama" ? ollamaModel : geminiModel} credential={geminiCredential} apiKey={geminiAPIKey} run={aiRun} runs={aiRuns} proposals={reviewedProposals} acceptedProposalIDs={acceptedProposalIDs} job={jobDraft} analysis={analysis} selectedFactIDs={selectedFactIDs} templateName={activeTemplate?.name ?? "Selected template"} busy={aiBusy} onProviderChange={changeAIProvider} onEndpointChange={(value) => { setOllamaEndpoint(value); setAIProviderStatus(null); }} onModelChange={changeAIModel} onAPIKeyChange={setGeminiAPIKey} onSaveCredential={saveGeminiCredential} onDeleteCredential={deleteGeminiCredential} onCheck={checkAIProvider} onGenerate={generateAITailoring} onCancel={cancelAITailoring} onProposalChange={updateReviewedProposal} onToggleProposal={toggleAcceptedProposal} onAccept={acceptAITailoring} onOpenJob={() => setView("job")} />}
             {view === "data" && <DataWorkspace profile={profile} experiences={experiences} projects={projects} educations={educations} jobs={jobs} applications={applications} busy={backupBusy} lastResult={lastBackupResult} onExport={exportBackup} onImport={importBackup} />}
           </div>
@@ -1212,7 +1232,7 @@ function LatexCodeEditor({ value, focusLine, onChange }: { value: string; focusL
 function DataWorkspace({ profile, experiences, projects, educations, jobs, applications, busy, lastResult, onExport, onImport }: { profile: Profile; experiences: ExperienceDraft[]; projects: ProjectDraft[]; educations: EducationDraft[]; jobs: Job[]; applications: Application[]; busy: "export" | "import" | ""; lastResult: domain.BackupResult | null; onExport: () => void; onImport: () => void }) {
   const evidenceCount = experiences.reduce((sum, experience) => sum + experience.bullets.length, 0) + projects.reduce((sum, project) => sum + project.bullets.length, 0);
   const versionCount = applications.reduce((sum, application) => sum + application.versions.length, 0);
-  return <section className="workspace-panel scroll-panel data-workspace"><PanelHeader eyebrow="Local data" title="Backup & restore" description="Keep a portable, versioned copy of your complete TailorCV profile." /><div className="backup-content"><section className="backup-summary"><header><span className="empty-icon"><Icon name="database" size={22} /></span><div><h2>Current local profile</h2><p>Everything listed here is included in one JSON backup.</p></div></header><div className="backup-stat-grid"><div><strong>{profile.name ? "1" : "0"}</strong><span>profile</span></div><div><strong>{experiences.length}</strong><span>roles</span></div><div><strong>{projects.length}</strong><span>projects</span></div><div><strong>{educations.length}</strong><span>education</span></div><div><strong>{jobs.length}</strong><span>jobs</span></div><div><strong>{applications.length}</strong><span>applications</span></div><div><strong>{versionCount}</strong><span>versions</span></div><div><strong>{profile.skills.length}</strong><span>skills</span></div><div><strong>{evidenceCount}</strong><span>evidence</span></div></div></section><section className="backup-action-card"><div><span className="backup-action-icon"><Icon name="download" size={20} /></span><h2>Export backup</h2><p>Write an owner-readable JSON snapshot using a native save dialog. IDs, ordering, verification state, and timestamps are preserved.</p></div><button className="primary-button" disabled={busy !== ""} onClick={onExport}>{busy === "export" ? "Exporting…" : "Choose destination"}</button></section><section className="backup-action-card restore"><div><span className="backup-action-icon"><Icon name="refresh" size={20} /></span><h2>Restore backup</h2><p>The entire file is validated before a single transaction replaces current data. Invalid or unsupported backups leave this profile untouched.</p></div><button className="secondary-button" disabled={busy !== ""} onClick={onImport}>{busy === "import" ? "Restoring…" : "Choose backup"}</button></section>{lastResult && <section className="backup-result"><span className="status-dot" /><div><strong>Last operation completed</strong><p>{lastResult.applicationCount} applications · {lastResult.resumeVersionCount} resume versions · {lastResult.templateCount} templates · {lastResult.aiRunCount} AI runs</p><small>{lastResult.path}</small></div></section>}<div className="backup-safety"><strong>Backup format v3</strong><p>Backups include custom templates, auditable AI runs, and non-secret AI preferences, but never provider credentials, generated PDFs, compiler caches, or local model data.</p></div></div></section>;
+  return <section className="workspace-panel scroll-panel data-workspace"><PanelHeader eyebrow="Local data" title="Backup & restore" description="Keep a portable, versioned copy of your complete TailorCV profile." /><div className="backup-content"><section className="backup-summary"><header><span className="empty-icon"><Icon name="database" size={22} /></span><div><h2>Current local profile</h2><p>Everything listed here is included in one JSON backup.</p></div></header><div className="backup-stat-grid"><div><strong>{profile.name ? "1" : "0"}</strong><span>profile</span></div><div><strong>{experiences.length}</strong><span>roles</span></div><div><strong>{projects.length}</strong><span>projects</span></div><div><strong>{educations.length}</strong><span>education</span></div><div><strong>{jobs.length}</strong><span>jobs</span></div><div><strong>{applications.length}</strong><span>applications</span></div><div><strong>{versionCount}</strong><span>versions</span></div><div><strong>{profile.skills.length}</strong><span>skills</span></div><div><strong>{evidenceCount}</strong><span>evidence</span></div></div></section><section className="backup-action-card"><div><span className="backup-action-icon"><Icon name="download" size={20} /></span><h2>Export backup</h2><p>Write an owner-readable JSON snapshot using a native save dialog. IDs, ordering, verification state, and timestamps are preserved.</p></div><button className="primary-button" disabled={busy !== ""} onClick={onExport}>{busy === "export" ? "Exporting…" : "Choose destination"}</button></section><section className="backup-action-card restore"><div><span className="backup-action-icon"><Icon name="refresh" size={20} /></span><h2>Restore backup</h2><p>The entire file is validated before a single transaction replaces current data. Invalid or unsupported backups leave this profile untouched.</p></div><button className="secondary-button" disabled={busy !== ""} onClick={onImport}>{busy === "import" ? "Restoring…" : "Choose backup"}</button></section>{lastResult && <section className="backup-result"><span className="status-dot" /><div><strong>Last operation completed</strong><p>{lastResult.applicationCount} applications · {lastResult.resumeVersionCount} resume versions · {lastResult.templateCount} templates · {lastResult.aiRunCount} AI runs</p><small>{lastResult.path}</small></div></section>}<div className="backup-safety"><strong>Backup format v4</strong><p>Backups include GitHub repository metadata, custom templates, auditable AI runs, and non-secret AI preferences, but never provider credentials, generated PDFs, compiler caches, or local model data.</p></div></div></section>;
 }
 
 function ResumePreview({ profile, experiences, projects, educations, compileResult }: { profile: Profile; experiences: ExperienceDraft[]; projects: ProjectDraft[]; educations: EducationDraft[]; compileResult: domain.CompileResult | null }) {
@@ -1595,6 +1615,7 @@ function ProjectCard({ project, busy, onUpdate, onSave, onDelete }: {
           <Field label="Project URL" type="url" value={project.url} onChange={(value) => updateField("url", value)} placeholder="https://example.com/project" />
           <Field label="Repository URL" type="url" value={project.repositoryUrl} onChange={(value) => updateField("repositoryUrl", value)} placeholder="https://github.com/owner/repository" />
         </div>
+        {project.provenance === "github" && <section className="repository-metadata"><header><div><strong>GitHub repository snapshot</strong><p>Reference metadata from the latest successful public sync.</p></div><span>{project.repositoryVisibility || "public"}</span></header><div><small>Repository ID</small><strong>{project.repositoryId || "Unavailable"}</strong><small>Updated on GitHub</small><strong>{project.repositoryUpdatedAt ? new Date(project.repositoryUpdatedAt).toLocaleString() : "Unavailable"}</strong></div><details><summary>README snapshot{project.repositoryReadme ? "" : " unavailable"}</summary><pre>{project.repositoryReadme || "No README content was returned by GitHub."}</pre></details></section>}
         <label className="field full">
           <span>Technologies and skills</span>
           <textarea rows={2} value={project.skillsText} onChange={(event) => updateField("skillsText", event.target.value)} placeholder="Go, React, SQLite, Docker" />
@@ -1687,7 +1708,7 @@ function Field({ label, value, placeholder, type = "text", prefix, disabled = fa
   return <label className="field"><span>{label}</span><div className={prefix ? "prefixed-input" : ""}>{prefix && <em>{prefix}</em>}<input type={type} value={value} placeholder={placeholder} disabled={disabled} required={required} onChange={(event) => onChange(event.target.value)} /></div></label>;
 }
 
-function JobTailor({ job, jobs, application, analysis, selectedFactIDs, busy, versionBusy, hasEvidence, templateName, onChange, onNew, onOpen, onDelete, onToggleEvidence, onCreateVersion, onOpenVersion, onSubmit, onProfile }: {
+function JobTailor({ job, jobs, application, analysis, selectedFactIDs, busy, versionBusy, statusBusy, hasEvidence, templateName, onChange, onNew, onOpen, onDelete, onToggleEvidence, onCreateVersion, onOpenVersion, onStatusChange, onSubmit, onProfile }: {
   job: Job;
   jobs: Job[];
   application?: Application;
@@ -1695,6 +1716,7 @@ function JobTailor({ job, jobs, application, analysis, selectedFactIDs, busy, ve
   selectedFactIDs: string[];
   busy: boolean;
   versionBusy: boolean;
+  statusBusy: boolean;
   hasEvidence: boolean;
   templateName: string;
   onChange: (field: "company" | "role" | "description", value: string) => void;
@@ -1704,6 +1726,7 @@ function JobTailor({ job, jobs, application, analysis, selectedFactIDs, busy, ve
   onToggleEvidence: (factID: string) => void;
   onCreateVersion: () => void;
   onOpenVersion: (version: ResumeVersion) => void;
+  onStatusChange: (status: ApplicationStatus) => void;
   onSubmit: (event: FormEvent) => void;
   onProfile: () => void;
 }) {
@@ -1725,7 +1748,7 @@ function JobTailor({ job, jobs, application, analysis, selectedFactIDs, busy, ve
           {analysis && <div className="version-action"><div><strong>{selectedFactIDs.length} facts selected</strong><span>Render with {templateName} and preserve an immutable job snapshot.</span></div><button className="primary-button" disabled={versionBusy || selectedFactIDs.length === 0} onClick={onCreateVersion}>{versionBusy ? "Saving version…" : "Save resume version"}</button></div>}
         </section>
       </div>
-      {application && application.versions.length > 0 && <section className="version-history"><div className="saved-jobs-heading"><strong>Resume history</strong><span>{application.versions.length}</span></div><div>{application.versions.map((version) => <article key={version.id}><div><strong>Version {version.versionNumber}</strong><span>{version.selectedFactIds.length} facts · {new Date(version.createdAt).toLocaleString()}</span><small>{version.pdfAvailable ? `PDF saved · ${version.compileEngine}` : version.compiledAt ? "Compilation needs attention" : "Not compiled as a saved artifact"}</small></div><button className="text-button" onClick={() => onOpenVersion(version)}>Open source</button></article>)}</div></section>}
+      {application && application.versions.length > 0 && <section className="version-history"><div className="application-history-heading"><div className="saved-jobs-heading"><strong>Resume history</strong><span>{application.versions.length}</span></div><ApplicationStatusControl status={application.status} busy={statusBusy} onChange={onStatusChange} /></div><div>{application.versions.map((version) => <article key={version.id}><div><strong>Version {version.versionNumber}</strong><span>{version.selectedFactIds.length} facts · {new Date(version.createdAt).toLocaleString()}</span><small>{version.pdfAvailable ? `PDF saved · ${version.compileEngine}` : version.compiledAt ? "Compilation needs attention" : "Not compiled as a saved artifact"}</small></div><button className="text-button" onClick={() => onOpenVersion(version)}>Open source</button></article>)}</div></section>}
     </section>
   );
 }

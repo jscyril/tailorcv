@@ -78,6 +78,11 @@ that the application can currently select: experience bullets and reviewed
 project facts. Certifications, achievements, and additional link types require
 their own domain models before a later schema version can include them.
 
+Certifications, achievements, and arbitrary professional contact links remain
+in the v1 profile boundary. They will be added as evidence-backed domain models,
+but they will not be added to the structured AI contract until a later schema
+version can preserve the same citation and review guarantees.
+
 ## LaTeX and PDF safety
 
 - Models generate structured resume content, never executable LaTeX.
@@ -99,7 +104,7 @@ their own domain models before a later schema version can include them.
 ### 2. GitHub ingestion
 
 - Import public profile and repository metadata without authentication where possible.
-- Add optional authenticated access stored in the OS credential manager.
+- Defer authenticated/private repository access until after v1; v1 imports only public repositories and does not request a GitHub credential.
 - Import descriptions, topics, language totals, README text, URLs, visibility, fork status, and update timestamps.
 - Require review before imported repositories become resume-eligible projects.
 

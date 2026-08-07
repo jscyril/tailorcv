@@ -4,18 +4,22 @@ import "testing"
 
 func TestProjectInputValidateNormalizesMetadata(t *testing.T) {
 	project, err := (ProjectInput{
-		Name:           "  Release   Console ",
-		Role:           " Maintainer ",
-		RepositoryURL:  "https://github.com/example/release-console",
-		Ongoing:        true,
-		EndDate:        "2025-01",
-		ResumeEligible: true,
-		Skills:         []string{" Go ", "go", "SQLite"},
+		Name:                 "  Release   Console ",
+		Role:                 " Maintainer ",
+		RepositoryURL:        "https://github.com/example/release-console",
+		RepositoryID:         42,
+		RepositoryReadme:     "# Release Console",
+		RepositoryVisibility: "PUBLIC",
+		RepositoryUpdatedAt:  "2026-08-01T12:00:00Z",
+		Ongoing:              true,
+		EndDate:              "2025-01",
+		ResumeEligible:       true,
+		Skills:               []string{" Go ", "go", "SQLite"},
 	}).Validate()
 	if err != nil {
 		t.Fatalf("Validate() error = %v", err)
 	}
-	if project.Name != "Release Console" || project.EndDate != "" || len(project.Skills) != 2 {
+	if project.Name != "Release Console" || project.EndDate != "" || project.RepositoryID != 42 || project.RepositoryVisibility != "public" || project.RepositoryReadme != "# Release Console" || len(project.Skills) != 2 {
 		t.Fatalf("Project = %#v", project)
 	}
 	if project.Provenance != ProvenanceManual || project.Verification != VerificationUnverified {
@@ -32,6 +36,9 @@ func TestProjectInputValidateRejectsInvalidMetadata(t *testing.T) {
 	_, err = (ProjectInput{Name: "Example", StartDate: "2025-01", EndDate: "2024-01"}).Validate()
 	if err == nil {
 		t.Fatal("Validate() expected date error")
+	}
+	if _, err = (ProjectInput{Name: "Example", RepositoryVisibility: "secret"}).Validate(); err == nil {
+		t.Fatal("Validate() expected repository visibility error")
 	}
 }
 

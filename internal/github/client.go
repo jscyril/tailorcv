@@ -30,6 +30,7 @@ type Client struct {
 }
 
 type repositoryResponse struct {
+	ID          int64    `json:"id"`
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
 	HTMLURL     string   `json:"html_url"`
@@ -38,6 +39,8 @@ type repositoryResponse struct {
 	Topics      []string `json:"topics"`
 	Fork        bool     `json:"fork"`
 	Archived    bool     `json:"archived"`
+	Visibility  string   `json:"visibility"`
+	UpdatedAt   string   `json:"updated_at"`
 }
 
 func NewClient(httpClient *http.Client) *Client {
@@ -54,6 +57,7 @@ func (c *Client) ListPublicRepositories(ctx context.Context, username string) ([
 	}
 	repositories := make([]domain.GitHubRepository, 0)
 	languageRequestsAvailable := true
+	readmeRequestsAvailable := true
 	for page := 1; page <= maxPages; page++ {
 		endpoint, err := url.Parse(c.baseURL + "/users/" + url.PathEscape(username) + "/repos")
 		if err != nil {
@@ -84,9 +88,11 @@ func (c *Client) ListPublicRepositories(ctx context.Context, username string) ([
 		}
 		for _, repository := range pageRepositories {
 			item := domain.GitHubRepository{
+				ID:   repository.ID,
 				Name: repository.Name, Description: repository.Description, HTMLURL: repository.HTMLURL,
 				Homepage: repository.Homepage, Language: repository.Language, Topics: repository.Topics,
-				Fork: repository.Fork, Archived: repository.Archived,
+				Fork: repository.Fork, Archived: repository.Archived, Visibility: repository.Visibility,
+				UpdatedAt: repository.UpdatedAt,
 			}
 			if !repository.Fork && !repository.Archived && repository.Language != "" && languageRequestsAvailable {
 				languages, err := c.listRepositoryLanguages(ctx, username, repository.Name)
@@ -99,6 +105,17 @@ func (c *Client) ListPublicRepositories(ctx context.Context, username string) ([
 					return nil, ctx.Err()
 				}
 			}
+			if !repository.Fork && !repository.Archived && readmeRequestsAvailable {
+				readme, err := c.getRepositoryReadme(ctx, username, repository.Name)
+				if err == nil {
+					item.Readme = readme
+					item.ReadmeComplete = true
+				} else if errors.Is(err, errRateLimit) {
+					readmeRequestsAvailable = false
+				} else if ctx.Err() != nil {
+					return nil, ctx.Err()
+				}
+			}
 			repositories = append(repositories, item)
 		}
 		if len(pageRepositories) < 100 {
@@ -106,6 +123,40 @@ func (c *Client) ListPublicRepositories(ctx context.Context, username string) ([
 		}
 	}
 	return repositories, nil
+}
+
+func (c *Client) getRepositoryReadme(ctx context.Context, owner, repository string) (string, error) {
+	endpoint := c.baseURL + "/repos/" + url.PathEscape(owner) + "/" + url.PathEscape(repository) + "/readme"
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return "", fmt.Errorf("create GitHub README request: %w", err)
+	}
+	request.Header.Set("Accept", "application/vnd.github.raw+json")
+	request.Header.Set("X-GitHub-Api-Version", apiVersion)
+	request.Header.Set("User-Agent", "TailorCV/0.1")
+	response, err := c.httpClient.Do(request)
+	if err != nil {
+		return "", fmt.Errorf("fetch GitHub repository README: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode == http.StatusNotFound {
+		return "", nil
+	}
+	if response.StatusCode == http.StatusForbidden || response.StatusCode == http.StatusTooManyRequests {
+		return "", errRateLimit
+	}
+	if response.StatusCode != http.StatusOK {
+		message, _ := io.ReadAll(io.LimitReader(response.Body, 1024))
+		return "", fmt.Errorf("GitHub README returned %s: %s", response.Status, strings.TrimSpace(string(message)))
+	}
+	data, err := io.ReadAll(io.LimitReader(response.Body, domain.MaxGitHubReadmeBytes+1))
+	if err != nil {
+		return "", fmt.Errorf("read GitHub repository README: %w", err)
+	}
+	if len(data) > domain.MaxGitHubReadmeBytes {
+		return "", fmt.Errorf("GitHub repository README exceeded the size limit")
+	}
+	return strings.TrimSpace(string(data)), nil
 }
 
 func (c *Client) listRepositoryLanguages(ctx context.Context, owner, repository string) ([]domain.RepositoryLanguage, error) {

@@ -13,7 +13,8 @@ import (
 
 func (s *Store) ListProjects(ctx context.Context) ([]domain.Project, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, name, role, description, url, repository_url, start_date, end_date,
+		SELECT id, name, role, description, url, repository_url, repository_id,
+		       repository_readme, repository_visibility, repository_updated_at, start_date, end_date,
 		       is_ongoing, provenance, verification_state, resume_eligible,
 		       position, created_at, updated_at
 		FROM projects
@@ -34,6 +35,10 @@ func (s *Store) ListProjects(ctx context.Context) ([]domain.Project, error) {
 			&project.Description,
 			&project.URL,
 			&project.RepositoryURL,
+			&project.RepositoryID,
+			&project.RepositoryReadme,
+			&project.RepositoryVisibility,
+			&project.RepositoryUpdatedAt,
 			&project.StartDate,
 			&project.EndDate,
 			&ongoing,
@@ -194,16 +199,21 @@ func (s *Store) SaveProject(ctx context.Context, project domain.Project) (domain
 	eligible := boolInt(project.ResumeEligible)
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO projects (
-			id, name, role, description, url, repository_url, start_date, end_date,
+			id, name, role, description, url, repository_url, repository_id,
+			repository_readme, repository_visibility, repository_updated_at, start_date, end_date,
 			is_ongoing, provenance, verification_state, resume_eligible,
 			position, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			role = excluded.role,
 			description = excluded.description,
 			url = excluded.url,
 			repository_url = excluded.repository_url,
+			repository_id = excluded.repository_id,
+			repository_readme = excluded.repository_readme,
+			repository_visibility = excluded.repository_visibility,
+			repository_updated_at = excluded.repository_updated_at,
 			start_date = excluded.start_date,
 			end_date = excluded.end_date,
 			is_ongoing = excluded.is_ongoing,
@@ -218,6 +228,10 @@ func (s *Store) SaveProject(ctx context.Context, project domain.Project) (domain
 		project.Description,
 		project.URL,
 		project.RepositoryURL,
+		project.RepositoryID,
+		project.RepositoryReadme,
+		project.RepositoryVisibility,
+		project.RepositoryUpdatedAt,
 		project.StartDate,
 		project.EndDate,
 		ongoing,

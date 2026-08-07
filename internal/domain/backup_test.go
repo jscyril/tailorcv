@@ -54,3 +54,13 @@ func TestDecodeProfileBackupUpgradesVersionOne(t *testing.T) {
 		t.Fatalf("upgraded backup = %#v", decoded)
 	}
 }
+
+func TestDecodeProfileBackupUpgradesVersionThreeWithoutRepositoryMetadata(t *testing.T) {
+	decoded, err := DecodeProfileBackup([]byte(`{"schemaVersion":3,"exportedAt":"2026-01-02T03:04:05Z","profile":{},"experiences":[],"projects":[],"educations":[],"aiSettings":{}}`))
+	if err != nil {
+		t.Fatalf("DecodeProfileBackup() error = %v", err)
+	}
+	if decoded.SchemaVersion != ProfileBackupSchemaVersion || decoded.AISettings.Provider != "ollama" {
+		t.Fatalf("upgraded backup = %#v", decoded)
+	}
+}

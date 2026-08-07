@@ -7,10 +7,15 @@ describe("toProjectInput", () => {
     draft.skillsText = " Go, TypeScript, go ";
     draft.ongoing = true;
     draft.endDate = "2025-02";
+    draft.repositoryId = 42;
+    draft.repositoryReadme = "# Fictional project";
+    draft.repositoryVisibility = "public";
+    draft.repositoryUpdatedAt = "2026-08-01T12:00:00Z";
 
     const input = toProjectInput(draft);
     expect(input.skills).toEqual(["Go", "TypeScript"]);
     expect(input.endDate).toBe("");
+    expect(input).toMatchObject({ repositoryId: 42, repositoryReadme: "# Fictional project", repositoryVisibility: "public", repositoryUpdatedAt: "2026-08-01T12:00:00Z" });
   });
 
   it("removes deleted and ineligible projects from resume selection", () => {
