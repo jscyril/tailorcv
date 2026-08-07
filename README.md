@@ -29,6 +29,7 @@ TailorCV has a complete deterministic resume-building vertical slice, local comp
 - Gemini model discovery and JSON-constrained generation behind the same contract, validator, cancellation, response limits, and review gate.
 - Native operating-system keyring storage for the Gemini API key, with write-only credential UI and separately persisted non-secret provider preferences.
 - Auditable AI-run history without secrets or raw prompts; failed provider and validation runs are recorded safely.
+- End-to-end service tests for deterministic and recorded-Ollama resume workflows, plus React integration tests that exercise the corresponding Wails binding calls.
 
 See [PLAN.md](PLAN.md) for the product architecture and delivery milestones.
 

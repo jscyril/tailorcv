@@ -17,7 +17,7 @@ TailorCV is a local-first desktop application that turns a reusable, evidence-ba
 
 - **Desktop framework:** Wails v2, using Go directly as the desktop backend.
 - **Frontend:** React, TypeScript, and Vite.
-- **UI:** Tailwind CSS and shadcn/ui; React Hook Form and Zod for forms and validation.
+- **UI:** Purpose-built CSS and small React components with local state. Go domain validation remains authoritative; add a frontend form/schema library only when a measured form-maintenance problem justifies the dependency and migration cost.
 - **Editors and preview:** CodeMirror 6 for LaTeX editing and PDF.js for embedded PDF preview.
 - **Backend:** Go, organized as testable domain services exposed through generated Wails bindings.
 - **Storage:** SQLite through `database/sql` and the CGO-free `modernc.org/sqlite` driver. Migrations are embedded in the executable.

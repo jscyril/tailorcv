@@ -11,9 +11,9 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 ## Repository state at this handoff
 
 - Branch: `main`, tracking `origin/main`.
-- Baseline before this implementation set: `de32578 feat: add application lifecycle and GitHub metadata`.
-- This handoff includes the certifications, achievements, professional-links, and ranking-signal implementation.
-- The implementation set was verified, committed, and pushed together; the worktree is clean at handoff.
+- Baseline before the active implementation set: `0099ce3 feat: add credentials and evidence ranking signals`.
+- This handoff resolves the v1 frontend-stack decision and adds deterministic and recorded-Ollama workflow coverage at the Go service and React/Wails-binding boundaries.
+- The implementation set was fully verified, committed, and pushed; the worktree is clean at handoff.
 - No license has been selected.
 
 ## Implemented product capabilities
@@ -39,6 +39,7 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 - Gemini model discovery and JSON-constrained generation behind the shared provider contract, evidence validator, cancellation, response limits, and recorded contract tests.
 - Gemini API keys live only in the native operating-system keyring. The React credential field is write-only after save; SQLite stores only provider, endpoint, and model preferences.
 - The AI workspace is isolated in `frontend/src/features/ai/AIWorkspace.tsx`; React DOM integration tests cover both provider setup paths, credential states, connection/model selection, cancellation, blocked validation, proposal editing/exclusion, and acceptance.
+- `workflow_test.go` exercises deterministic analysis, evidence selection, immutable creation/edit history, and recorded-Ollama generation/acceptance through the Go `App` service boundary. `frontend/src/App.workflow.test.tsx` exercises deterministic version creation and recorded-Ollama review/acceptance through mocked generated Wails bindings.
 - `TestLiveProviderContract` is an opt-in Ollama/Gemini harness using fictional evidence and the production decoder. It never prints raw provider output or persists an API key.
 - Side-by-side original/proposed evidence review with per-proposal edit/include controls before creating a new immutable resume version.
 - Auditable AI runs record provider, model, prompt/schema versions, selected fact IDs, validation outcome, failure category, proposals, acceptance timestamp, and resume-version linkage without raw prompts or secrets.
@@ -49,6 +50,7 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 ## Important architecture and invariants
 
 - React calls Go only through Wails bindings. Frontend code must not access SQLite, GitHub, credentials, or the native filesystem directly.
+- The v1 frontend deliberately retains purpose-built CSS and local React component state. Tailwind, shadcn/ui, React Hook Form, and Zod are not required dependencies; Go domain validation remains authoritative. Add a frontend library only for a measured maintenance or UX problem, and split `App.tsx` incrementally as workflow tests are added.
 - `internal/domain` owns validation and deterministic business rules.
 - `internal/storage` owns SQLite persistence and migrations. Migration 10 adds resume hash, ranking, compilation, and artifact metadata; migration 11 adds auditable AI runs; migration 12 adds public GitHub repository identity and snapshot metadata; migration 13 adds contact links, certifications, and achievements; migration 14 adds evidence importance.
 - Evidence importance is stored per experience/project bullet as `standard`, `important`, or `essential`, contributing 0/6/12 ranking points. Recency is derived at analysis time: current work adds 8, an end date within two years adds 6, and an end date within five years adds 3. These bonuses apply only after skill, term, or indexed search establishes relevance.
@@ -76,7 +78,7 @@ npm --prefix frontend run build
 At this handoff:
 
 - All Go package tests pass.
-- All 22 frontend unit and React integration tests pass.
+- All 24 frontend unit and React integration tests pass.
 - TypeScript checking passes.
 - The Vite production build passes.
 - The opt-in production-contract test passes against local `gemma4:12b` using fictional evidence.
@@ -87,10 +89,9 @@ At this handoff:
 
 The next major milestone is remaining v1 product work and platform hardening:
 
-1. Resolve the documented frontend stack drift deliberately; keep the current custom CSS/component-state approach unless a migration has a concrete maintenance or UX benefit.
+1. Extend workflow coverage to compile → reopen → export, backup/restore, onboarding, and GitHub review, including a packaged Wails runtime where native dialogs or filesystem behavior matter.
 2. Add a later AI schema version only if certifications and achievements can retain the same evidence citation and review guarantees.
 3. Verify native credential set/get/delete behavior in packaged Windows, macOS, and Linux builds.
-4. Expand from focused component/service tests to end-to-end no-AI and provider workflows through Wails bindings.
 
 Authenticated/private GitHub access is explicitly post-v1. The v1 UI remains public-only and stores no GitHub credential.
 
@@ -98,7 +99,7 @@ Release-hardening work that remains:
 
 - Ship and verify pinned Tectonic binaries/resources for Windows, macOS, and Linux rather than only supporting the runtime lookup hook.
 - Add a true offline Tectonic integration fixture and platform CI coverage.
-- Add end-to-end tests for edit → save new version → compile → reopen → export.
+- Extend the delivered edit/version workflow test through compile → reopen → export.
 - Consider code splitting the editor bundle further; PDF.js is already lazy-loaded.
 
 ## Delivery workflow note

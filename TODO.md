@@ -17,11 +17,11 @@ Last audited: 2026-08-08
 - [x] Compile LaTeX with Tectonic in an isolated untrusted workspace and return structured diagnostics.
 - [x] Preview compiled PDFs with lazy-loaded PDF.js and persist private PDF artifacts for saved versions.
 - [x] Export and atomically restore versioned JSON backups for the currently supported profile, job, application, and resume-source data.
-- [x] Pass the Go tests, 22 frontend unit and React integration tests, TypeScript check, production frontend build, and `go vet` as of the audit date.
+- [x] Pass the Go tests, 24 frontend unit and React integration tests, TypeScript check, production frontend build, and `go vet` as of the audit date.
 
 ## Evidence-constrained AI
 
-The provider contract, Ollama and Gemini paths, persistence, review gate, focused React integration coverage, and opt-in live validation harness are delivered. Full Wails end-to-end coverage remains.
+The provider contract, Ollama and Gemini paths, persistence, review gate, service-boundary and mocked-Wails React workflow coverage, and opt-in live validation harness are delivered. Native packaged Wails end-to-end coverage remains.
 
 ### 1. Freeze the contract and trust boundary
 
@@ -63,7 +63,7 @@ The provider contract, Ollama and Gemini paths, persistence, review gate, focuse
 - [x] Add retry and cancel controls without allowing duplicate accepted versions.
 - [x] Add focused React integration coverage for provider setup, write-only credentials, connection/model selection, cancellation, blocked runs, proposal editing, exclusion, and acceptance.
 - [x] Add an opt-in live-provider harness that uses fictional evidence and the production validator without logging raw output.
-- [ ] Test the full no-AI and Ollama paths at the Go service boundary and in the React UI.
+- [x] Test the full no-AI and recorded Ollama paths at the Go service boundary and through mocked Wails bindings in the React UI.
 
 ## Product and data-model gaps
 
@@ -76,7 +76,7 @@ These are already named or implied by `PLAN.md`, but are not implemented in the 
 - [x] Complete the planned public GitHub metadata set: bounded README content, visibility, repository update timestamps, and stable repository IDs.
 - [x] Defer authenticated/private GitHub access until post-v1; align `PLAN.md` and retain the public-only UI without a GitHub credential.
 - [x] Add explicit standard/important/essential priority to evidence bullets and derive explainable recency bonuses from role/project dates without admitting otherwise irrelevant evidence.
-- [ ] Resolve stack drift deliberately: Tailwind, shadcn/ui, React Hook Form, and Zod are listed in `PLAN.md` but the app currently uses custom CSS and component state. Avoid a migration unless it has a concrete maintenance or UX benefit.
+- [x] Resolve frontend stack drift for v1: retain the established custom CSS and local component-state approach, keep Go validation authoritative, and add libraries only for a measured maintenance or UX need.
 - [x] Update `README.md` status after the next delivery; it currently says the templates-and-compilation milestone is still being finished even though the handoff marks it complete.
 
 ## Gemini and credential storage
@@ -95,11 +95,11 @@ These are already named or implied by `PLAN.md`, but are not implemented in the 
 - [ ] Add platform CI for Go tests, frontend tests/type checking/builds, migrations, and packaged Wails builds.
 - [x] Compile-check the OS credential adapter for Linux amd64, macOS amd64/arm64, and Windows amd64.
 - [ ] Run native credential set/get/delete verification in packaged Windows, macOS, and Linux applications.
-- [ ] Add end-to-end coverage for onboarding, profile creation, GitHub import/review, job analysis, evidence selection, version creation, edit, compile, reopen, backup/restore, and export.
+- [ ] Extend end-to-end coverage beyond the delivered job-analysis/version and recorded-Ollama workflows to onboarding, profile creation, GitHub import/review, compile, reopen, backup/restore, and export in a packaged Wails runtime.
 - [ ] Add security tests proving malicious job/model/template content cannot enable shell escape, read arbitrary files, or write outside the compile workspace.
 - [ ] Add accessibility testing and keyboard/focus checks for dialogs, navigation, forms, evidence selection, diagnostics, and the PDF workspace.
 - [ ] Add failure-recovery tests for interrupted backup restore, missing/corrupt PDF artifacts, unavailable compilers/providers, and database migration failure.
-- [ ] Add focused tests around `app.go`; current package-level statement coverage is 7.1%, and the 1,609-line `App.tsx` has no component/integration tests.
+- [ ] Continue focused `app.go` and `App.tsx` tests beyond the new deterministic and recorded-Ollama workflow coverage, prioritizing native-dialog, compiler, backup, and failure paths.
 - [ ] Split `App.tsx` into feature-focused modules as those tests are added; avoid a standalone rewrite.
 - [ ] Revisit editor bundle splitting after AI UI work. PDF.js is already lazy-loaded; the main production JS bundle was about 534 KB at the audit.
 - [ ] Select a license and contribution policy before the first public source release.
