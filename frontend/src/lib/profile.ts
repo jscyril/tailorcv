@@ -9,8 +9,11 @@ export type Profile = {
   linkedInUrl: string;
   summary: string;
   skills: string[];
+  contactLinks: ContactLink[];
   updatedAt?: string;
 };
+
+export type ContactLink = { id:string; label:string; url:string; position?:number; createdAt?:string; updatedAt?:string };
 
 export const emptyProfile: Profile = {
   name: "",
@@ -23,6 +26,7 @@ export const emptyProfile: Profile = {
   linkedInUrl: "",
   summary: "",
   skills: [],
+  contactLinks: [],
 };
 
 export function parseSkills(value: string): string[] {

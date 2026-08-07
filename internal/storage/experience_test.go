@@ -22,7 +22,7 @@ func TestExperienceCRUDPreservesEvidenceIDsAndOrder(t *testing.T) {
 		StartDate: "2023-01",
 		Current:   true,
 		Bullets: []domain.EvidenceBulletInput{
-			{Text: "Reduced deployment time", Verification: domain.VerificationVerified},
+			{Text: "Reduced deployment time", Verification: domain.VerificationVerified, Importance: domain.EvidenceImportanceEssential},
 			{Text: "Built the release service", Verification: domain.VerificationUnverified},
 		},
 	}).Validate()
@@ -52,7 +52,7 @@ func TestExperienceCRUDPreservesEvidenceIDsAndOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListExperiences() error = %v", err)
 	}
-	if len(got) != 1 || got[0].Title != "Senior Engineer" || got[0].Bullets[1].ID != firstID {
+	if len(got) != 1 || got[0].Title != "Senior Engineer" || got[0].Bullets[1].ID != firstID || got[0].Bullets[1].Importance != domain.EvidenceImportanceEssential {
 		t.Fatalf("ListExperiences() = %#v", got)
 	}
 

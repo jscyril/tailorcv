@@ -19,6 +19,8 @@ export function CompileResumeVersion(arg1:string):Promise<domain.CompileResult>;
 export function CreateResumeVersion(arg1:domain.CreateResumeVersionInput):Promise<domain.ApplicationResumeResult>;
 
 export function DeleteEducation(arg1:string):Promise<void>;
+export function DeleteCertification(arg1:string):Promise<void>;
+export function DeleteAchievement(arg1:string):Promise<void>;
 
 export function DeleteExperience(arg1:string):Promise<void>;
 
@@ -57,6 +59,8 @@ export function ListAIRuns():Promise<Array<domain.AIRun>>;
 export function ListApplications():Promise<Array<domain.Application>>;
 
 export function ListEducations():Promise<Array<domain.Education>>;
+export function ListCertifications():Promise<Array<domain.Certification>>;
+export function ListAchievements():Promise<Array<domain.Achievement>>;
 
 export function ListExperiences():Promise<Array<domain.Experience>>;
 
@@ -71,6 +75,8 @@ export function RenderResumeTemplate(arg1:string,arg2:Array<string>):Promise<str
 export function SaveAISettings(arg1:domain.AISettings):Promise<domain.AISettings>;
 
 export function SaveEducation(arg1:domain.EducationInput):Promise<domain.Education>;
+export function SaveCertification(arg1:domain.CertificationInput):Promise<domain.Certification>;
+export function SaveAchievement(arg1:domain.AchievementInput):Promise<domain.Achievement>;
 
 export function SaveExperience(arg1:domain.ExperienceInput):Promise<domain.Experience>;
 

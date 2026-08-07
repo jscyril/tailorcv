@@ -137,6 +137,51 @@ func (a *App) DeleteEducation(id string) error {
 	return a.store.DeleteEducation(a.appContext(), id)
 }
 
+func (a *App) ListCertifications() ([]domain.Certification, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	return a.store.ListCertifications(a.appContext())
+}
+func (a *App) SaveCertification(input domain.CertificationInput) (domain.Certification, error) {
+	if err := a.ready(); err != nil {
+		return domain.Certification{}, err
+	}
+	item, err := input.Validate()
+	if err != nil {
+		return domain.Certification{}, err
+	}
+	return a.store.SaveCertification(a.appContext(), item)
+}
+func (a *App) DeleteCertification(id string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return a.store.DeleteCertification(a.appContext(), id)
+}
+func (a *App) ListAchievements() ([]domain.Achievement, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	return a.store.ListAchievements(a.appContext())
+}
+func (a *App) SaveAchievement(input domain.AchievementInput) (domain.Achievement, error) {
+	if err := a.ready(); err != nil {
+		return domain.Achievement{}, err
+	}
+	item, err := input.Validate()
+	if err != nil {
+		return domain.Achievement{}, err
+	}
+	return a.store.SaveAchievement(a.appContext(), item)
+}
+func (a *App) DeleteAchievement(id string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return a.store.DeleteAchievement(a.appContext(), id)
+}
+
 // ListProjects returns manual and imported projects with their review state,
 // skills, and ordered evidence.
 func (a *App) ListProjects() ([]domain.Project, error) {
@@ -416,11 +461,19 @@ func (a *App) CreateResumeVersion(input domain.CreateResumeVersionInput) (domain
 	if err != nil {
 		return domain.ApplicationResumeResult{}, err
 	}
+	certifications, err := a.store.ListCertifications(a.appContext())
+	if err != nil {
+		return domain.ApplicationResumeResult{}, err
+	}
+	achievements, err := a.store.ListAchievements(a.appContext())
+	if err != nil {
+		return domain.ApplicationResumeResult{}, err
+	}
 	selectedExperiences, selectedProjects, err := selectResumeEvidence(validated.SelectedFactIDs, experiences, projects)
 	if err != nil {
 		return domain.ApplicationResumeResult{}, err
 	}
-	source := resume.Render(template.Source, resume.Data{Profile: profile, Experiences: selectedExperiences, Projects: selectedProjects, Educations: educations})
+	source := resume.Render(template.Source, resume.Data{Profile: profile, Experiences: selectedExperiences, Projects: selectedProjects, Educations: educations, Certifications: certifications, Achievements: achievements})
 	ranking, err := a.rankSelectedEvidence(job, profile, experiences, projects, validated.SelectedFactIDs)
 	if err != nil {
 		return domain.ApplicationResumeResult{}, err
@@ -657,6 +710,14 @@ func (a *App) RenderResumeTemplate(id string, selectedProjectIDs []string) (stri
 	if err != nil {
 		return "", err
 	}
+	certifications, err := a.store.ListCertifications(a.appContext())
+	if err != nil {
+		return "", err
+	}
+	achievements, err := a.store.ListAchievements(a.appContext())
+	if err != nil {
+		return "", err
+	}
 	selected := make(map[string]struct{}, len(selectedProjectIDs))
 	for _, projectID := range selectedProjectIDs {
 		selected[projectID] = struct{}{}
@@ -667,7 +728,7 @@ func (a *App) RenderResumeTemplate(id string, selectedProjectIDs []string) (stri
 			filteredProjects = append(filteredProjects, project)
 		}
 	}
-	return resume.Render(template.Source, resume.Data{Profile: profile, Experiences: experiences, Projects: filteredProjects, Educations: educations}), nil
+	return resume.Render(template.Source, resume.Data{Profile: profile, Experiences: experiences, Projects: filteredProjects, Educations: educations, Certifications: certifications, Achievements: achievements}), nil
 }
 
 // CompileLatex runs Tectonic without a shell in an isolated temporary folder.

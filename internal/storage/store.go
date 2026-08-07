@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jscyril/tailorcv/internal/domain"
 	_ "modernc.org/sqlite"
 )
@@ -123,6 +124,7 @@ func (s *Store) GetProfile(ctx context.Context) (domain.Profile, error) {
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		profile.Skills = []string{}
+		profile.ContactLinks = []domain.ContactLink{}
 		return profile, nil
 	}
 	if err != nil {
@@ -133,7 +135,6 @@ func (s *Store) GetProfile(ctx context.Context) (domain.Profile, error) {
 	if err != nil {
 		return domain.Profile{}, fmt.Errorf("read profile skills: %w", err)
 	}
-	defer rows.Close()
 	profile.Skills = []string{}
 	for rows.Next() {
 		var skill string
@@ -144,6 +145,25 @@ func (s *Store) GetProfile(ctx context.Context) (domain.Profile, error) {
 	}
 	if err := rows.Err(); err != nil {
 		return domain.Profile{}, fmt.Errorf("iterate profile skills: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return domain.Profile{}, fmt.Errorf("close profile skills: %w", err)
+	}
+	linkRows, err := s.db.QueryContext(ctx, `SELECT id, label, url, position, created_at, updated_at FROM contact_links ORDER BY position, created_at`)
+	if err != nil {
+		return domain.Profile{}, fmt.Errorf("read contact links: %w", err)
+	}
+	defer linkRows.Close()
+	profile.ContactLinks = []domain.ContactLink{}
+	for linkRows.Next() {
+		var link domain.ContactLink
+		if err := linkRows.Scan(&link.ID, &link.Label, &link.URL, &link.Position, &link.CreatedAt, &link.UpdatedAt); err != nil {
+			return domain.Profile{}, fmt.Errorf("scan contact link: %w", err)
+		}
+		profile.ContactLinks = append(profile.ContactLinks, link)
+	}
+	if err := linkRows.Err(); err != nil {
+		return domain.Profile{}, fmt.Errorf("iterate contact links: %w", err)
 	}
 	return profile, nil
 }
@@ -193,6 +213,46 @@ func (s *Store) SaveProfile(ctx context.Context, profile domain.Profile) (domain
 	for position, skill := range profile.Skills {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO profile_skills(position, name) VALUES (?, ?)`, position, skill); err != nil {
 			return domain.Profile{}, fmt.Errorf("write profile skill: %w", err)
+		}
+	}
+	createdLinks := make(map[string]string, len(profile.ContactLinks))
+	linkRows, err := tx.QueryContext(ctx, `SELECT id, created_at FROM contact_links`)
+	if err != nil {
+		return domain.Profile{}, fmt.Errorf("read existing contact links: %w", err)
+	}
+	for linkRows.Next() {
+		var id, created string
+		if err := linkRows.Scan(&id, &created); err != nil {
+			_ = linkRows.Close()
+			return domain.Profile{}, fmt.Errorf("scan existing contact link: %w", err)
+		}
+		createdLinks[id] = created
+	}
+	if err := linkRows.Err(); err != nil {
+		_ = linkRows.Close()
+		return domain.Profile{}, fmt.Errorf("iterate existing contact links: %w", err)
+	}
+	if err := linkRows.Close(); err != nil {
+		return domain.Profile{}, fmt.Errorf("close existing contact links: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM contact_links`); err != nil {
+		return domain.Profile{}, fmt.Errorf("replace contact links: %w", err)
+	}
+	for position := range profile.ContactLinks {
+		link := &profile.ContactLinks[position]
+		if link.ID == "" {
+			link.ID = uuid.NewString()
+		} else if _, err := uuid.Parse(link.ID); err != nil {
+			return domain.Profile{}, fmt.Errorf("contact link %d ID is not valid", position+1)
+		}
+		link.Position = position
+		link.CreatedAt = createdLinks[link.ID]
+		if link.CreatedAt == "" {
+			link.CreatedAt = profile.UpdatedAt
+		}
+		link.UpdatedAt = profile.UpdatedAt
+		if _, err := tx.ExecContext(ctx, `INSERT INTO contact_links(id,label,url,position,created_at,updated_at) VALUES(?,?,?,?,?,?)`, link.ID, link.Label, link.URL, position, link.CreatedAt, link.UpdatedAt); err != nil {
+			return domain.Profile{}, fmt.Errorf("write contact link: %w", err)
 		}
 	}
 	if err := tx.Commit(); err != nil {

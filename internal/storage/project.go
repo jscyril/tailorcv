@@ -129,7 +129,7 @@ func (s *Store) listProjectSkills(ctx context.Context, projectID string) ([]stri
 
 func (s *Store) listProjectBullets(ctx context.Context, projectID string) ([]domain.EvidenceBullet, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, text, provenance, source_url, verification_state, position, created_at, updated_at
+		SELECT id, text, provenance, source_url, verification_state, importance, position, created_at, updated_at
 		FROM project_bullets
 		WHERE project_id = ?
 		ORDER BY position
@@ -148,6 +148,7 @@ func (s *Store) listProjectBullets(ctx context.Context, projectID string) ([]dom
 			&bullet.Provenance,
 			&bullet.SourceURL,
 			&bullet.Verification,
+			&bullet.Importance,
 			&bullet.Position,
 			&bullet.CreatedAt,
 			&bullet.UpdatedAt,
@@ -298,8 +299,8 @@ func (s *Store) SaveProject(ctx context.Context, project domain.Project) (domain
 		_, err := tx.ExecContext(ctx, `
 			INSERT INTO project_bullets (
 				id, project_id, text, provenance, source_url,
-				verification_state, position, created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+				verification_state, importance, position, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`,
 			bullet.ID,
 			project.ID,
@@ -307,6 +308,7 @@ func (s *Store) SaveProject(ctx context.Context, project domain.Project) (domain
 			bullet.Provenance,
 			bullet.SourceURL,
 			bullet.Verification,
+			bullet.Importance,
 			bullet.Position,
 			bullet.CreatedAt,
 			bullet.UpdatedAt,

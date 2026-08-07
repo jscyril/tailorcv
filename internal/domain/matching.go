@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -67,6 +68,10 @@ func AnalyzeCareerEvidence(input JobAnalysisInput, profileSkills []string, exper
 }
 
 func AnalyzeCareerEvidenceWithSearch(input JobAnalysisInput, profileSkills []string, experiences []Experience, projects []Project, searchHits []EvidenceSearchHit) (JobAnalysis, error) {
+	return analyzeCareerEvidenceWithSearchAt(input, profileSkills, experiences, projects, searchHits, time.Now().UTC())
+}
+
+func analyzeCareerEvidenceWithSearchAt(input JobAnalysisInput, profileSkills []string, experiences []Experience, projects []Project, searchHits []EvidenceSearchHit, referenceDate time.Time) (JobAnalysis, error) {
 	job, err := input.JobInput().Validate()
 	if err != nil {
 		return JobAnalysis{}, err
@@ -126,7 +131,7 @@ func AnalyzeCareerEvidenceWithSearch(input JobAnalysisInput, profileSkills []str
 		analysis.Score = int(float64(len(analysis.MatchedSkills))/float64(len(normalizedProfileSkills))*100 + 0.5)
 	}
 	analysis.Explanation = fmt.Sprintf(
-		"%d of %d profile skills are explicitly requested. Evidence is ranked from exact skill overlap, shared role terms, indexed search, and verification state.",
+		"%d of %d profile skills are explicitly requested. Evidence is ranked from exact skill overlap, shared role terms, indexed search, verification state, your importance choices, and role or project recency.",
 		len(analysis.MatchedSkills), len(normalizedProfileSkills),
 	)
 
@@ -139,14 +144,16 @@ func AnalyzeCareerEvidenceWithSearch(input JobAnalysisInput, profileSkills []str
 	}
 	for _, experience := range experiences {
 		label := strings.TrimSpace(experience.Title + " · " + experience.Company)
+		recencyScore, recencyReason := evidenceRecency(experience.Current, experience.EndDate, "role", referenceDate)
 		for _, bullet := range experience.Bullets {
-			candidate := rankEvidence(bullet.ID, experience.ID, "experience", label, bullet.Text, bullet.Verification == VerificationVerified, false, nil, analysis.DetectedSkills, jobTerms, indexedScores[bullet.ID])
+			candidate := rankEvidence(bullet.ID, experience.ID, "experience", label, bullet.Text, bullet.Verification == VerificationVerified, false, bullet.Importance, recencyScore, recencyReason, nil, analysis.DetectedSkills, jobTerms, indexedScores[bullet.ID])
 			if candidate.Score > 0 {
 				analysis.RankedEvidence = append(analysis.RankedEvidence, candidate)
 			}
 		}
 	}
 	for _, project := range projects {
+		recencyScore, recencyReason := evidenceRecency(project.Ongoing, project.EndDate, "project", referenceDate)
 		projectSkills := make([]string, 0)
 		for _, skill := range appendProjectLanguages(project.Skills, project.DetectedLanguages) {
 			if mentionsSkill(description, skill) {
@@ -158,13 +165,13 @@ func AnalyzeCareerEvidenceWithSearch(input JobAnalysisInput, profileSkills []str
 			if text == "" {
 				text = project.Name
 			}
-			candidate := rankEvidence(project.ID, project.ID, "project", project.Name, text, project.Verification == VerificationVerified, project.ResumeEligible, projectSkills, analysis.DetectedSkills, jobTerms, indexedScores[project.ID])
+			candidate := rankEvidence(project.ID, project.ID, "project", project.Name, text, project.Verification == VerificationVerified, project.ResumeEligible, EvidenceImportanceStandard, recencyScore, recencyReason, projectSkills, analysis.DetectedSkills, jobTerms, indexedScores[project.ID])
 			if candidate.Score > 0 {
 				analysis.RankedEvidence = append(analysis.RankedEvidence, candidate)
 			}
 		}
 		for _, bullet := range project.Bullets {
-			candidate := rankEvidence(bullet.ID, project.ID, "project", project.Name, bullet.Text, bullet.Verification == VerificationVerified, project.ResumeEligible, projectSkills, analysis.DetectedSkills, jobTerms, indexedScores[bullet.ID])
+			candidate := rankEvidence(bullet.ID, project.ID, "project", project.Name, bullet.Text, bullet.Verification == VerificationVerified, project.ResumeEligible, bullet.Importance, recencyScore, recencyReason, projectSkills, analysis.DetectedSkills, jobTerms, indexedScores[bullet.ID])
 			if candidate.Score > 0 {
 				analysis.RankedEvidence = append(analysis.RankedEvidence, candidate)
 			}
@@ -186,7 +193,7 @@ func AnalyzeCareerEvidenceWithSearch(input JobAnalysisInput, profileSkills []str
 	return analysis, nil
 }
 
-func rankEvidence(factID, sourceID, sourceType, label, text string, verified, eligible bool, sourceSkills, detectedSkills []string, jobTerms map[string]struct{}, indexedScore int) EvidenceMatch {
+func rankEvidence(factID, sourceID, sourceType, label, text string, verified, eligible bool, importance EvidenceImportance, recencyScore int, recencyReason string, sourceSkills, detectedSkills []string, jobTerms map[string]struct{}, indexedScore int) EvidenceMatch {
 	matchedSkills := append([]string(nil), sourceSkills...)
 	for _, skill := range detectedSkills {
 		if mentionsSkill(text+" "+label, skill) {
@@ -218,10 +225,56 @@ func rankEvidence(factID, sourceID, sourceType, label, text string, verified, el
 		score += 6
 		reasons = append(reasons, "Project is resume eligible")
 	}
+	switch importance {
+	case EvidenceImportanceImportant:
+		score += 6
+		reasons = append(reasons, "Marked important by you")
+	case EvidenceImportanceEssential:
+		score += 12
+		reasons = append(reasons, "Marked essential by you")
+	}
+	if recencyScore > 0 {
+		score += recencyScore
+		reasons = append(reasons, recencyReason)
+	}
 	return EvidenceMatch{
 		FactID: factID, SourceID: sourceID, SourceType: sourceType, SourceLabel: label,
 		Text: text, Score: min(score, 100), MatchedSkills: matchedSkills, Reasons: reasons, Verified: verified, Selectable: sourceType != "project" || eligible,
 	}
+}
+
+func evidenceRecency(current bool, endDate, sourceLabel string, referenceDate time.Time) (int, string) {
+	if current {
+		if sourceLabel == "project" {
+			return 8, "Project is ongoing"
+		}
+		return 8, "Role is current"
+	}
+	if endDate == "" {
+		return 0, ""
+	}
+	ended, err := time.Parse("2006-01", endDate)
+	if err != nil {
+		return 0, ""
+	}
+	monthsAgo := (referenceDate.Year()-ended.Year())*12 + int(referenceDate.Month()-ended.Month())
+	if monthsAgo < 0 {
+		return 0, ""
+	}
+	if monthsAgo <= 24 {
+		return 6, capitalizeSourceLabel(sourceLabel) + " ended within 2 years"
+	}
+	if monthsAgo <= 60 {
+		return 3, capitalizeSourceLabel(sourceLabel) + " ended within 5 years"
+	}
+	return 0, ""
+}
+
+func capitalizeSourceLabel(sourceLabel string) string {
+	if sourceLabel == "project" {
+		return "Project"
+	}
+	return "Role"
 }
 
 func appendProjectLanguages(skills []string, languages []RepositoryLanguage) []string {

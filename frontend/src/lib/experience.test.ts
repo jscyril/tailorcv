@@ -20,4 +20,10 @@ describe("toExperienceInput", () => {
     draft.endDate = "2025-01";
     expect(toExperienceInput(draft).endDate).toBe("");
   });
+
+  it("includes evidence ranking priority", () => {
+    const draft = newExperienceDraft();
+    draft.bullets = [{ id: "", text: "Built a release system", provenance: "manual", sourceUrl: "", verification: "verified", importance: "essential" }];
+    expect(toExperienceInput(draft).bullets[0].importance).toBe("essential");
+  });
 });

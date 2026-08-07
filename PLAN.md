@@ -63,6 +63,8 @@ User data is stored in the operating system's application-data directory. The ap
 
 1. Normalize the pasted job description into role, seniority, responsibilities, required skills, preferred skills, and domain terms.
 2. Rank stored facts using explainable deterministic signals: exact skill overlap, term frequency, domain relevance, evidence quality, user importance, and recency.
+
+User importance is an explicit per-bullet `standard`, `important`, or `essential` choice. Recency is derived from the parent role/project dates: current work receives the strongest bonus, work ending within two years receives a smaller bonus, and work ending within five years receives a lighter bonus. Neither signal can make otherwise irrelevant evidence enter the ranked set.
 3. Optionally add semantic similarity from an Ollama or Gemini embedding provider. Do not require a vector database for the initial data scale.
 4. Allow the user to inspect, add, remove, or lock selected facts before generation.
 5. Send only the job requirements and selected facts to the configured text-generation provider.
@@ -75,13 +77,13 @@ The no-AI path selects and orders existing user-authored bullets using determini
 
 The first structured AI schema is intentionally limited to the evidence kinds
 that the application can currently select: experience bullets and reviewed
-project facts. Certifications, achievements, and additional link types require
-their own domain models before a later schema version can include them.
+project facts. Certifications, achievements, and additional link types now have
+domain models, but a later schema version is still required before AI can use them.
 
-Certifications, achievements, and arbitrary professional contact links remain
-in the v1 profile boundary. They will be added as evidence-backed domain models,
-but they will not be added to the structured AI contract until a later schema
-version can preserve the same citation and review guarantees.
+Certifications, achievements, and arbitrary professional contact links are in
+the v1 profile boundary as evidence-backed domain models, but they will not be
+added to the structured AI contract until a later schema version can preserve
+the same citation and review guarantees.
 
 ## LaTeX and PDF safety
 

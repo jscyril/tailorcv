@@ -11,19 +11,21 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 ## Repository state at this handoff
 
 - Branch: `main`, tracking `origin/main`.
-- Baseline before this delivery: `9fccb20 test: harden AI provider workflows`.
-- Delivery commit message: `feat: add application lifecycle and GitHub metadata`.
-- Worktree should be clean after the delivery is pushed.
+- Baseline before this implementation set: `de32578 feat: add application lifecycle and GitHub metadata`.
+- This handoff includes the certifications, achievements, professional-links, and ranking-signal implementation.
+- The implementation set was verified, committed, and pushed together; the worktree is clean at handoff.
 - No license has been selected.
 
 ## Implemented product capabilities
 
 - Local SQLite career profile with contact details and skills.
-- Ordered experience and project evidence with provenance, verification, and stable fact IDs.
+- Ordered experience and project evidence with provenance, verification, stable fact IDs, and user-set standard/important/essential ranking priority.
 - Education records and live deterministic resume rendering.
+- Evidence-backed certifications and achievements with stable IDs, provenance, verification, source metadata, CRUD controls, deterministic rendering, and backup coverage.
+- Ordered arbitrary professional links stored as profile records and rendered in resume contact details.
 - Public GitHub repository import, complete language detection, language selection, and a review gate.
 - JSON backup and atomic restore for profile, jobs, applications, and resume source history.
-- Saved jobs, structured requirement extraction, alias-aware deterministic matching, FTS5 evidence search, transparent scores, and manual evidence selection.
+- Saved jobs, structured requirement extraction, alias-aware deterministic matching, FTS5 evidence search, transparent scores, user-importance and date-derived recency bonuses, and manual evidence selection.
 - Read-only built-in templates, editable copies, custom `.tex` imports, template selection, and source export.
 - Immutable application resume versions with job snapshots, selected fact IDs, ranking explanations, source hashes, and numbered history.
 - New immutable versions created from edited saved source; prior snapshots are never updated.
@@ -42,13 +44,14 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 - Auditable AI runs record provider, model, prompt/schema versions, selected fact IDs, validation outcome, failure category, proposals, acceptance timestamp, and resume-version linkage without raw prompts or secrets.
 - Application lifecycle controls transition saved applications between `draft`, `submitted`, and `archived` without changing immutable resume versions.
 - Public GitHub sync stores stable repository IDs, visibility, upstream update timestamps, bounded README snapshots, complete languages, and review state. README/language rate-limit fallbacks do not discard previously imported metadata.
-- Backup schema 4 includes GitHub repository metadata, custom templates, selected-template state, AI-run metadata, and non-secret AI preferences while remaining compatible with schema 1 through 3 imports. Credentials are explicitly excluded.
+- Backup schema 6 includes evidence ranking priorities, professional links, certifications, achievements, GitHub repository metadata, templates, AI-run metadata, and non-secret preferences while remaining compatible with schema 1 through 5 imports. Credentials are explicitly excluded.
 
 ## Important architecture and invariants
 
 - React calls Go only through Wails bindings. Frontend code must not access SQLite, GitHub, credentials, or the native filesystem directly.
 - `internal/domain` owns validation and deterministic business rules.
-- `internal/storage` owns SQLite persistence and migrations. Migration 10 adds resume hash, ranking, compilation, and artifact metadata; migration 11 adds auditable AI runs; migration 12 adds public GitHub repository identity and snapshot metadata.
+- `internal/storage` owns SQLite persistence and migrations. Migration 10 adds resume hash, ranking, compilation, and artifact metadata; migration 11 adds auditable AI runs; migration 12 adds public GitHub repository identity and snapshot metadata; migration 13 adds contact links, certifications, and achievements; migration 14 adds evidence importance.
+- Evidence importance is stored per experience/project bullet as `standard`, `important`, or `essential`, contributing 0/6/12 ranking points. Recency is derived at analysis time: current work adds 8, an end date within two years adds 6, and an end date within five years adds 3. These bonuses apply only after skill, term, or indexed search establishes relevance.
 - The first AI schema intentionally supports only currently selectable experience bullets and reviewed project facts. New profile evidence entities require a later schema version.
 - `internal/resume` owns trusted template rendering, LaTeX escaping, compiler execution, and diagnostic parsing.
 - Resume source is immutable after a version is created. An edit creates the next numbered version by copying its base version's job snapshot, selected evidence, template, and ranking explanation.
@@ -73,7 +76,7 @@ npm --prefix frontend run build
 At this handoff:
 
 - All Go package tests pass.
-- All 20 frontend unit and React integration tests pass.
+- All 22 frontend unit and React integration tests pass.
 - TypeScript checking passes.
 - The Vite production build passes.
 - The opt-in production-contract test passes against local `gemma4:12b` using fictional evidence.
@@ -84,8 +87,8 @@ At this handoff:
 
 The next major milestone is remaining v1 product work and platform hardening:
 
-1. Add evidence-backed certifications, achievements, and arbitrary professional links; these remain in v1 but require a later AI schema before model use.
-2. Add the planned user-importance and recency ranking signals, or revise the roadmap scoring model explicitly.
+1. Resolve the documented frontend stack drift deliberately; keep the current custom CSS/component-state approach unless a migration has a concrete maintenance or UX benefit.
+2. Add a later AI schema version only if certifications and achievements can retain the same evidence citation and review guarantees.
 3. Verify native credential set/get/delete behavior in packaged Windows, macOS, and Linux builds.
 4. Expand from focused component/service tests to end-to-end no-AI and provider workflows through Wails bindings.
 

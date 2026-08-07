@@ -24,6 +24,9 @@ func TestExperienceInputValidateNormalizesEvidence(t *testing.T) {
 	if got := experience.Bullets[0].Text; got != "Published the first algorithm." {
 		t.Fatalf("Bullet text = %q", got)
 	}
+	if got := experience.Bullets[0].Importance; got != EvidenceImportanceStandard {
+		t.Fatalf("Bullet importance = %q, want standard", got)
+	}
 }
 
 func TestExperienceInputValidateRejectsInvalidDatesAndURLs(t *testing.T) {
@@ -48,5 +51,13 @@ func TestExperienceInputValidateRejectsInvalidDatesAndURLs(t *testing.T) {
 	}).Validate()
 	if err == nil {
 		t.Fatal("Validate() expected source URL error")
+	}
+
+	_, err = (ExperienceInput{
+		Company: "Example", Title: "Engineer", StartDate: "2024-01",
+		Bullets: []EvidenceBulletInput{{Text: "Built a service", Importance: "urgent"}},
+	}).Validate()
+	if err == nil {
+		t.Fatal("Validate() expected importance error")
 	}
 }

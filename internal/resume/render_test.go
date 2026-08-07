@@ -30,3 +30,13 @@ func TestBuiltinTemplatesAreComplete(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderIncludesAdditionalProfileEvidence(t *testing.T) {
+	source := `{{TAILORCV_CONTACT}}{{TAILORCV_CERTIFICATIONS_SECTION}}{{TAILORCV_ACHIEVEMENTS_SECTION}}`
+	result := Render(source, Data{Profile: domain.Profile{ContactLinks: []domain.ContactLink{{Label: "Portfolio", URL: "https://example.com/work"}}}, Certifications: []domain.Certification{{Name: "Cloud Professional", Issuer: "Example Institute"}}, Achievements: []domain.Achievement{{Title: "Engineering Award", Description: "Recognized for a fictional release system."}}})
+	for _, expected := range []string{"https://example.com/work", `\section{Certifications}`, "Cloud Professional", `\section{Achievements}`, "Engineering Award"} {
+		if !strings.Contains(result, expected) {
+			t.Fatalf("Render() missing %q in %s", expected, result)
+		}
+	}
+}

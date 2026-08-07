@@ -13,7 +13,8 @@ TailorCV has a complete deterministic resume-building vertical slice, local comp
 - Manual experience records with ordered, provenance-aware evidence bullets.
 - Reviewable projects with skills, source links, eligibility, and ordered evidence.
 - Education records with validated study dates and live resume-preview rendering.
-- Persisted job opportunities with alias-aware skill matching and explainable ranking of career evidence.
+- Evidence-backed certifications and achievements plus ordered professional contact links.
+- Persisted job opportunities with alias-aware skill matching and explainable evidence ranking, including user-set priority and role/project recency.
 - Structured required/preferred skill and responsibility extraction backed by a synchronized SQLite FTS5 evidence index.
 - Manual evidence selection with saved applications, `draft`/`submitted`/`archived` lifecycle controls, and immutable numbered LaTeX resume snapshots, including evidence-ranking explanations and content hashes.
 - New immutable versions for edited source, with compilation metadata and private per-version PDF artifacts.
@@ -122,7 +123,7 @@ wails build -tags webkit2_41
 
 The desktop application stores its SQLite database below the current operating system's user configuration directory in a `tailorcv` folder. Development and test databases, generated resumes, credentials, and user PDFs must not be committed.
 
-Use **Backup & restore** in the application sidebar to export a portable JSON snapshot. Backup format v4 includes public GitHub repository metadata, custom templates, selected-template state, applications, resume source history, auditable AI-run metadata, and non-secret AI preferences. Versions 1 through 3 remain importable. Imports are fully validated before replacing local data in one transaction. Provider credentials, generated PDFs, compiler caches, and local model data are intentionally excluded.
+Use **Backup & restore** in the application sidebar to export a portable JSON snapshot. Backup format v6 includes evidence ranking priorities, professional links, certifications, achievements, public GitHub repository metadata, custom templates, selected-template state, applications, resume source history, auditable AI-run metadata, and non-secret AI preferences. Versions 1 through 5 remain importable. Imports are fully validated before replacing local data in one transaction. Provider credentials, generated PDFs, compiler caches, and local model data are intentionally excluded.
 
 Custom templates are stored locally in the same SQLite database. Use **Templates → Import .tex** for complete, single-file LaTeX documents. Imported files compile as-is; TailorCV data markers are optional and documented in the Templates screen. Built-in templates are read-only, and editing one creates a user-owned copy.
 

@@ -14,7 +14,7 @@ func TestProfileBackupJSONRoundTripPreservesMetadata(t *testing.T) {
 		Profile:       Profile{Name: "Ada Lovelace", Skills: []string{"Go"}, UpdatedAt: "2026-01-02T03:04:05Z"},
 		Experiences: []Experience{{
 			ID: "ccac4867-b2af-432a-a5c7-099eb9effd9f", Company: "Example", Title: "Engineer", StartDate: "2024-01", Position: 3, CreatedAt: "2024-01-01T00:00:00Z", UpdatedAt: "2025-01-01T00:00:00Z",
-			Bullets: []EvidenceBullet{{ID: "a4e04b97-4646-44af-b4cd-ed925be390e5", Text: "Built a service", Provenance: ProvenanceManual, Verification: VerificationVerified, Position: 2, CreatedAt: "2024-01-01T00:00:00Z", UpdatedAt: "2025-01-01T00:00:00Z"}},
+			Bullets: []EvidenceBullet{{ID: "a4e04b97-4646-44af-b4cd-ed925be390e5", Text: "Built a service", Provenance: ProvenanceManual, Verification: VerificationVerified, Importance: EvidenceImportanceEssential, Position: 2, CreatedAt: "2024-01-01T00:00:00Z", UpdatedAt: "2025-01-01T00:00:00Z"}},
 		}},
 		Projects:   []Project{},
 		Educations: []Education{},
@@ -29,7 +29,7 @@ func TestProfileBackupJSONRoundTripPreservesMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DecodeProfileBackup() error = %v", err)
 	}
-	if decoded.Profile.UpdatedAt != backup.Profile.UpdatedAt || decoded.Experiences[0].Position != 3 || decoded.Experiences[0].Bullets[0].Position != 2 || len(decoded.Jobs) != 1 || decoded.AISettings.Provider != "gemini" {
+	if decoded.Profile.UpdatedAt != backup.Profile.UpdatedAt || decoded.Experiences[0].Position != 3 || decoded.Experiences[0].Bullets[0].Position != 2 || decoded.Experiences[0].Bullets[0].Importance != EvidenceImportanceEssential || len(decoded.Jobs) != 1 || decoded.AISettings.Provider != "gemini" {
 		t.Fatalf("decoded backup lost metadata: %#v", decoded)
 	}
 }
@@ -61,6 +61,26 @@ func TestDecodeProfileBackupUpgradesVersionThreeWithoutRepositoryMetadata(t *tes
 		t.Fatalf("DecodeProfileBackup() error = %v", err)
 	}
 	if decoded.SchemaVersion != ProfileBackupSchemaVersion || decoded.AISettings.Provider != "ollama" {
+		t.Fatalf("upgraded backup = %#v", decoded)
+	}
+}
+
+func TestDecodeProfileBackupUpgradesVersionFourWithoutCredentials(t *testing.T) {
+	decoded, err := DecodeProfileBackup([]byte(`{"schemaVersion":4,"exportedAt":"2026-01-02T03:04:05Z","profile":{},"experiences":[],"projects":[],"educations":[],"aiSettings":{}}`))
+	if err != nil {
+		t.Fatalf("DecodeProfileBackup() error = %v", err)
+	}
+	if decoded.SchemaVersion != ProfileBackupSchemaVersion || decoded.Certifications == nil || decoded.Achievements == nil {
+		t.Fatalf("upgraded backup = %#v", decoded)
+	}
+}
+
+func TestDecodeProfileBackupUpgradesVersionFiveWithStandardImportance(t *testing.T) {
+	decoded, err := DecodeProfileBackup([]byte(`{"schemaVersion":5,"exportedAt":"2026-01-02T03:04:05Z","profile":{},"experiences":[{"id":"ccac4867-b2af-432a-a5c7-099eb9effd9f","company":"Example","title":"Engineer","startDate":"2024-01","position":0,"createdAt":"2024-01-01T00:00:00Z","updatedAt":"2024-01-01T00:00:00Z","bullets":[{"id":"a4e04b97-4646-44af-b4cd-ed925be390e5","text":"Built a service","provenance":"manual","verification":"verified","position":0,"createdAt":"2024-01-01T00:00:00Z","updatedAt":"2024-01-01T00:00:00Z"}]}],"projects":[],"educations":[],"aiSettings":{}}`))
+	if err != nil {
+		t.Fatalf("DecodeProfileBackup() error = %v", err)
+	}
+	if decoded.SchemaVersion != ProfileBackupSchemaVersion || decoded.Experiences[0].Bullets[0].Importance != EvidenceImportanceStandard {
 		t.Fatalf("upgraded backup = %#v", decoded)
 	}
 }

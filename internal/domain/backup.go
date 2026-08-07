@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const ProfileBackupSchemaVersion = 4
+const ProfileBackupSchemaVersion = 6
 
 type ProfileBackup struct {
 	SchemaVersion      int              `json:"schemaVersion"`
@@ -18,6 +18,8 @@ type ProfileBackup struct {
 	Experiences        []Experience     `json:"experiences"`
 	Projects           []Project        `json:"projects"`
 	Educations         []Education      `json:"educations"`
+	Certifications     []Certification  `json:"certifications,omitempty"`
+	Achievements       []Achievement    `json:"achievements,omitempty"`
 	Jobs               []Job            `json:"jobs,omitempty"`
 	Applications       []Application    `json:"applications,omitempty"`
 	Templates          []ResumeTemplate `json:"templates,omitempty"`
@@ -32,6 +34,8 @@ type BackupResult struct {
 	ExperienceCount    int    `json:"experienceCount"`
 	ProjectCount       int    `json:"projectCount"`
 	EducationCount     int    `json:"educationCount"`
+	CertificationCount int    `json:"certificationCount"`
+	AchievementCount   int    `json:"achievementCount"`
 	JobCount           int    `json:"jobCount"`
 	ApplicationCount   int    `json:"applicationCount"`
 	ResumeVersionCount int    `json:"resumeVersionCount"`
@@ -74,11 +78,31 @@ func (backup ProfileBackup) Validate() (ProfileBackup, error) {
 		LinkedInURL:    backup.Profile.LinkedInURL,
 		Summary:        backup.Profile.Summary,
 		Skills:         backup.Profile.Skills,
+		ContactLinks: func() []ContactLinkInput {
+			result := make([]ContactLinkInput, len(backup.Profile.ContactLinks))
+			for i, item := range backup.Profile.ContactLinks {
+				result[i] = ContactLinkInput{ID: item.ID, Label: item.Label, URL: item.URL}
+			}
+			return result
+		}(),
 	}).Validate()
 	if err != nil {
 		return ProfileBackup{}, fmt.Errorf("profile: %w", err)
 	}
 	profile.UpdatedAt = backup.Profile.UpdatedAt
+	for index := range profile.ContactLinks {
+		source := backup.Profile.ContactLinks[index]
+		if source.Position < 0 {
+			return ProfileBackup{}, fmt.Errorf("contact link %d position cannot be negative", index+1)
+		}
+		if err := validateBackupTimestamp(fmt.Sprintf("contact link %d creation time", index+1), source.CreatedAt, true); err != nil {
+			return ProfileBackup{}, err
+		}
+		if err := validateBackupTimestamp(fmt.Sprintf("contact link %d update time", index+1), source.UpdatedAt, true); err != nil {
+			return ProfileBackup{}, err
+		}
+		profile.ContactLinks[index].Position, profile.ContactLinks[index].CreatedAt, profile.ContactLinks[index].UpdatedAt = source.Position, source.CreatedAt, source.UpdatedAt
+	}
 	if err := validateBackupTimestamp("profile update time", profile.UpdatedAt, false); err != nil {
 		return ProfileBackup{}, err
 	}
@@ -106,7 +130,7 @@ func (backup ProfileBackup) Validate() (ProfileBackup, error) {
 			if err := validateBackupTimestamp(fmt.Sprintf("experience %d evidence %d update time", index+1, bulletIndex+1), bullet.UpdatedAt, true); err != nil {
 				return ProfileBackup{}, err
 			}
-			bulletInputs[bulletIndex] = EvidenceBulletInput{ID: bullet.ID, Text: bullet.Text, Provenance: bullet.Provenance, SourceURL: bullet.SourceURL, Verification: bullet.Verification}
+			bulletInputs[bulletIndex] = EvidenceBulletInput{ID: bullet.ID, Text: bullet.Text, Provenance: bullet.Provenance, SourceURL: bullet.SourceURL, Verification: bullet.Verification, Importance: bullet.Importance}
 		}
 		validated, err := (ExperienceInput{ID: source.ID, Company: source.Company, Title: source.Title, Location: source.Location, StartDate: source.StartDate, EndDate: source.EndDate, Current: source.Current, Bullets: bulletInputs}).Validate()
 		if err != nil {
@@ -144,7 +168,7 @@ func (backup ProfileBackup) Validate() (ProfileBackup, error) {
 			if err := validateBackupTimestamp(fmt.Sprintf("project %d evidence %d update time", index+1, bulletIndex+1), bullet.UpdatedAt, true); err != nil {
 				return ProfileBackup{}, err
 			}
-			bulletInputs[bulletIndex] = EvidenceBulletInput{ID: bullet.ID, Text: bullet.Text, Provenance: bullet.Provenance, SourceURL: bullet.SourceURL, Verification: bullet.Verification}
+			bulletInputs[bulletIndex] = EvidenceBulletInput{ID: bullet.ID, Text: bullet.Text, Provenance: bullet.Provenance, SourceURL: bullet.SourceURL, Verification: bullet.Verification, Importance: bullet.Importance}
 		}
 		validated, err := (ProjectInput{ID: source.ID, Name: source.Name, Role: source.Role, Description: source.Description, URL: source.URL, RepositoryURL: source.RepositoryURL, RepositoryID: source.RepositoryID, RepositoryReadme: source.RepositoryReadme, RepositoryVisibility: source.RepositoryVisibility, RepositoryUpdatedAt: source.RepositoryUpdatedAt, StartDate: source.StartDate, EndDate: source.EndDate, Ongoing: source.Ongoing, Provenance: source.Provenance, Verification: source.Verification, ResumeEligible: source.ResumeEligible, Skills: source.Skills, DetectedLanguages: source.DetectedLanguages, Bullets: bulletInputs}).Validate()
 		if err != nil {
@@ -179,6 +203,45 @@ func (backup ProfileBackup) Validate() (ProfileBackup, error) {
 		educations = append(educations, validated)
 	}
 	backup.Educations = educations
+
+	certifications := make([]Certification, 0, len(backup.Certifications))
+	for index, source := range backup.Certifications {
+		if source.Position < 0 {
+			return ProfileBackup{}, fmt.Errorf("certification %d: position cannot be negative", index+1)
+		}
+		if err := validateBackupTimestamp(fmt.Sprintf("certification %d creation time", index+1), source.CreatedAt, true); err != nil {
+			return ProfileBackup{}, err
+		}
+		if err := validateBackupTimestamp(fmt.Sprintf("certification %d update time", index+1), source.UpdatedAt, true); err != nil {
+			return ProfileBackup{}, err
+		}
+		validated, err := (CertificationInput{ID: source.ID, Name: source.Name, Issuer: source.Issuer, IssueDate: source.IssueDate, ExpiryDate: source.ExpiryDate, CredentialID: source.CredentialID, CredentialURL: source.CredentialURL, Description: source.Description, Provenance: source.Provenance, Verification: source.Verification}).Validate()
+		if err != nil {
+			return ProfileBackup{}, fmt.Errorf("certification %d: %w", index+1, err)
+		}
+		validated.Position, validated.CreatedAt, validated.UpdatedAt = source.Position, source.CreatedAt, source.UpdatedAt
+		certifications = append(certifications, validated)
+	}
+	backup.Certifications = certifications
+	achievements := make([]Achievement, 0, len(backup.Achievements))
+	for index, source := range backup.Achievements {
+		if source.Position < 0 {
+			return ProfileBackup{}, fmt.Errorf("achievement %d: position cannot be negative", index+1)
+		}
+		if err := validateBackupTimestamp(fmt.Sprintf("achievement %d creation time", index+1), source.CreatedAt, true); err != nil {
+			return ProfileBackup{}, err
+		}
+		if err := validateBackupTimestamp(fmt.Sprintf("achievement %d update time", index+1), source.UpdatedAt, true); err != nil {
+			return ProfileBackup{}, err
+		}
+		validated, err := (AchievementInput{ID: source.ID, Title: source.Title, Description: source.Description, Date: source.Date, SourceURL: source.SourceURL, Provenance: source.Provenance, Verification: source.Verification}).Validate()
+		if err != nil {
+			return ProfileBackup{}, fmt.Errorf("achievement %d: %w", index+1, err)
+		}
+		validated.Position, validated.CreatedAt, validated.UpdatedAt = source.Position, source.CreatedAt, source.UpdatedAt
+		achievements = append(achievements, validated)
+	}
+	backup.Achievements = achievements
 
 	jobs := make([]Job, 0, len(backup.Jobs))
 	for index, source := range backup.Jobs {
@@ -339,5 +402,5 @@ func (backup ProfileBackup) Result(path string) BackupResult {
 	for _, application := range backup.Applications {
 		versionCount += len(application.Versions)
 	}
-	return BackupResult{Path: path, ExperienceCount: len(backup.Experiences), ProjectCount: len(backup.Projects), EducationCount: len(backup.Educations), JobCount: len(backup.Jobs), ApplicationCount: len(backup.Applications), ResumeVersionCount: versionCount, TemplateCount: len(backup.Templates), AIRunCount: len(backup.AIRuns)}
+	return BackupResult{Path: path, ExperienceCount: len(backup.Experiences), ProjectCount: len(backup.Projects), EducationCount: len(backup.Educations), CertificationCount: len(backup.Certifications), AchievementCount: len(backup.Achievements), JobCount: len(backup.Jobs), ApplicationCount: len(backup.Applications), ResumeVersionCount: versionCount, TemplateCount: len(backup.Templates), AIRunCount: len(backup.AIRuns)}
 }

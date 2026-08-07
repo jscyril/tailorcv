@@ -274,12 +274,20 @@ func (a *App) AcceptAITailoring(input domain.AcceptAITailoringInput) (domain.App
 	if err != nil {
 		return domain.ApplicationResumeResult{}, err
 	}
+	certifications, err := a.store.ListCertifications(a.appContext())
+	if err != nil {
+		return domain.ApplicationResumeResult{}, err
+	}
+	achievements, err := a.store.ListAchievements(a.appContext())
+	if err != nil {
+		return domain.ApplicationResumeResult{}, err
+	}
 	selectedExperiences, selectedProjects, err := selectResumeEvidence(run.SelectedFactIDs, experiences, projects)
 	if err != nil {
 		return domain.ApplicationResumeResult{}, err
 	}
 	applyAIProposals(proposals, selectedExperiences, selectedProjects)
-	source := resume.Render(template.Source, resume.Data{Profile: profile, Experiences: selectedExperiences, Projects: selectedProjects, Educations: educations})
+	source := resume.Render(template.Source, resume.Data{Profile: profile, Experiences: selectedExperiences, Projects: selectedProjects, Educations: educations, Certifications: certifications, Achievements: achievements})
 	ranking, err := a.rankSelectedEvidence(job, profile, experiences, projects, run.SelectedFactIDs)
 	if err != nil {
 		return domain.ApplicationResumeResult{}, err

@@ -1,4 +1,10 @@
 export namespace domain {
+	export class CertificationInput { id!:string;name!:string;issuer!:string;issueDate!:string;expiryDate!:string;credentialId!:string;credentialUrl!:string;description!:string;provenance!:string;verification!:string;static createFrom(source:any={}){return new CertificationInput(source)}constructor(source:any={}){if(typeof source==='string')source=JSON.parse(source);Object.assign(this,source)} }
+	export class Certification extends CertificationInput { position!:number;createdAt!:string;updatedAt!:string; }
+	export class AchievementInput { id!:string;title!:string;description!:string;date!:string;sourceUrl!:string;provenance!:string;verification!:string;static createFrom(source:any={}){return new AchievementInput(source)}constructor(source:any={}){if(typeof source==='string')source=JSON.parse(source);Object.assign(this,source)} }
+	export class Achievement extends AchievementInput { position!:number;createdAt!:string;updatedAt!:string; }
+	export class ContactLink { id!:string;label!:string;url!:string;position!:number;createdAt!:string;updatedAt!:string;static createFrom(source:any={}){return new ContactLink(source)}constructor(source:any={}){if(typeof source==='string')source=JSON.parse(source);Object.assign(this,source)} }
+	export class ContactLinkInput { id!:string;label!:string;url!:string;static createFrom(source:any={}){return new ContactLinkInput(source)}constructor(source:any={}){if(typeof source==='string')source=JSON.parse(source);Object.assign(this,source)} }
 
 	export class AIProposal {
 	    targetFactId: string;
@@ -344,6 +350,8 @@ export namespace domain {
 	    experienceCount: number;
 	    projectCount: number;
 	    educationCount: number;
+	    certificationCount:number;
+	    achievementCount:number;
 	    jobCount: number;
 	    applicationCount: number;
 	    resumeVersionCount: number;
@@ -361,6 +369,8 @@ export namespace domain {
 	        this.experienceCount = source["experienceCount"];
 	        this.projectCount = source["projectCount"];
 	        this.educationCount = source["educationCount"];
+	        this.certificationCount=source["certificationCount"];
+	        this.achievementCount=source["achievementCount"];
 	        this.jobCount = source["jobCount"];
 	        this.applicationCount = source["applicationCount"];
 	        this.resumeVersionCount = source["resumeVersionCount"];
@@ -507,6 +517,7 @@ export namespace domain {
 	    provenance: string;
 	    sourceUrl: string;
 	    verification: string;
+	    importance: string;
 	    position: number;
 	    createdAt: string;
 	    updatedAt: string;
@@ -522,6 +533,7 @@ export namespace domain {
 	        this.provenance = source["provenance"];
 	        this.sourceUrl = source["sourceUrl"];
 	        this.verification = source["verification"];
+	        this.importance = source["importance"];
 	        this.position = source["position"];
 	        this.createdAt = source["createdAt"];
 	        this.updatedAt = source["updatedAt"];
@@ -533,6 +545,7 @@ export namespace domain {
 	    provenance: string;
 	    sourceUrl: string;
 	    verification: string;
+	    importance: string;
 
 	    static createFrom(source: any = {}) {
 	        return new EvidenceBulletInput(source);
@@ -545,6 +558,7 @@ export namespace domain {
 	        this.provenance = source["provenance"];
 	        this.sourceUrl = source["sourceUrl"];
 	        this.verification = source["verification"];
+	        this.importance = source["importance"];
 	    }
 	}
 
@@ -801,6 +815,7 @@ export namespace domain {
 	    linkedInUrl: string;
 	    summary: string;
 	    skills: string[];
+	    contactLinks: ContactLink[];
 	    updatedAt: string;
 
 	    static createFrom(source: any = {}) {
@@ -819,6 +834,7 @@ export namespace domain {
 	        this.linkedInUrl = source["linkedInUrl"];
 	        this.summary = source["summary"];
 	        this.skills = source["skills"];
+	        this.contactLinks=(source["contactLinks"] || []).map((item:any) => new ContactLink(item));
 	        this.updatedAt = source["updatedAt"];
 	    }
 	}
@@ -833,6 +849,7 @@ export namespace domain {
 	    linkedInUrl: string;
 	    summary: string;
 	    skills: string[];
+	    contactLinks: ContactLinkInput[];
 
 	    static createFrom(source: any = {}) {
 	        return new ProfileInput(source);
@@ -850,6 +867,7 @@ export namespace domain {
 	        this.linkedInUrl = source["linkedInUrl"];
 	        this.summary = source["summary"];
 	        this.skills = source["skills"];
+	        this.contactLinks=(source["contactLinks"] || []).map((item:any) => new ContactLinkInput(item));
 	    }
 	}
 	export class RepositoryLanguage {

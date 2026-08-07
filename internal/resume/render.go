@@ -8,31 +8,74 @@ import (
 )
 
 type Data struct {
-	Profile     domain.Profile
-	Experiences []domain.Experience
-	Projects    []domain.Project
-	Educations  []domain.Education
+	Profile        domain.Profile
+	Experiences    []domain.Experience
+	Projects       []domain.Project
+	Educations     []domain.Education
+	Certifications []domain.Certification
+	Achievements   []domain.Achievement
 }
 
 func Render(source string, data Data) string {
 	contact := compact([]string{data.Profile.Email, data.Profile.Phone, data.Profile.Location, data.Profile.Website, data.Profile.LinkedInURL, githubURL(data.Profile.GitHubUsername)})
+	for _, link := range data.Profile.ContactLinks {
+		contact = append(contact, link.URL)
+	}
 	for index := range contact {
 		contact[index] = escape(contact[index])
 	}
 	replacements := map[string]string{
-		"{{TAILORCV_NAME}}":               fallback(escape(data.Profile.Name), "Your Name"),
-		"{{TAILORCV_HEADLINE}}":           fallback(escape(data.Profile.Headline), "Professional Headline"),
-		"{{TAILORCV_CONTACT}}":            strings.Join(contact, ` $\vert$ `),
-		"{{TAILORCV_SUMMARY_SECTION}}":    summarySection(data.Profile.Summary),
-		"{{TAILORCV_EXPERIENCE_SECTION}}": experienceSection(data.Experiences),
-		"{{TAILORCV_PROJECTS_SECTION}}":   projectSection(data.Projects),
-		"{{TAILORCV_EDUCATION_SECTION}}":  educationSection(data.Educations),
-		"{{TAILORCV_SKILLS_SECTION}}":     skillsSection(data.Profile.Skills),
+		"{{TAILORCV_NAME}}":                   fallback(escape(data.Profile.Name), "Your Name"),
+		"{{TAILORCV_HEADLINE}}":               fallback(escape(data.Profile.Headline), "Professional Headline"),
+		"{{TAILORCV_CONTACT}}":                strings.Join(contact, ` $\vert$ `),
+		"{{TAILORCV_SUMMARY_SECTION}}":        summarySection(data.Profile.Summary),
+		"{{TAILORCV_EXPERIENCE_SECTION}}":     experienceSection(data.Experiences),
+		"{{TAILORCV_PROJECTS_SECTION}}":       projectSection(data.Projects),
+		"{{TAILORCV_EDUCATION_SECTION}}":      educationSection(data.Educations),
+		"{{TAILORCV_CERTIFICATIONS_SECTION}}": certificationSection(data.Certifications),
+		"{{TAILORCV_ACHIEVEMENTS_SECTION}}":   achievementSection(data.Achievements),
+		"{{TAILORCV_SKILLS_SECTION}}":         skillsSection(data.Profile.Skills),
 	}
 	for marker, value := range replacements {
 		source = strings.ReplaceAll(source, marker, value)
 	}
 	return source
+}
+
+func certificationSection(items []domain.Certification) string {
+	if len(items) == 0 {
+		return ""
+	}
+	var output strings.Builder
+	output.WriteString("\\section{Certifications}\n")
+	for _, item := range items {
+		fmt.Fprintf(&output, "\\textbf{%s} $\\cdot$ %s", escape(item.Name), escape(item.Issuer))
+		if item.IssueDate != "" {
+			fmt.Fprintf(&output, "\\hfill %s", escape(item.IssueDate))
+		}
+		output.WriteString("\\\\\n")
+		if item.Description != "" {
+			output.WriteString(escape(item.Description) + "\\\\\n")
+		}
+	}
+	return strings.TrimSpace(output.String())
+}
+
+func achievementSection(items []domain.Achievement) string {
+	if len(items) == 0 {
+		return ""
+	}
+	var output strings.Builder
+	output.WriteString("\\section{Achievements}\n\\begin{itemize}\n")
+	for _, item := range items {
+		fmt.Fprintf(&output, "  \\item \\textbf{%s}: %s", escape(item.Title), escape(item.Description))
+		if item.Date != "" {
+			fmt.Fprintf(&output, " (%s)", escape(item.Date))
+		}
+		output.WriteString("\n")
+	}
+	output.WriteString("\\end{itemize}\n")
+	return strings.TrimSpace(output.String())
 }
 
 func escape(value string) string {

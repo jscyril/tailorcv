@@ -1,5 +1,6 @@
 export type Provenance = "manual" | "github" | "imported";
 export type VerificationState = "unverified" | "verified";
+export type EvidenceImportance = "standard" | "important" | "essential";
 
 export type EvidenceBullet = {
   id: string;
@@ -7,6 +8,7 @@ export type EvidenceBullet = {
   provenance: Provenance;
   sourceUrl: string;
   verification: VerificationState;
+  importance: EvidenceImportance;
   position?: number;
   createdAt?: string;
   updatedAt?: string;
@@ -37,6 +39,7 @@ export function newEvidenceBullet(): EvidenceBullet {
     provenance: "manual",
     sourceUrl: "",
     verification: "unverified",
+    importance: "standard",
   };
 }
 
@@ -82,12 +85,13 @@ export function toExperienceInput(draft: ExperienceDraft) {
     startDate: draft.startDate,
     endDate: draft.current ? "" : draft.endDate,
     current: draft.current,
-    bullets: draft.bullets.map(({ id, text, provenance, sourceUrl, verification }) => ({
+    bullets: draft.bullets.map(({ id, text, provenance, sourceUrl, verification, importance }) => ({
       id,
       text,
       provenance,
       sourceUrl,
       verification,
+      importance,
     })),
   };
 }

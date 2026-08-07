@@ -17,30 +17,46 @@ const (
 var githubUsernamePattern = regexp.MustCompile(`^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?$`)
 
 type Profile struct {
-	Name           string   `json:"name"`
-	Headline       string   `json:"headline"`
-	Email          string   `json:"email"`
-	Phone          string   `json:"phone"`
-	Location       string   `json:"location"`
-	Website        string   `json:"website"`
-	GitHubUsername string   `json:"githubUsername"`
-	LinkedInURL    string   `json:"linkedInUrl"`
-	Summary        string   `json:"summary"`
-	Skills         []string `json:"skills"`
-	UpdatedAt      string   `json:"updatedAt"`
+	Name           string        `json:"name"`
+	Headline       string        `json:"headline"`
+	Email          string        `json:"email"`
+	Phone          string        `json:"phone"`
+	Location       string        `json:"location"`
+	Website        string        `json:"website"`
+	GitHubUsername string        `json:"githubUsername"`
+	LinkedInURL    string        `json:"linkedInUrl"`
+	Summary        string        `json:"summary"`
+	Skills         []string      `json:"skills"`
+	ContactLinks   []ContactLink `json:"contactLinks"`
+	UpdatedAt      string        `json:"updatedAt"`
 }
 
 type ProfileInput struct {
-	Name           string   `json:"name"`
-	Headline       string   `json:"headline"`
-	Email          string   `json:"email"`
-	Phone          string   `json:"phone"`
-	Location       string   `json:"location"`
-	Website        string   `json:"website"`
-	GitHubUsername string   `json:"githubUsername"`
-	LinkedInURL    string   `json:"linkedInUrl"`
-	Summary        string   `json:"summary"`
-	Skills         []string `json:"skills"`
+	Name           string             `json:"name"`
+	Headline       string             `json:"headline"`
+	Email          string             `json:"email"`
+	Phone          string             `json:"phone"`
+	Location       string             `json:"location"`
+	Website        string             `json:"website"`
+	GitHubUsername string             `json:"githubUsername"`
+	LinkedInURL    string             `json:"linkedInUrl"`
+	Summary        string             `json:"summary"`
+	Skills         []string           `json:"skills"`
+	ContactLinks   []ContactLinkInput `json:"contactLinks"`
+}
+
+type ContactLink struct {
+	ID        string `json:"id"`
+	Label     string `json:"label"`
+	URL       string `json:"url"`
+	Position  int    `json:"position"`
+	CreatedAt string `json:"createdAt"`
+	UpdatedAt string `json:"updatedAt"`
+}
+type ContactLinkInput struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	URL   string `json:"url"`
 }
 
 func (input ProfileInput) Validate() (Profile, error) {
@@ -55,6 +71,7 @@ func (input ProfileInput) Validate() (Profile, error) {
 		LinkedInURL:    strings.TrimSpace(input.LinkedInURL),
 		Summary:        strings.TrimSpace(input.Summary),
 		Skills:         normalizeSkills(input.Skills),
+		ContactLinks:   make([]ContactLink, 0, len(input.ContactLinks)),
 	}
 
 	if len(profile.Name) > 120 {
@@ -88,6 +105,25 @@ func (input ProfileInput) Validate() (Profile, error) {
 		if len(skill) > maxSkillLength {
 			return Profile{}, fmt.Errorf("skill %q must be %d characters or fewer", skill, maxSkillLength)
 		}
+	}
+	if len(input.ContactLinks) > 20 {
+		return Profile{}, fmt.Errorf("a profile can contain at most 20 additional links")
+	}
+	seenLinks := make(map[string]struct{}, len(input.ContactLinks))
+	for position, source := range input.ContactLinks {
+		link := ContactLink{ID: strings.TrimSpace(source.ID), Label: strings.Join(strings.Fields(source.Label), " "), URL: strings.TrimSpace(source.URL), Position: position}
+		if link.Label == "" || len(link.Label) > 80 {
+			return Profile{}, fmt.Errorf("contact link label is required and must be 80 characters or fewer")
+		}
+		if err := validateHTTPURL("contact link", link.URL); err != nil {
+			return Profile{}, err
+		}
+		key := strings.ToLower(link.Label + "\x00" + link.URL)
+		if _, exists := seenLinks[key]; exists {
+			return Profile{}, fmt.Errorf("contact links must be unique")
+		}
+		seenLinks[key] = struct{}{}
+		profile.ContactLinks = append(profile.ContactLinks, link)
 	}
 
 	return profile, nil

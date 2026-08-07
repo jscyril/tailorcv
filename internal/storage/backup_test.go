@@ -16,14 +16,14 @@ func TestProfileBackupRoundTripReplacesAllCurrentData(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 	ctx := context.Background()
 
-	profile, err := (domain.ProfileInput{Name: "Ada Lovelace", Email: "ada@example.com", Skills: []string{"Go", "SQLite"}}).Validate()
+	profile, err := (domain.ProfileInput{Name: "Ada Lovelace", Email: "ada@example.com", Skills: []string{"Go", "SQLite"}, ContactLinks: []domain.ContactLinkInput{{Label: "Portfolio", URL: "https://example.com/work"}}}).Validate()
 	if err != nil {
 		t.Fatalf("profile Validate() error = %v", err)
 	}
 	if _, err := store.SaveProfile(ctx, profile); err != nil {
 		t.Fatalf("SaveProfile() error = %v", err)
 	}
-	experience, err := (domain.ExperienceInput{Company: "Example Systems", Title: "Engineer", StartDate: "2023-01", Bullets: []domain.EvidenceBulletInput{{Text: "Built an audited release pipeline", Verification: domain.VerificationVerified}}}).Validate()
+	experience, err := (domain.ExperienceInput{Company: "Example Systems", Title: "Engineer", StartDate: "2023-01", Bullets: []domain.EvidenceBulletInput{{Text: "Built an audited release pipeline", Verification: domain.VerificationVerified, Importance: domain.EvidenceImportanceEssential}}}).Validate()
 	if err != nil {
 		t.Fatalf("experience Validate() error = %v", err)
 	}
@@ -44,6 +44,14 @@ func TestProfileBackupRoundTripReplacesAllCurrentData(t *testing.T) {
 	}
 	if _, err := store.SaveEducation(ctx, education); err != nil {
 		t.Fatalf("SaveEducation() error = %v", err)
+	}
+	certification, _ := (domain.CertificationInput{Name: "Cloud Professional", Issuer: "Example Institute"}).Validate()
+	if _, err := store.SaveCertification(ctx, certification); err != nil {
+		t.Fatalf("SaveCertification() error = %v", err)
+	}
+	achievement, _ := (domain.AchievementInput{Title: "Engineering Award", Description: "Recognized for a fictional audited release system."}).Validate()
+	if _, err := store.SaveAchievement(ctx, achievement); err != nil {
+		t.Fatalf("SaveAchievement() error = %v", err)
 	}
 	job, err := (domain.JobInput{Company: "Example Systems", Role: "Platform Engineer", Description: "Build reliable Go services and audited deployment pipelines for a growing platform."}).Validate()
 	if err != nil {
@@ -93,10 +101,10 @@ func TestProfileBackupRoundTripReplacesAllCurrentData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateProfileBackup(after import) error = %v", err)
 	}
-	if got.Profile.Name != "Ada Lovelace" || len(got.Experiences) != 1 || len(got.Projects) != 1 || len(got.Educations) != 1 || len(got.Jobs) != 1 || len(got.Applications) != 1 || len(got.Applications[0].Versions) != 1 || len(got.Templates) != 1 || got.SelectedTemplateID != savedTemplate.ID || len(got.AIRuns) != 1 {
+	if got.Profile.Name != "Ada Lovelace" || len(got.Profile.ContactLinks) != 1 || len(got.Experiences) != 1 || len(got.Projects) != 1 || len(got.Educations) != 1 || len(got.Certifications) != 1 || len(got.Achievements) != 1 || len(got.Jobs) != 1 || len(got.Applications) != 1 || len(got.Applications[0].Versions) != 1 || len(got.Templates) != 1 || got.SelectedTemplateID != savedTemplate.ID || len(got.AIRuns) != 1 {
 		t.Fatalf("restored backup = %#v", got)
 	}
-	if got.Experiences[0].Bullets[0].ID != backup.Experiences[0].Bullets[0].ID || got.Projects[0].RepositoryID != 42 || got.Projects[0].RepositoryReadme != "# Release Console" || got.Projects[0].Skills[0] != "Go" || len(got.Projects[0].DetectedLanguages) != 2 || got.Projects[0].DetectedLanguages[1].Name != "Shell" {
+	if got.Experiences[0].Bullets[0].ID != backup.Experiences[0].Bullets[0].ID || got.Experiences[0].Bullets[0].Importance != domain.EvidenceImportanceEssential || got.Projects[0].RepositoryID != 42 || got.Projects[0].RepositoryReadme != "# Release Console" || got.Projects[0].Skills[0] != "Go" || len(got.Projects[0].DetectedLanguages) != 2 || got.Projects[0].DetectedLanguages[1].Name != "Shell" {
 		t.Fatalf("restored child data = %#v", got)
 	}
 	if got.AISettings.Provider != "gemini" || got.AISettings.GeminiModel != "gemini-test" {

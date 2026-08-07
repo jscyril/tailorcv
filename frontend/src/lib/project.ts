@@ -94,12 +94,13 @@ export function toProjectInput(draft: ProjectDraft) {
     resumeEligible: draft.resumeEligible,
     skills: parseSkills(draft.skillsText),
     detectedLanguages: draft.detectedLanguages,
-    bullets: draft.bullets.map(({ id, text, provenance, sourceUrl, verification }) => ({
+    bullets: draft.bullets.map(({ id, text, provenance, sourceUrl, verification, importance }) => ({
       id,
       text,
       provenance,
       sourceUrl,
       verification,
+      importance,
     })),
   };
 }

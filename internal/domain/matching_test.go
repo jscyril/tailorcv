@@ -1,6 +1,9 @@
 package domain
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestAnalyzeJobDescriptionUsesSkillBoundaries(t *testing.T) {
 	analysis, err := AnalyzeJobDescription(JobAnalysisInput{
@@ -86,5 +89,30 @@ func TestAnalyzeCareerEvidenceUsesIndexedSearchSignal(t *testing.T) {
 	}
 	if len(analysis.RankedEvidence) != 1 || analysis.RankedEvidence[0].Score != 18 || analysis.RankedEvidence[0].Reasons[0] != "Indexed evidence search match" {
 		t.Fatalf("ranked evidence = %#v", analysis.RankedEvidence)
+	}
+}
+
+func TestAnalyzeCareerEvidenceRanksUserImportanceAndRecency(t *testing.T) {
+	experiences := []Experience{
+		{ID: "older", Title: "Engineer", Company: "Earlier", EndDate: "2018-01", Bullets: []EvidenceBullet{{ID: "older-fact", Text: "Built reliable Go deployment services", Importance: EvidenceImportanceStandard}}},
+		{ID: "recent", Title: "Engineer", Company: "Recent", EndDate: "2026-01", Bullets: []EvidenceBullet{{ID: "recent-fact", Text: "Built reliable Go deployment services", Importance: EvidenceImportanceImportant}}},
+	}
+	analysis, err := analyzeCareerEvidenceWithSearchAt(JobAnalysisInput{Description: "Build reliable Go deployment services for a growing production software platform."}, []string{"Go"}, experiences, nil, nil, time.Date(2026, time.August, 8, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("analyzeCareerEvidenceWithSearchAt() error = %v", err)
+	}
+	if len(analysis.RankedEvidence) != 2 || analysis.RankedEvidence[0].FactID != "recent-fact" {
+		t.Fatalf("ranked evidence = %#v", analysis.RankedEvidence)
+	}
+	wantReasons := map[string]bool{"Marked important by you": false, "Role ended within 2 years": false}
+	for _, reason := range analysis.RankedEvidence[0].Reasons {
+		if _, exists := wantReasons[reason]; exists {
+			wantReasons[reason] = true
+		}
+	}
+	for reason, found := range wantReasons {
+		if !found {
+			t.Fatalf("missing ranking reason %q in %#v", reason, analysis.RankedEvidence[0].Reasons)
+		}
 	}
 }

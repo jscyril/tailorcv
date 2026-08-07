@@ -27,6 +27,14 @@ func (s *Store) CreateProfileBackup(ctx context.Context) (domain.ProfileBackup, 
 	if err != nil {
 		return domain.ProfileBackup{}, err
 	}
+	certifications, err := s.ListCertifications(ctx)
+	if err != nil {
+		return domain.ProfileBackup{}, err
+	}
+	achievements, err := s.ListAchievements(ctx)
+	if err != nil {
+		return domain.ProfileBackup{}, err
+	}
 	jobs, err := s.ListJobs(ctx)
 	if err != nil {
 		return domain.ProfileBackup{}, err
@@ -58,6 +66,8 @@ func (s *Store) CreateProfileBackup(ctx context.Context) (domain.ProfileBackup, 
 		Experiences:        experiences,
 		Projects:           projects,
 		Educations:         educations,
+		Certifications:     certifications,
+		Achievements:       achievements,
 		Jobs:               jobs,
 		Applications:       applications,
 		Templates:          templates,
@@ -89,6 +99,9 @@ func (s *Store) ReplaceProfileFromBackup(ctx context.Context, source domain.Prof
 		`DELETE FROM projects`,
 		`DELETE FROM experiences`,
 		`DELETE FROM educations`,
+		`DELETE FROM certifications`,
+		`DELETE FROM achievements`,
+		`DELETE FROM contact_links`,
 		`DELETE FROM profile_skills`,
 		`DELETE FROM profiles`,
 		`DELETE FROM resume_templates`,
@@ -117,6 +130,13 @@ func (s *Store) ReplaceProfileFromBackup(ctx context.Context, source domain.Prof
 			return fmt.Errorf("import profile skill: %w", err)
 		}
 	}
+	for _, link := range backup.Profile.ContactLinks {
+		created := timestampOr(link.CreatedAt, profileUpdatedAt)
+		updated := timestampOr(link.UpdatedAt, created)
+		if _, err := tx.ExecContext(ctx, `INSERT INTO contact_links(id,label,url,position,created_at,updated_at) VALUES(?,?,?,?,?,?)`, link.ID, link.Label, link.URL, link.Position, created, updated); err != nil {
+			return fmt.Errorf("import contact link: %w", err)
+		}
+	}
 
 	for _, experience := range backup.Experiences {
 		createdAt := timestampOr(experience.CreatedAt, now)
@@ -133,9 +153,9 @@ func (s *Store) ReplaceProfileFromBackup(ctx context.Context, source domain.Prof
 			bulletCreatedAt := timestampOr(bullet.CreatedAt, createdAt)
 			bulletUpdatedAt := timestampOr(bullet.UpdatedAt, bulletCreatedAt)
 			_, err := tx.ExecContext(ctx, `
-				INSERT INTO experience_bullets (id, experience_id, text, provenance, source_url, verification_state, position, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-			`, bullet.ID, experience.ID, bullet.Text, bullet.Provenance, bullet.SourceURL, bullet.Verification,
+				INSERT INTO experience_bullets (id, experience_id, text, provenance, source_url, verification_state, importance, position, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`, bullet.ID, experience.ID, bullet.Text, bullet.Provenance, bullet.SourceURL, bullet.Verification, bullet.Importance,
 				bullet.Position, bulletCreatedAt, bulletUpdatedAt)
 			if err != nil {
 				return fmt.Errorf("import experience evidence: %w", err)
@@ -173,9 +193,9 @@ func (s *Store) ReplaceProfileFromBackup(ctx context.Context, source domain.Prof
 			bulletCreatedAt := timestampOr(bullet.CreatedAt, createdAt)
 			bulletUpdatedAt := timestampOr(bullet.UpdatedAt, bulletCreatedAt)
 			_, err := tx.ExecContext(ctx, `
-				INSERT INTO project_bullets (id, project_id, text, provenance, source_url, verification_state, position, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-			`, bullet.ID, project.ID, bullet.Text, bullet.Provenance, bullet.SourceURL, bullet.Verification,
+				INSERT INTO project_bullets (id, project_id, text, provenance, source_url, verification_state, importance, position, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`, bullet.ID, project.ID, bullet.Text, bullet.Provenance, bullet.SourceURL, bullet.Verification, bullet.Importance,
 				bullet.Position, bulletCreatedAt, bulletUpdatedAt)
 			if err != nil {
 				return fmt.Errorf("import project evidence: %w", err)
@@ -196,6 +216,16 @@ func (s *Store) ReplaceProfileFromBackup(ctx context.Context, source domain.Prof
 			education.Position, createdAt, updatedAt)
 		if err != nil {
 			return fmt.Errorf("import education: %w", err)
+		}
+	}
+	for _, item := range backup.Certifications {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO certifications(id,name,issuer,issue_date,expiry_date,credential_id,credential_url,description,provenance,verification_state,position,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`, item.ID, item.Name, item.Issuer, item.IssueDate, item.ExpiryDate, item.CredentialID, item.CredentialURL, item.Description, item.Provenance, item.Verification, item.Position, item.CreatedAt, item.UpdatedAt); err != nil {
+			return fmt.Errorf("import certification: %w", err)
+		}
+	}
+	for _, item := range backup.Achievements {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO achievements(id,title,description,achievement_date,source_url,provenance,verification_state,position,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)`, item.ID, item.Title, item.Description, item.Date, item.SourceURL, item.Provenance, item.Verification, item.Position, item.CreatedAt, item.UpdatedAt); err != nil {
+			return fmt.Errorf("import achievement: %w", err)
 		}
 	}
 
@@ -317,6 +347,12 @@ func (s *Store) ReplaceProfileFromBackup(ctx context.Context, source domain.Prof
 }
 
 func validateBackupIDs(backup domain.ProfileBackup) error {
+	linkIDs := make(map[string]struct{}, len(backup.Profile.ContactLinks))
+	for index, item := range backup.Profile.ContactLinks {
+		if err := validateUniqueUUID(item.ID, linkIDs); err != nil {
+			return fmt.Errorf("contact link %d ID: %w", index+1, err)
+		}
+	}
 	experienceIDs := make(map[string]struct{}, len(backup.Experiences))
 	experienceBulletIDs := make(map[string]struct{})
 	for index, experience := range backup.Experiences {
@@ -345,6 +381,18 @@ func validateBackupIDs(backup domain.ProfileBackup) error {
 	for index, education := range backup.Educations {
 		if err := validateUniqueUUID(education.ID, educationIDs); err != nil {
 			return fmt.Errorf("education %d ID: %w", index+1, err)
+		}
+	}
+	certificationIDs := make(map[string]struct{}, len(backup.Certifications))
+	for index, item := range backup.Certifications {
+		if err := validateUniqueUUID(item.ID, certificationIDs); err != nil {
+			return fmt.Errorf("certification %d ID: %w", index+1, err)
+		}
+	}
+	achievementIDs := make(map[string]struct{}, len(backup.Achievements))
+	for index, item := range backup.Achievements {
+		if err := validateUniqueUUID(item.ID, achievementIDs); err != nil {
+			return fmt.Errorf("achievement %d ID: %w", index+1, err)
 		}
 	}
 	jobIDs := make(map[string]struct{}, len(backup.Jobs))

@@ -78,7 +78,7 @@ func (repository GitHubRepository) Project(existing *Project) (Project, error) {
 		input.Skills = existing.Skills
 		input.Bullets = make([]EvidenceBulletInput, len(existing.Bullets))
 		for index, bullet := range existing.Bullets {
-			input.Bullets[index] = EvidenceBulletInput{ID: bullet.ID, Text: bullet.Text, Provenance: bullet.Provenance, SourceURL: bullet.SourceURL, Verification: bullet.Verification}
+			input.Bullets[index] = EvidenceBulletInput{ID: bullet.ID, Text: bullet.Text, Provenance: bullet.Provenance, SourceURL: bullet.SourceURL, Verification: bullet.Verification, Importance: bullet.Importance}
 		}
 	}
 	return input.Validate()

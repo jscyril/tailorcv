@@ -112,7 +112,7 @@ func TestProjectCRUDPreservesSkillsEvidenceAndReviewState(t *testing.T) {
 			{Name: "Shell", Bytes: 200},
 		},
 		Bullets: []domain.EvidenceBulletInput{
-			{Text: "Reduced release time", Verification: domain.VerificationVerified},
+			{Text: "Reduced release time", Verification: domain.VerificationVerified, Importance: domain.EvidenceImportanceImportant},
 			{Text: "Added auditable deployments", Verification: domain.VerificationUnverified},
 		},
 	}).Validate()
@@ -143,7 +143,7 @@ func TestProjectCRUDPreservesSkillsEvidenceAndReviewState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListProjects() error = %v", err)
 	}
-	if len(got) != 1 || got[0].RepositoryID != 42 || got[0].RepositoryReadme != "# Release Console" || got[0].RepositoryVisibility != "public" || got[0].RepositoryUpdatedAt != "2026-08-01T12:00:00Z" || got[0].Bullets[1].ID != firstID || got[0].Skills[1] != "React" || len(got[0].DetectedLanguages) != 2 || got[0].DetectedLanguages[1].Name != "Shell" || got[0].ResumeEligible {
+	if len(got) != 1 || got[0].RepositoryID != 42 || got[0].RepositoryReadme != "# Release Console" || got[0].RepositoryVisibility != "public" || got[0].RepositoryUpdatedAt != "2026-08-01T12:00:00Z" || got[0].Bullets[1].ID != firstID || got[0].Bullets[1].Importance != domain.EvidenceImportanceImportant || got[0].Skills[1] != "React" || len(got[0].DetectedLanguages) != 2 || got[0].DetectedLanguages[1].Name != "Shell" || got[0].ResumeEligible {
 		t.Fatalf("ListProjects() = %#v", got)
 	}
 

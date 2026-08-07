@@ -260,6 +260,24 @@ var migrations = []migration{
 			`CREATE UNIQUE INDEX projects_repository_id_idx ON projects(repository_id) WHERE repository_id > 0`,
 		},
 	},
+	{
+		version: 13,
+		statements: []string{
+			`CREATE TABLE contact_links (id TEXT PRIMARY KEY, label TEXT NOT NULL, url TEXT NOT NULL, position INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+			`CREATE INDEX contact_links_position_idx ON contact_links(position, created_at)`,
+			`CREATE TABLE certifications (id TEXT PRIMARY KEY, name TEXT NOT NULL, issuer TEXT NOT NULL, issue_date TEXT NOT NULL DEFAULT '', expiry_date TEXT NOT NULL DEFAULT '', credential_id TEXT NOT NULL DEFAULT '', credential_url TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '', provenance TEXT NOT NULL CHECK (provenance IN ('manual', 'github', 'imported')), verification_state TEXT NOT NULL CHECK (verification_state IN ('unverified', 'verified')), position INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+			`CREATE INDEX certifications_position_idx ON certifications(position, created_at)`,
+			`CREATE TABLE achievements (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL, achievement_date TEXT NOT NULL DEFAULT '', source_url TEXT NOT NULL DEFAULT '', provenance TEXT NOT NULL CHECK (provenance IN ('manual', 'github', 'imported')), verification_state TEXT NOT NULL CHECK (verification_state IN ('unverified', 'verified')), position INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+			`CREATE INDEX achievements_position_idx ON achievements(position, created_at)`,
+		},
+	},
+	{
+		version: 14,
+		statements: []string{
+			`ALTER TABLE experience_bullets ADD COLUMN importance TEXT NOT NULL DEFAULT 'standard' CHECK (importance IN ('standard', 'important', 'essential'))`,
+			`ALTER TABLE project_bullets ADD COLUMN importance TEXT NOT NULL DEFAULT 'standard' CHECK (importance IN ('standard', 'important', 'essential'))`,
+		},
+	},
 }
 
 func (s *Store) applyMigrations(ctx context.Context) error {

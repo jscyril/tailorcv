@@ -29,23 +29,33 @@ const (
 	VerificationVerified   VerificationState = "verified"
 )
 
+type EvidenceImportance string
+
+const (
+	EvidenceImportanceStandard  EvidenceImportance = "standard"
+	EvidenceImportanceImportant EvidenceImportance = "important"
+	EvidenceImportanceEssential EvidenceImportance = "essential"
+)
+
 type EvidenceBullet struct {
-	ID           string            `json:"id"`
-	Text         string            `json:"text"`
-	Provenance   Provenance        `json:"provenance"`
-	SourceURL    string            `json:"sourceUrl"`
-	Verification VerificationState `json:"verification"`
-	Position     int               `json:"position"`
-	CreatedAt    string            `json:"createdAt"`
-	UpdatedAt    string            `json:"updatedAt"`
+	ID           string             `json:"id"`
+	Text         string             `json:"text"`
+	Provenance   Provenance         `json:"provenance"`
+	SourceURL    string             `json:"sourceUrl"`
+	Verification VerificationState  `json:"verification"`
+	Importance   EvidenceImportance `json:"importance"`
+	Position     int                `json:"position"`
+	CreatedAt    string             `json:"createdAt"`
+	UpdatedAt    string             `json:"updatedAt"`
 }
 
 type EvidenceBulletInput struct {
-	ID           string            `json:"id"`
-	Text         string            `json:"text"`
-	Provenance   Provenance        `json:"provenance"`
-	SourceURL    string            `json:"sourceUrl"`
-	Verification VerificationState `json:"verification"`
+	ID           string             `json:"id"`
+	Text         string             `json:"text"`
+	Provenance   Provenance         `json:"provenance"`
+	SourceURL    string             `json:"sourceUrl"`
+	Verification VerificationState  `json:"verification"`
+	Importance   EvidenceImportance `json:"importance"`
 }
 
 type Experience struct {
@@ -139,6 +149,7 @@ func (input EvidenceBulletInput) validate(position int) (EvidenceBullet, error) 
 		Provenance:   input.Provenance,
 		SourceURL:    strings.TrimSpace(input.SourceURL),
 		Verification: input.Verification,
+		Importance:   input.Importance,
 		Position:     position,
 	}
 	if bullet.Text == "" {
@@ -158,6 +169,12 @@ func (input EvidenceBulletInput) validate(position int) (EvidenceBullet, error) 
 	}
 	if bullet.Verification != VerificationUnverified && bullet.Verification != VerificationVerified {
 		return EvidenceBullet{}, fmt.Errorf("verification state is not valid")
+	}
+	if bullet.Importance == "" {
+		bullet.Importance = EvidenceImportanceStandard
+	}
+	if bullet.Importance != EvidenceImportanceStandard && bullet.Importance != EvidenceImportanceImportant && bullet.Importance != EvidenceImportanceEssential {
+		return EvidenceBullet{}, fmt.Errorf("importance is not valid")
 	}
 	if err := validateEvidenceURL(bullet.SourceURL); err != nil {
 		return EvidenceBullet{}, err

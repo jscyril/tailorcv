@@ -11,11 +11,13 @@ describe("toProjectInput", () => {
     draft.repositoryReadme = "# Fictional project";
     draft.repositoryVisibility = "public";
     draft.repositoryUpdatedAt = "2026-08-01T12:00:00Z";
+    draft.bullets = [{ id: "", text: "Built a release console", provenance: "manual", sourceUrl: "", verification: "verified", importance: "important" }];
 
     const input = toProjectInput(draft);
     expect(input.skills).toEqual(["Go", "TypeScript"]);
     expect(input.endDate).toBe("");
     expect(input).toMatchObject({ repositoryId: 42, repositoryReadme: "# Fictional project", repositoryVisibility: "public", repositoryUpdatedAt: "2026-08-01T12:00:00Z" });
+    expect(input.bullets[0].importance).toBe("important");
   });
 
   it("removes deleted and ineligible projects from resume selection", () => {

@@ -15,6 +15,8 @@ import {
   CompileResumeVersion,
   CreateResumeVersion,
   DeleteEducation,
+  DeleteCertification,
+  DeleteAchievement,
   DeleteExperience,
   DeleteGeminiAPIKey,
   DeleteJob,
@@ -32,6 +34,8 @@ import {
   ImportProfileBackup,
   ImportResumeTemplate,
   ListEducations,
+  ListCertifications,
+  ListAchievements,
   ListAIRuns,
   ListApplications,
   ListExperiences,
@@ -40,6 +44,8 @@ import {
   ListResumeTemplates,
   RenderResumeTemplate,
   SaveEducation,
+  SaveCertification,
+  SaveAchievement,
   SaveAISettings,
   SaveExperience,
   SaveGeminiAPIKey,
@@ -58,6 +64,7 @@ import {
   newEducationDraft,
   toEducationInput,
 } from "./lib/education";
+import { Achievement, AchievementDraft, Certification, CertificationDraft, achievementToDraft, certificationToDraft, newAchievementDraft, newCertificationDraft, toAchievementInput, toCertificationInput } from "./lib/credentials";
 import {
   EvidenceBullet,
   Experience,
@@ -99,7 +106,7 @@ import {
 } from "./features/ai/AIWorkspace";
 import { ApplicationStatusControl, type ApplicationStatus } from "./features/applications/ApplicationStatusControl";
 
-type View = "overview" | "profile" | "experience" | "projects" | "education" | "skills" | "templates" | "latex" | "job" | "ai" | "data";
+type View = "overview" | "profile" | "experience" | "projects" | "education" | "credentials" | "skills" | "templates" | "latex" | "job" | "ai" | "data";
 
 type ResumeVersion = {
   id: string;
@@ -168,6 +175,8 @@ export default function App() {
   const [experiences, setExperiences] = useState<ExperienceDraft[]>([]);
   const [projects, setProjects] = useState<ProjectDraft[]>([]);
   const [educations, setEducations] = useState<EducationDraft[]>([]);
+  const [certifications,setCertifications]=useState<CertificationDraft[]>([]);
+  const [achievements,setAchievements]=useState<AchievementDraft[]>([]);
   const [skillsText, setSkillsText] = useState("");
   const [jobDraft, setJobDraft] = useState<Job>(EMPTY_JOB);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -179,6 +188,7 @@ export default function App() {
   const [experienceBusyKey, setExperienceBusyKey] = useState("");
   const [projectBusyKey, setProjectBusyKey] = useState("");
   const [educationBusyKey, setEducationBusyKey] = useState("");
+  const [credentialBusyKey,setCredentialBusyKey]=useState("");
   const [backupBusy, setBackupBusy] = useState<"export" | "import" | "">("");
   const [githubBusy, setGitHubBusy] = useState(false);
   const [lastBackupResult, setLastBackupResult] = useState<domain.BackupResult | null>(null);
@@ -211,9 +221,10 @@ export default function App() {
   const [aiBusy, setAIBusy] = useState<"check" | "credential" | "generate" | "accept" | "">("");
 
   const loadWorkspaceData = async () => {
-    const [result, savedExperiences, savedProjects, savedEducations, savedTemplates, savedTemplateID, savedJobs, savedApplications, savedAIRuns, savedAISettings, credentialStatus] = await Promise.all([GetProfile(), ListExperiences(), ListProjects(), ListEducations(), ListResumeTemplates(), GetSelectedResumeTemplateID(), ListJobs(), ListApplications(), ListAIRuns(), GetAISettings(), GetGeminiCredentialStatus().catch((reason) => ({ configured: false, message: errorMessage(reason) }))]);
+    const [result, savedExperiences, savedProjects, savedEducations,savedCertifications,savedAchievements, savedTemplates, savedTemplateID, savedJobs, savedApplications, savedAIRuns, savedAISettings, credentialStatus] = await Promise.all([GetProfile(), ListExperiences(), ListProjects(), ListEducations(),ListCertifications(),ListAchievements(), ListResumeTemplates(), GetSelectedResumeTemplateID(), ListJobs(), ListApplications(), ListAIRuns(), GetAISettings(), GetGeminiCredentialStatus().catch((reason) => ({ configured: false, message: errorMessage(reason) }))]);
     const loaded = { ...emptyProfile, ...result } as Profile;
     loaded.skills ??= [];
+    loaded.contactLinks ??= [];
     setProfile(loaded);
     setSkillsText(loaded.skills.join(", "));
     setExperiences((savedExperiences as unknown as Experience[]).map(experienceToDraft));
@@ -222,6 +233,7 @@ export default function App() {
     const selectedKeys = projectDrafts.filter(isProjectSelectable).slice(0, 3).map((project) => project.key);
     setSelectedProjectKeys(selectedKeys);
     setEducations((savedEducations as unknown as Education[]).map(educationToDraft));
+    setCertifications((savedCertifications as unknown as Certification[]).map(certificationToDraft));setAchievements((savedAchievements as unknown as Achievement[]).map(achievementToDraft));
     setTemplates(savedTemplates);
     setSelectedTemplateID(savedTemplateID);
     setJobs(savedJobs as unknown as Job[]);
@@ -249,7 +261,7 @@ export default function App() {
 
   const completion = useMemo(() => profileCompletion(profile), [profile]);
 
-  const updateProfile = (field: keyof Profile, value: string) => {
+  const updateProfile = <K extends keyof Profile>(field: K, value: Profile[K]) => {
     setProfile((current) => ({ ...current, [field]: value }));
     setMessage("");
   };
@@ -263,6 +275,7 @@ export default function App() {
       const saved = await SaveProfile({
         ...profile,
         skills: parseSkills(skillsText),
+        contactLinks: profile.contactLinks,
       });
       const normalized = { ...emptyProfile, ...saved } as Profile;
       setProfile(normalized);
@@ -563,6 +576,11 @@ export default function App() {
       setEducationBusyKey("");
     }
   };
+
+  const saveCertification=async(event:FormEvent,draft:CertificationDraft)=>{event.preventDefault();setCredentialBusyKey(draft.key);setError("");try{const saved=await SaveCertification(new domain.CertificationInput(toCertificationInput(draft)));const normalized=certificationToDraft(saved as unknown as Certification);setCertifications(current=>current.map(item=>item.key===draft.key?normalized:item));setMessage("Certification saved locally.")}catch(reason){setError(errorMessage(reason))}finally{setCredentialBusyKey("")}};
+  const deleteCertification=async(draft:CertificationDraft)=>{if(!draft.id){setCertifications(current=>current.filter(item=>item.key!==draft.key));return}if(!window.confirm(`Delete ${draft.name||"this certification"}?`))return;setCredentialBusyKey(draft.key);try{await DeleteCertification(draft.id);setCertifications(current=>current.filter(item=>item.key!==draft.key));setMessage("Certification deleted.")}catch(reason){setError(errorMessage(reason))}finally{setCredentialBusyKey("")}};
+  const saveAchievement=async(event:FormEvent,draft:AchievementDraft)=>{event.preventDefault();setCredentialBusyKey(draft.key);setError("");try{const saved=await SaveAchievement(new domain.AchievementInput(toAchievementInput(draft)));const normalized=achievementToDraft(saved as unknown as Achievement);setAchievements(current=>current.map(item=>item.key===draft.key?normalized:item));setMessage("Achievement saved locally.")}catch(reason){setError(errorMessage(reason))}finally{setCredentialBusyKey("")}};
+  const deleteAchievement=async(draft:AchievementDraft)=>{if(!draft.id){setAchievements(current=>current.filter(item=>item.key!==draft.key));return}if(!window.confirm(`Delete ${draft.title||"this achievement"}?`))return;setCredentialBusyKey(draft.key);try{await DeleteAchievement(draft.id);setAchievements(current=>current.filter(item=>item.key!==draft.key));setMessage("Achievement deleted.")}catch(reason){setError(errorMessage(reason))}finally{setCredentialBusyKey("")}};
 
   const toggleProject = (key: string) => {
     if (!projects.some((project) => project.key === key && isProjectSelectable(project))) return;
@@ -986,6 +1004,7 @@ export default function App() {
             <NavButton active={view === "experience"} label="Experience" icon="briefcase" badge={experiences.length || undefined} onClick={() => setView("experience")} />
             <NavButton active={view === "projects"} label="Projects" icon="folder" badge={selectedProjectKeys.length || undefined} onClick={() => setView("projects")} />
             <NavButton active={view === "education"} label="Education" icon="education" badge={educations.length || undefined} onClick={() => setView("education")} />
+            <NavButton active={view === "credentials"} label="Credentials" icon="check" badge={(certifications.length+achievements.length)||undefined} onClick={() => setView("credentials")} />
             <NavButton active={view === "skills"} label="Skills" icon="sparkles" badge={profile.skills.length || undefined} onClick={() => setView("skills")} />
             <p className="nav-section-label nav-section-spaced">Tailor</p>
             <NavButton active={view === "templates"} label="Templates" icon="template" badge={templates.length || undefined} onClick={() => setView("templates")} />
@@ -1013,6 +1032,7 @@ export default function App() {
             {view === "experience" && <section className="workspace-panel scroll-panel"><PanelHeader eyebrow="Career evidence" title="Experience" description="Keep every claim factual, ordered, and reviewable." action={<button className="secondary-button" onClick={addExperience}>Add role</button>} /><ExperienceSection experiences={experiences} busyKey={experienceBusyKey} onAdd={addExperience} onUpdate={updateExperience} onSave={saveExperience} onDelete={deleteExperience} /></section>}
             {view === "projects" && <ProjectWorkspace projects={projects} selectedKeys={selectedProjectKeys} busyKey={projectBusyKey} githubUsername={profile.githubUsername} githubBusy={githubBusy} onToggle={toggleProject} onAdd={addProject} onUpdate={updateProject} onSave={saveProject} onDelete={deleteProject} onSyncGitHub={syncGitHubProjects} onOpenProfile={() => setView("profile")} />}
             {view === "education" && <EducationWorkspace educations={educations} busyKey={educationBusyKey} onAdd={addEducation} onUpdate={updateEducation} onSave={saveEducation} onDelete={deleteEducation} />}
+            {view === "credentials"&&<CredentialsWorkspace certifications={certifications} achievements={achievements} busyKey={credentialBusyKey} onCertifications={setCertifications} onAchievements={setAchievements} onSaveCertification={saveCertification} onDeleteCertification={deleteCertification} onSaveAchievement={saveAchievement} onDeleteAchievement={deleteAchievement}/>}
             {view === "skills" && <SkillsWorkspace skillsText={skillsText} busy={busy} message={message} onChange={setSkillsText} onSubmit={saveProfile} />}
             {view === "templates" && <TemplatesWorkspace templates={templates} selectedID={selectedTemplateID} busyKey={templateBusyKey} onImport={importResumeTemplate} onUse={(id) => useResumeTemplate(id)} onEdit={(id) => useResumeTemplate(id, true)} onDuplicate={duplicateResumeTemplate} onDelete={deleteResumeTemplate} />}
             {view === "latex" && <LatexWorkspace source={latexSource} template={activeTemplate} result={compileResult} busy={templateBusyKey !== ""} compiling={compileBusy} versionBusy={versionBusy} hasOpenVersion={openVersionID !== ""} versionDirty={openVersionID !== "" && latexSource !== savedVersionSource} onChange={updateLatexSource} onSave={saveCurrentTemplate} onSaveVersion={saveResumeVersionEdit} onReload={() => useResumeTemplate(selectedTemplateID)} onCompile={compileLatex} onExport={exportLatexSource} />}
@@ -1021,7 +1041,7 @@ export default function App() {
             {view === "data" && <DataWorkspace profile={profile} experiences={experiences} projects={projects} educations={educations} jobs={jobs} applications={applications} busy={backupBusy} lastResult={lastBackupResult} onExport={exportBackup} onImport={importBackup} />}
           </div>
 
-          <ResumePreview profile={profile} experiences={experiences} projects={selectedProjects} educations={educations} compileResult={compileResult} />
+          <ResumePreview profile={profile} experiences={experiences} projects={selectedProjects} educations={educations} certifications={certifications} achievements={achievements} compileResult={compileResult} />
         </main>
       </div>
     </div>
@@ -1096,12 +1116,12 @@ function WorkspaceOverview({ profile, completion, experiences, projects, applica
   </section>;
 }
 
-function ProfileWorkspace({ profile, busy, message, onChange, onSubmit }: { profile: Profile; busy: boolean; message: string; onChange: (field: keyof Profile, value: string) => void; onSubmit: (event: FormEvent) => void }) {
+function ProfileWorkspace({ profile, busy, message, onChange, onSubmit }: { profile: Profile; busy: boolean; message: string; onChange: <K extends keyof Profile>(field:K,value:Profile[K])=>void; onSubmit: (event: FormEvent) => void }) {
   return <section className="workspace-panel scroll-panel">
     <PanelHeader eyebrow="Career profile" title="Profile" description="Identity and positioning used across every resume." />
     <form className="compact-form" onSubmit={onSubmit}>
       <FormBlock title="Identity" description="Shown in the resume header."><div className="field-grid two"><Field label="Full name" value={profile.name} onChange={(value) => onChange("name", value)} placeholder="Ada Lovelace" /><Field label="Headline" value={profile.headline} onChange={(value) => onChange("headline", value)} placeholder="Backend engineer" /><Field label="Email" type="email" value={profile.email} onChange={(value) => onChange("email", value)} placeholder="ada@example.com" /><Field label="Phone" value={profile.phone} onChange={(value) => onChange("phone", value)} placeholder="+91 98765 43210" /><Field label="Location" value={profile.location} onChange={(value) => onChange("location", value)} placeholder="Bengaluru, India" /><Field label="Website" type="url" value={profile.website} onChange={(value) => onChange("website", value)} placeholder="https://example.com" /></div></FormBlock>
-      <FormBlock title="Presence" description="Professional links and repository identity."><div className="field-grid two"><Field label="GitHub username" value={profile.githubUsername} onChange={(value) => onChange("githubUsername", value)} placeholder="octocat" prefix="github.com/" /><Field label="LinkedIn URL" type="url" value={profile.linkedInUrl} onChange={(value) => onChange("linkedInUrl", value)} placeholder="https://linkedin.com/in/..." /></div></FormBlock>
+      <FormBlock title="Presence" description="Professional links and repository identity."><div className="field-grid two"><Field label="GitHub username" value={profile.githubUsername} onChange={(value) => onChange("githubUsername", value)} placeholder="octocat" prefix="github.com/" /><Field label="LinkedIn URL" type="url" value={profile.linkedInUrl} onChange={(value) => onChange("linkedInUrl", value)} placeholder="https://linkedin.com/in/..." /></div><div className="contact-link-list">{profile.contactLinks.map((link,index)=><div className="field-grid two" key={link.id||index}><Field label="Link label" value={link.label} onChange={value=>onChange("contactLinks",profile.contactLinks.map((item,itemIndex)=>itemIndex===index?{...item,label:value}:item))} placeholder="Portfolio"/><Field label="URL" type="url" value={link.url} onChange={value=>onChange("contactLinks",profile.contactLinks.map((item,itemIndex)=>itemIndex===index?{...item,url:value}:item))} placeholder="https://example.com"/><button type="button" className="remove-button" onClick={()=>onChange("contactLinks",profile.contactLinks.filter((_,itemIndex)=>itemIndex!==index))}>Remove link</button></div>)}<button type="button" className="text-button" onClick={()=>onChange("contactLinks",[...profile.contactLinks,{id:"",label:"",url:""}])}>+ Add professional link</button></div></FormBlock>
       <FormBlock title="Positioning" description="A factual summary, never generated without evidence."><label className="field"><span>Professional summary</span><textarea rows={7} maxLength={2400} value={profile.summary} onChange={(event) => onChange("summary", event.target.value)} placeholder="Summarize your experience, strengths, and outcomes." /><small>{profile.summary.length}/2400</small></label></FormBlock>
       <div className="sticky-form-actions"><span>{message}</span><button className="primary-button" disabled={busy}>{busy ? "Saving…" : "Save profile"}</button></div>
     </form>
@@ -1152,6 +1172,14 @@ function EducationCard({ education, busy, onUpdate, onSave, onDelete }: { educat
   const updateField = <K extends keyof EducationDraft>(field: K, value: EducationDraft[K]) => onUpdate({ ...education, [field]: value });
   return <form className="education-card" onSubmit={onSave}><header><div><span>{education.id ? "Saved education" : "New education"}</span><strong>{education.degree || "Untitled degree"}{education.institution ? ` · ${education.institution}` : ""}</strong></div><button className="danger-button" type="button" disabled={busy} onClick={onDelete}>Delete</button></header><div className="education-fields"><div className="field-grid two"><Field label="Institution" value={education.institution} onChange={(value) => updateField("institution", value)} placeholder="Example Institute" required /><Field label="Degree" value={education.degree} onChange={(value) => updateField("degree", value)} placeholder="Bachelor of Science" required /><Field label="Field of study" value={education.fieldOfStudy} onChange={(value) => updateField("fieldOfStudy", value)} placeholder="Computer Science" /><Field label="Location" value={education.location} onChange={(value) => updateField("location", value)} placeholder="Bengaluru, India" /><Field label="Start month" type="month" value={education.startDate} onChange={(value) => updateField("startDate", value)} placeholder="YYYY-MM" /><Field label="End month" type="month" value={education.endDate} onChange={(value) => updateField("endDate", value)} placeholder="YYYY-MM" disabled={education.current} /></div><label className="checkbox-field"><input type="checkbox" checked={education.current} onChange={(event) => updateField("current", event.target.checked)} /><span>I currently study here</span></label><label className="field"><span>Details (optional)</span><textarea rows={4} maxLength={1200} value={education.details} onChange={(event) => updateField("details", event.target.value)} placeholder="Honors, relevant coursework, thesis, or leadership." /><small>{education.details.length}/1200</small></label></div><footer><small>{education.updatedAt ? `Last saved ${new Date(education.updatedAt).toLocaleString()}` : "Not saved yet"}</small><button className="primary-button" disabled={busy}>{busy ? "Saving…" : "Save education"}</button></footer></form>;
 }
+
+function CredentialsWorkspace({certifications,achievements,busyKey,onCertifications,onAchievements,onSaveCertification,onDeleteCertification,onSaveAchievement,onDeleteAchievement}:{certifications:CertificationDraft[];achievements:AchievementDraft[];busyKey:string;onCertifications:React.Dispatch<React.SetStateAction<CertificationDraft[]>>;onAchievements:React.Dispatch<React.SetStateAction<AchievementDraft[]>>;onSaveCertification:(event:FormEvent,item:CertificationDraft)=>void;onDeleteCertification:(item:CertificationDraft)=>void;onSaveAchievement:(event:FormEvent,item:AchievementDraft)=>void;onDeleteAchievement:(item:AchievementDraft)=>void}){
+  const updateCertification=(key:string,next:CertificationDraft)=>onCertifications(items=>items.map(item=>item.key===key?next:item));
+  const updateAchievement=(key:string,next:AchievementDraft)=>onAchievements(items=>items.map(item=>item.key===key?next:item));
+  return <section className="workspace-panel scroll-panel credentials-workspace"><PanelHeader eyebrow="Additional evidence" title="Credentials & achievements" description="Store defensible recognition and qualifications with source and review state." action={<div className="panel-actions"><button className="secondary-button" onClick={()=>onCertifications(items=>[...items,newCertificationDraft()])}>Add certification</button><button className="secondary-button" onClick={()=>onAchievements(items=>[...items,newAchievementDraft()])}>Add achievement</button></div>}/><div className="credential-grid"><section><h2>Certifications</h2>{certifications.length===0&&<p className="evidence-empty">No certifications saved.</p>}{certifications.map(item=><form className="education-card" key={item.key} onSubmit={event=>onSaveCertification(event,item)}><header><strong>{item.name||"New certification"}</strong><button type="button" className="danger-button" onClick={()=>onDeleteCertification(item)}>Delete</button></header><div className="field-grid two"><Field label="Certification" value={item.name} onChange={value=>updateCertification(item.key,{...item,name:value})} placeholder="Cloud Professional" required/><Field label="Issuer" value={item.issuer} onChange={value=>updateCertification(item.key,{...item,issuer:value})} placeholder="Example Institute" required/><Field label="Issued" type="month" value={item.issueDate} onChange={value=>updateCertification(item.key,{...item,issueDate:value})} placeholder="YYYY-MM"/><Field label="Expires" type="month" value={item.expiryDate} onChange={value=>updateCertification(item.key,{...item,expiryDate:value})} placeholder="YYYY-MM"/><Field label="Credential ID" value={item.credentialId} onChange={value=>updateCertification(item.key,{...item,credentialId:value})} placeholder="ABC-123"/><Field label="Credential URL" type="url" value={item.credentialUrl} onChange={value=>updateCertification(item.key,{...item,credentialUrl:value})} placeholder="https://..."/></div><label className="field"><span>Description</span><textarea rows={3} maxLength={1200} value={item.description} onChange={event=>updateCertification(item.key,{...item,description:event.target.value})}/></label><EvidenceState value={item.verification} onChange={verification=>updateCertification(item.key,{...item,verification})}/><button className="primary-button" disabled={busyKey===item.key}>{busyKey===item.key?"Saving…":"Save certification"}</button></form>)}</section><section><h2>Achievements</h2>{achievements.length===0&&<p className="evidence-empty">No achievements saved.</p>}{achievements.map(item=><form className="education-card" key={item.key} onSubmit={event=>onSaveAchievement(event,item)}><header><strong>{item.title||"New achievement"}</strong><button type="button" className="danger-button" onClick={()=>onDeleteAchievement(item)}>Delete</button></header><div className="field-grid two"><Field label="Title" value={item.title} onChange={value=>updateAchievement(item.key,{...item,title:value})} placeholder="Engineering award" required/><Field label="Date" type="month" value={item.date} onChange={value=>updateAchievement(item.key,{...item,date:value})} placeholder="YYYY-MM"/><Field label="Source URL" type="url" value={item.sourceUrl} onChange={value=>updateAchievement(item.key,{...item,sourceUrl:value})} placeholder="https://..."/></div><label className="field"><span>Evidence-backed description</span><textarea required rows={4} maxLength={1200} value={item.description} onChange={event=>updateAchievement(item.key,{...item,description:event.target.value})}/></label><EvidenceState value={item.verification} onChange={verification=>updateAchievement(item.key,{...item,verification})}/><button className="primary-button" disabled={busyKey===item.key}>{busyKey===item.key?"Saving…":"Save achievement"}</button></form>)}</section></div></section>;
+}
+
+function EvidenceState({value,onChange}:{value:"verified"|"unverified";onChange:(value:"verified"|"unverified")=>void}){return <label className="field"><span>Review state</span><select value={value} onChange={event=>onChange(event.target.value as "verified"|"unverified")}><option value="unverified">Needs review</option><option value="verified">Verified</option></select></label>}
 
 function SkillsWorkspace({ skillsText, busy, message, onChange, onSubmit }: { skillsText: string; busy: boolean; message: string; onChange: (value: string) => void; onSubmit: (event: FormEvent) => void }) {
   const skills = parseSkills(skillsText);
@@ -1232,10 +1260,10 @@ function LatexCodeEditor({ value, focusLine, onChange }: { value: string; focusL
 function DataWorkspace({ profile, experiences, projects, educations, jobs, applications, busy, lastResult, onExport, onImport }: { profile: Profile; experiences: ExperienceDraft[]; projects: ProjectDraft[]; educations: EducationDraft[]; jobs: Job[]; applications: Application[]; busy: "export" | "import" | ""; lastResult: domain.BackupResult | null; onExport: () => void; onImport: () => void }) {
   const evidenceCount = experiences.reduce((sum, experience) => sum + experience.bullets.length, 0) + projects.reduce((sum, project) => sum + project.bullets.length, 0);
   const versionCount = applications.reduce((sum, application) => sum + application.versions.length, 0);
-  return <section className="workspace-panel scroll-panel data-workspace"><PanelHeader eyebrow="Local data" title="Backup & restore" description="Keep a portable, versioned copy of your complete TailorCV profile." /><div className="backup-content"><section className="backup-summary"><header><span className="empty-icon"><Icon name="database" size={22} /></span><div><h2>Current local profile</h2><p>Everything listed here is included in one JSON backup.</p></div></header><div className="backup-stat-grid"><div><strong>{profile.name ? "1" : "0"}</strong><span>profile</span></div><div><strong>{experiences.length}</strong><span>roles</span></div><div><strong>{projects.length}</strong><span>projects</span></div><div><strong>{educations.length}</strong><span>education</span></div><div><strong>{jobs.length}</strong><span>jobs</span></div><div><strong>{applications.length}</strong><span>applications</span></div><div><strong>{versionCount}</strong><span>versions</span></div><div><strong>{profile.skills.length}</strong><span>skills</span></div><div><strong>{evidenceCount}</strong><span>evidence</span></div></div></section><section className="backup-action-card"><div><span className="backup-action-icon"><Icon name="download" size={20} /></span><h2>Export backup</h2><p>Write an owner-readable JSON snapshot using a native save dialog. IDs, ordering, verification state, and timestamps are preserved.</p></div><button className="primary-button" disabled={busy !== ""} onClick={onExport}>{busy === "export" ? "Exporting…" : "Choose destination"}</button></section><section className="backup-action-card restore"><div><span className="backup-action-icon"><Icon name="refresh" size={20} /></span><h2>Restore backup</h2><p>The entire file is validated before a single transaction replaces current data. Invalid or unsupported backups leave this profile untouched.</p></div><button className="secondary-button" disabled={busy !== ""} onClick={onImport}>{busy === "import" ? "Restoring…" : "Choose backup"}</button></section>{lastResult && <section className="backup-result"><span className="status-dot" /><div><strong>Last operation completed</strong><p>{lastResult.applicationCount} applications · {lastResult.resumeVersionCount} resume versions · {lastResult.templateCount} templates · {lastResult.aiRunCount} AI runs</p><small>{lastResult.path}</small></div></section>}<div className="backup-safety"><strong>Backup format v4</strong><p>Backups include GitHub repository metadata, custom templates, auditable AI runs, and non-secret AI preferences, but never provider credentials, generated PDFs, compiler caches, or local model data.</p></div></div></section>;
+  return <section className="workspace-panel scroll-panel data-workspace"><PanelHeader eyebrow="Local data" title="Backup & restore" description="Keep a portable, versioned copy of your complete TailorCV profile." /><div className="backup-content"><section className="backup-summary"><header><span className="empty-icon"><Icon name="database" size={22} /></span><div><h2>Current local profile</h2><p>Everything listed here is included in one JSON backup.</p></div></header><div className="backup-stat-grid"><div><strong>{profile.name ? "1" : "0"}</strong><span>profile</span></div><div><strong>{experiences.length}</strong><span>roles</span></div><div><strong>{projects.length}</strong><span>projects</span></div><div><strong>{educations.length}</strong><span>education</span></div><div><strong>{jobs.length}</strong><span>jobs</span></div><div><strong>{applications.length}</strong><span>applications</span></div><div><strong>{versionCount}</strong><span>versions</span></div><div><strong>{profile.skills.length}</strong><span>skills</span></div><div><strong>{evidenceCount}</strong><span>evidence</span></div></div></section><section className="backup-action-card"><div><span className="backup-action-icon"><Icon name="download" size={20} /></span><h2>Export backup</h2><p>Write an owner-readable JSON snapshot using a native save dialog. IDs, ordering, verification state, ranking priority, and timestamps are preserved.</p></div><button className="primary-button" disabled={busy !== ""} onClick={onExport}>{busy === "export" ? "Exporting…" : "Choose destination"}</button></section><section className="backup-action-card restore"><div><span className="backup-action-icon"><Icon name="refresh" size={20} /></span><h2>Restore backup</h2><p>The entire file is validated before a single transaction replaces current data. Invalid or unsupported backups leave this profile untouched.</p></div><button className="secondary-button" disabled={busy !== ""} onClick={onImport}>{busy === "import" ? "Restoring…" : "Choose backup"}</button></section>{lastResult && <section className="backup-result"><span className="status-dot" /><div><strong>Last operation completed</strong><p>{lastResult.certificationCount} certifications · {lastResult.achievementCount} achievements · {lastResult.resumeVersionCount} resume versions</p><small>{lastResult.path}</small></div></section>}<div className="backup-safety"><strong>Backup format v6</strong><p>Backups include evidence ranking priorities, professional links, certifications, achievements, GitHub metadata, templates, AI audit history, and non-secret preferences, but never provider credentials, generated PDFs, compiler caches, or local model data.</p></div></div></section>;
 }
 
-function ResumePreview({ profile, experiences, projects, educations, compileResult }: { profile: Profile; experiences: ExperienceDraft[]; projects: ProjectDraft[]; educations: EducationDraft[]; compileResult: domain.CompileResult | null }) {
+function ResumePreview({ profile, experiences, projects, educations,certifications,achievements, compileResult }: { profile: Profile; experiences: ExperienceDraft[]; projects: ProjectDraft[]; educations: EducationDraft[];certifications:CertificationDraft[];achievements:AchievementDraft[]; compileResult: domain.CompileResult | null }) {
   const visibleExperiences = experiences.slice(0, 2);
   const visibleProjects = projects.slice(0, 3);
   const compiled = Boolean(compileResult?.success && compileResult.pdfBase64);
@@ -1247,6 +1275,8 @@ function ResumePreview({ profile, experiences, projects, educations, compileResu
     <ResumeSection title="Experience">{visibleExperiences.length ? visibleExperiences.map((experience) => <div className="resume-entry" key={experience.key}><div><strong>{experience.title || "Role"} · {experience.company || "Company"}</strong><span>{experience.startDate} — {experience.current ? "Present" : experience.endDate}</span></div>{experience.location && <em>{experience.location}</em>}<ul>{experience.bullets.slice(0, 3).map((bullet, index) => <li key={bullet.id || index}>{bullet.text}</li>)}</ul></div>) : <ResumePlaceholder text="Add experience and evidence bullets" />}</ResumeSection>
     <ResumeSection title="Projects">{visibleProjects.length ? visibleProjects.map((project) => <div className="resume-entry project" key={project.key}><div><strong>{project.name || "Project"}</strong><span>{project.skills.slice(0, 3).join(" · ")}</span></div>{project.description && <p>{project.description}</p>}<ul>{project.bullets.slice(0, 2).map((bullet, index) => <li key={bullet.id || index}>{bullet.text}</li>)}</ul></div>) : <ResumePlaceholder text="Select projects to include them" />}</ResumeSection>
     {educations.length > 0 && <ResumeSection title="Education">{educations.slice(0, 2).map((education) => <div className="resume-entry education" key={education.key}><div><strong>{education.degree}{education.fieldOfStudy ? `, ${education.fieldOfStudy}` : ""}</strong><span>{education.startDate}{education.startDate && (education.current || education.endDate) ? " — " : ""}{education.current ? "Present" : education.endDate}</span></div><em>{education.institution}{education.location ? ` · ${education.location}` : ""}</em>{education.details && <p>{education.details}</p>}</div>)}</ResumeSection>}
+    {certifications.length>0&&<ResumeSection title="Certifications">{certifications.slice(0,3).map(item=><div className="resume-entry" key={item.key}><div><strong>{item.name} · {item.issuer}</strong><span>{item.issueDate}</span></div>{item.description&&<p>{item.description}</p>}</div>)}</ResumeSection>}
+    {achievements.length>0&&<ResumeSection title="Achievements"><ul>{achievements.slice(0,3).map(item=><li key={item.key}><strong>{item.title}:</strong> {item.description}</li>)}</ul></ResumeSection>}
     <ResumeSection title="Skills"><p className="resume-skills">{profile.skills.length ? profile.skills.join("  ·  ") : "Add skills to your profile"}</p></ResumeSection>
   </article></div>}</aside>;
 }
@@ -1332,7 +1362,7 @@ function Overview({ profile, completion, onProfile, onTailor }: { profile: Profi
         <article className="stat-card">
           <span className="stat-label">Saved resumes</span>
           <strong>0</strong>
-          <p>Version history arrives in milestone four.</p>
+          <p>Every saved edit creates a recoverable immutable version.</p>
         </article>
       </div>
 
@@ -1688,6 +1718,14 @@ function EvidenceEditor({ bullets, emptyLabel, onChange }: {
                     <option value="verified">Verified</option>
                   </select>
                 </label>
+                <label className="field">
+                  <span>Ranking priority</span>
+                  <select value={bullet.importance} onChange={(event) => updateBullet(index, { importance: event.target.value as EvidenceBullet["importance"] })}>
+                    <option value="standard">Standard</option>
+                    <option value="important">Important (+6)</option>
+                    <option value="essential">Essential (+12)</option>
+                  </select>
+                </label>
                 <Field label="Source URL (optional)" type="url" value={bullet.sourceUrl} onChange={(value) => updateBullet(index, { sourceUrl: value })} placeholder="https://github.com/…" />
                 <div className="provenance-field"><span>Origin</span><strong>{bullet.provenance}</strong></div>
                 <button className="remove-button" type="button" onClick={() => removeBullet(index)}>Remove</button>
@@ -1744,7 +1782,7 @@ function JobTailor({ job, jobs, application, analysis, selectedFactIDs, busy, ve
         </form>
         <section className="analysis-card">
           <div className="card-heading"><span className="step-pill muted">Step 2</span><h2>Review the evidence</h2></div>
-          {!analysis ? <div className="analysis-empty"><div className="radar">✦</div><strong>Your ranked evidence will appear here</strong><p>TailorCV shows exact skill and term overlap with a reason for every suggested fact.</p></div> : <AnalysisResult analysis={analysis} selectedFactIDs={selectedFactIDs} onToggle={onToggleEvidence} />}
+          {!analysis ? <div className="analysis-empty"><div className="radar">✦</div><strong>Your ranked evidence will appear here</strong><p>TailorCV shows skill, term, importance, and recency signals with a reason for every suggested fact.</p></div> : <AnalysisResult analysis={analysis} selectedFactIDs={selectedFactIDs} onToggle={onToggleEvidence} />}
           {analysis && <div className="version-action"><div><strong>{selectedFactIDs.length} facts selected</strong><span>Render with {templateName} and preserve an immutable job snapshot.</span></div><button className="primary-button" disabled={versionBusy || selectedFactIDs.length === 0} onClick={onCreateVersion}>{versionBusy ? "Saving version…" : "Save resume version"}</button></div>}
         </section>
       </div>

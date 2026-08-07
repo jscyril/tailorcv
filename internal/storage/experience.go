@@ -65,7 +65,7 @@ func (s *Store) ListExperiences(ctx context.Context) ([]domain.Experience, error
 
 func (s *Store) listExperienceBullets(ctx context.Context, experienceID string) ([]domain.EvidenceBullet, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, text, provenance, source_url, verification_state, position, created_at, updated_at
+		SELECT id, text, provenance, source_url, verification_state, importance, position, created_at, updated_at
 		FROM experience_bullets
 		WHERE experience_id = ?
 		ORDER BY position
@@ -84,6 +84,7 @@ func (s *Store) listExperienceBullets(ctx context.Context, experienceID string) 
 			&bullet.Provenance,
 			&bullet.SourceURL,
 			&bullet.Verification,
+			&bullet.Importance,
 			&bullet.Position,
 			&bullet.CreatedAt,
 			&bullet.UpdatedAt,
@@ -199,8 +200,8 @@ func (s *Store) SaveExperience(ctx context.Context, experience domain.Experience
 		_, err := tx.ExecContext(ctx, `
 			INSERT INTO experience_bullets (
 				id, experience_id, text, provenance, source_url,
-				verification_state, position, created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+				verification_state, importance, position, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`,
 			bullet.ID,
 			experience.ID,
@@ -208,6 +209,7 @@ func (s *Store) SaveExperience(ctx context.Context, experience domain.Experience
 			bullet.Provenance,
 			bullet.SourceURL,
 			bullet.Verification,
+			bullet.Importance,
 			bullet.Position,
 			bullet.CreatedAt,
 			bullet.UpdatedAt,
