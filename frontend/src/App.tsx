@@ -279,11 +279,11 @@ export default function App() {
     setError("");
     setMessage("");
     try {
-      const saved = await SaveProfile({
+      const saved = await SaveProfile(new domain.ProfileInput({
         ...profile,
         skills: parseSkills(skillsText),
         contactLinks: profile.contactLinks,
-      });
+      }));
       const normalized = { ...emptyProfile, ...saved } as Profile;
       setProfile(normalized);
       setSkillsText(normalized.skills.join(", "));

@@ -92,7 +92,7 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Build packaged application
-        run: wails build -clean -skipbindings -s -m -trimpath ${{ matrix.build_args }}
+        run: wails build -clean -m -trimpath ${{ matrix.build_args }}
 
       - name: Upload smoke-build artifact
         uses: actions/upload-artifact@v6

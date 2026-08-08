@@ -34,11 +34,17 @@ export function CreateResumeVersion(arg1) {
   return window['go']['main']['App']['CreateResumeVersion'](arg1);
 }
 
+export function DeleteAchievement(arg1) {
+  return window['go']['main']['App']['DeleteAchievement'](arg1);
+}
+
+export function DeleteCertification(arg1) {
+  return window['go']['main']['App']['DeleteCertification'](arg1);
+}
+
 export function DeleteEducation(arg1) {
   return window['go']['main']['App']['DeleteEducation'](arg1);
 }
-export function DeleteCertification(arg1) { return window['go']['main']['App']['DeleteCertification'](arg1); }
-export function DeleteAchievement(arg1) { return window['go']['main']['App']['DeleteAchievement'](arg1); }
 
 export function DeleteExperience(arg1) {
   return window['go']['main']['App']['DeleteExperience'](arg1);
@@ -108,15 +114,21 @@ export function ListAIRuns() {
   return window['go']['main']['App']['ListAIRuns']();
 }
 
+export function ListAchievements() {
+  return window['go']['main']['App']['ListAchievements']();
+}
+
 export function ListApplications() {
   return window['go']['main']['App']['ListApplications']();
+}
+
+export function ListCertifications() {
+  return window['go']['main']['App']['ListCertifications']();
 }
 
 export function ListEducations() {
   return window['go']['main']['App']['ListEducations']();
 }
-export function ListCertifications() { return window['go']['main']['App']['ListCertifications'](); }
-export function ListAchievements() { return window['go']['main']['App']['ListAchievements'](); }
 
 export function ListExperiences() {
   return window['go']['main']['App']['ListExperiences']();
@@ -146,11 +158,17 @@ export function SaveAISettings(arg1) {
   return window['go']['main']['App']['SaveAISettings'](arg1);
 }
 
+export function SaveAchievement(arg1) {
+  return window['go']['main']['App']['SaveAchievement'](arg1);
+}
+
+export function SaveCertification(arg1) {
+  return window['go']['main']['App']['SaveCertification'](arg1);
+}
+
 export function SaveEducation(arg1) {
   return window['go']['main']['App']['SaveEducation'](arg1);
 }
-export function SaveCertification(arg1) { return window['go']['main']['App']['SaveCertification'](arg1); }
-export function SaveAchievement(arg1) { return window['go']['main']['App']['SaveAchievement'](arg1); }
 
 export function SaveExperience(arg1) {
   return window['go']['main']['App']['SaveExperience'](arg1);
