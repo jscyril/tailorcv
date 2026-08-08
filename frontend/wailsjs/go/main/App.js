@@ -134,6 +134,10 @@ export function ListResumeTemplates() {
   return window['go']['main']['App']['ListResumeTemplates']();
 }
 
+export function OpenResumeVersion(arg1) {
+  return window['go']['main']['App']['OpenResumeVersion'](arg1);
+}
+
 export function RenderResumeTemplate(arg1, arg2) {
   return window['go']['main']['App']['RenderResumeTemplate'](arg1, arg2);
 }

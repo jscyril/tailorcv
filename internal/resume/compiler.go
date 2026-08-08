@@ -19,7 +19,6 @@ import (
 const (
 	compileTimeout = 45 * time.Second
 	maxCompilerLog = 256 << 10
-	maxPDFSize     = 24 << 20
 )
 
 type Compiler struct {
@@ -92,7 +91,7 @@ func (compiler *Compiler) Compile(ctx context.Context, source string) (domain.Co
 	if err != nil {
 		return domain.CompileResult{}, nil, fmt.Errorf("read compiled PDF: %w", err)
 	}
-	if len(pdf) == 0 || len(pdf) > maxPDFSize {
+	if len(pdf) == 0 || len(pdf) > domain.MaxCompiledPDFBytes {
 		return domain.CompileResult{}, nil, fmt.Errorf("compiled PDF is empty or exceeds the 24 MiB limit")
 	}
 	result.PDFBase64 = base64.StdEncoding.EncodeToString(pdf)

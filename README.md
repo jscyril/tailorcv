@@ -30,6 +30,7 @@ TailorCV has a complete deterministic resume-building vertical slice, local comp
 - Native operating-system keyring storage for the Gemini API key, with write-only credential UI and separately persisted non-secret provider preferences.
 - Auditable AI-run history without secrets or raw prompts; failed provider and validation runs are recorded safely.
 - End-to-end service tests for deterministic and recorded-Ollama resume workflows, plus React integration tests that exercise the corresponding Wails binding calls.
+- Native Linux, macOS, and Windows CI that runs Go tests and migrations, frontend tests and type-checking, and packaged Wails smoke builds.
 
 See [PLAN.md](PLAN.md) for the product architecture and delivery milestones.
 
@@ -119,6 +120,12 @@ On Linux distributions that provide WebKitGTK 4.1 rather than 4.0, use:
 ```bash
 wails build -tags webkit2_41
 ```
+
+## Continuous integration
+
+GitHub Actions runs the Go test and vet suites, frontend tests and production build, and a native Wails package build on Linux amd64, macOS arm64, and Windows amd64. Storage migration coverage is part of the Go suite.
+
+Successful runs retain each platform build for seven days. These are unsigned smoke-build artifacts: they verify the native application build but do not include the pinned offline Tectonic bundle required for a release.
 
 ## Local data
 

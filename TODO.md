@@ -17,7 +17,7 @@ Last audited: 2026-08-08
 - [x] Compile LaTeX with Tectonic in an isolated untrusted workspace and return structured diagnostics.
 - [x] Preview compiled PDFs with lazy-loaded PDF.js and persist private PDF artifacts for saved versions.
 - [x] Export and atomically restore versioned JSON backups for the currently supported profile, job, application, and resume-source data.
-- [x] Pass the Go tests, 24 frontend unit and React integration tests, TypeScript check, production frontend build, and `go vet` as of the audit date.
+- [x] Pass the Go tests, 28 frontend unit and React integration tests, TypeScript check, production frontend build, and `go vet` as of the audit date.
 
 ## Evidence-constrained AI
 
@@ -91,17 +91,17 @@ These are already named or implied by `PLAN.md`, but are not implemented in the 
 
 - [ ] Package pinned Tectonic executables and offline resources for Windows, macOS, and Linux.
 - [ ] Ensure ordinary compilation cannot attempt network access and add a true offline integration fixture.
-- [ ] Make atomic file replacement work consistently on Windows, including recompiling or re-exporting to an existing destination.
-- [ ] Add platform CI for Go tests, frontend tests/type checking/builds, migrations, and packaged Wails builds.
+- [x] Make atomic file replacement work consistently on Windows, including recompiling or re-exporting to an existing destination. The shared writer uses `MoveFileEx` replacement semantics on Windows and is compile-checked for Windows amd64.
+- [x] Add platform CI for Go tests, frontend tests/type checking/builds, migrations, and packaged Wails builds. Native Linux amd64, macOS arm64, and Windows amd64 jobs upload seven-day unsigned smoke artifacts.
 - [x] Compile-check the OS credential adapter for Linux amd64, macOS amd64/arm64, and Windows amd64.
 - [ ] Run native credential set/get/delete verification in packaged Windows, macOS, and Linux applications.
-- [ ] Extend end-to-end coverage beyond the delivered job-analysis/version and recorded-Ollama workflows to onboarding, profile creation, GitHub import/review, compile, reopen, backup/restore, and export in a packaged Wails runtime.
+- [ ] Exercise the delivered onboarding/profile creation, GitHub import/review, compile/reopen/export, and backup/restore workflows in a packaged Wails runtime for native dialogs and filesystem behavior.
 - [ ] Add security tests proving malicious job/model/template content cannot enable shell escape, read arbitrary files, or write outside the compile workspace.
 - [ ] Add accessibility testing and keyboard/focus checks for dialogs, navigation, forms, evidence selection, diagnostics, and the PDF workspace.
 - [ ] Add failure-recovery tests for interrupted backup restore, missing/corrupt PDF artifacts, unavailable compilers/providers, and database migration failure.
-- [ ] Continue focused `app.go` and `App.tsx` tests beyond the new deterministic and recorded-Ollama workflow coverage, prioritizing native-dialog, compiler, backup, and failure paths.
+- [ ] Continue focused `app.go` and `App.tsx` tests beyond deterministic, recorded-Ollama, onboarding/profile creation, GitHub import/review, compile/reopen/export, and backup/restore coverage, prioritizing remaining native-dialog behavior and failure paths.
 - [ ] Split `App.tsx` into feature-focused modules as those tests are added; avoid a standalone rewrite.
-- [ ] Revisit editor bundle splitting after AI UI work. PDF.js is already lazy-loaded; the main production JS bundle was about 534 KB at the audit.
+- [ ] Revisit editor bundle splitting after AI UI work. PDF.js is already lazy-loaded; the main production JS bundle is about 561 KB at the current audit.
 - [ ] Select a license and contribution policy before the first public source release.
 - [ ] Add signed release artifacts and updater support only after manual installation is stable.
 

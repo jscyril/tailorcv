@@ -42,6 +42,7 @@ import {
   ListJobs,
   ListProjects,
   ListResumeTemplates,
+  OpenResumeVersion,
   RenderResumeTemplate,
   SaveEducation,
   SaveCertification,
@@ -169,6 +170,10 @@ function errorMessage(error: unknown): string {
   return "Something went wrong. Please try again.";
 }
 
+function profileHasData(profile: Profile): boolean {
+  return Boolean(profile.name || profile.email || profile.headline || profile.phone || profile.location || profile.website || profile.githubUsername || profile.linkedInUrl || profile.summary || profile.skills.length);
+}
+
 export default function App() {
   const [view, setView] = useState<View>("projects");
   const [profile, setProfile] = useState<Profile>(emptyProfile);
@@ -192,7 +197,7 @@ export default function App() {
   const [backupBusy, setBackupBusy] = useState<"export" | "import" | "">("");
   const [githubBusy, setGitHubBusy] = useState(false);
   const [lastBackupResult, setLastBackupResult] = useState<domain.BackupResult | null>(null);
-  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
+  const [onboardingPending, setOnboardingPending] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [selectedProjectKeys, setSelectedProjectKeys] = useState<string[]>([]);
@@ -207,6 +212,7 @@ export default function App() {
   const [compileResult, setCompileResult] = useState<domain.CompileResult | null>(null);
   const compileRequestRef = useRef(0);
   const compileTimerRef = useRef<number | undefined>(undefined);
+  const skipNextAutomaticCompileRef = useRef(false);
   const [ollamaEndpoint, setOllamaEndpoint] = useState("http://127.0.0.1:11434");
 	const [aiProvider, setAIProvider] = useState<AIProvider>("ollama");
   const [aiProviderStatus, setAIProviderStatus] = useState<AIProviderStatus | null>(null);
@@ -239,6 +245,7 @@ export default function App() {
     setJobs(savedJobs as unknown as Job[]);
     setApplications(savedApplications as unknown as Application[]);
     setAIRuns(savedAIRuns as unknown as AIRun[]);
+		setOnboardingPending(!profileHasData(loaded) && savedExperiences.length === 0 && savedProjects.length === 0 && savedEducations.length === 0);
 		setAIProvider(savedAISettings.provider as AIProvider);
 		setOllamaEndpoint(savedAISettings.ollamaEndpoint);
 		setOllamaModel(savedAISettings.ollamaModel);
@@ -280,6 +287,7 @@ export default function App() {
       const normalized = { ...emptyProfile, ...saved } as Profile;
       setProfile(normalized);
       setSkillsText(normalized.skills.join(", "));
+      setOnboardingPending(false);
       setMessage("Profile saved locally.");
     } catch (reason) {
       setError(errorMessage(reason));
@@ -379,13 +387,24 @@ export default function App() {
     }
   };
 
-  const openResumeVersion = (version: ResumeVersion) => {
-    setLatexSource(version.latexSource);
-    setOpenVersionID(version.id);
-    setSavedVersionSource(version.latexSource);
+  const openResumeVersion = async (version: ResumeVersion) => {
+    setError("");
     setCompileResult(null);
-    setView("latex");
-    setMessage(`Opened immutable resume version ${version.versionNumber}.`);
+    try {
+      const workspace = await OpenResumeVersion(version.id);
+      const opened = workspace.version as unknown as ResumeVersion;
+      setLatexSource(opened.latexSource);
+      setOpenVersionID(opened.id);
+      setSavedVersionSource(opened.latexSource);
+      setCompileResult(opened.compiledAt && (!opened.compileSuccess || opened.pdfAvailable) ? workspace.compileResult : null);
+      skipNextAutomaticCompileRef.current = true;
+      setView("latex");
+      setMessage(opened.pdfAvailable
+        ? `Opened immutable resume version ${opened.versionNumber} with its saved PDF.`
+        : `Opened immutable resume version ${opened.versionNumber}.`);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    }
   };
 
   const saveResumeVersionEdit = async () => {
@@ -950,6 +969,12 @@ export default function App() {
       setCompileBusy(false);
       return;
     }
+    if (skipNextAutomaticCompileRef.current) {
+      skipNextAutomaticCompileRef.current = false;
+      compileRequestRef.current += 1;
+      setCompileBusy(false);
+      return;
+    }
     compileTimerRef.current = window.setTimeout(() => {
       compileTimerRef.current = undefined;
       void compileLatexSource(latexSource, true);
@@ -983,12 +1008,11 @@ export default function App() {
   const activeTemplate = templates.find((template) => template.id === selectedTemplateID);
   const currentApplication = applications.find((application) => application.jobId === jobDraft.id);
   const hasCareerEvidence = profile.skills.length > 0 || experiences.some((experience) => experience.bullets.length > 0) || projects.some((project) => project.skills.length > 0 || project.bullets.length > 0);
-  const hasProfileData = Boolean(profile.name || profile.email || profile.headline || profile.phone || profile.location || profile.website || profile.githubUsername || profile.linkedInUrl || profile.summary || profile.skills.length);
-  const showOnboarding = !busy && !onboardingDismissed && !hasProfileData && experiences.length === 0 && projects.length === 0 && educations.length === 0;
+  const showOnboarding = !busy && onboardingPending;
 
   return (
     <div className="studio-shell">
-      {showOnboarding && <Onboarding profile={profile} skillsText={skillsText} busy={busy} onChange={updateProfile} onSkillsChange={setSkillsText} onSubmit={saveProfile} onSkip={() => setOnboardingDismissed(true)} />}
+      {showOnboarding && <Onboarding profile={profile} skillsText={skillsText} busy={busy} onChange={updateProfile} onSkillsChange={setSkillsText} onSubmit={saveProfile} onSkip={() => setOnboardingPending(false)} />}
       <TopToolbar profile={profile} templateName={activeTemplate?.name ?? "Resume template"} compiling={compileBusy} canExport={Boolean(compileResult?.success && compileResult.pdfBase64)} onCompile={compileLatex} onExport={exportCompiledPDF} />
 
       <div className="studio-body">

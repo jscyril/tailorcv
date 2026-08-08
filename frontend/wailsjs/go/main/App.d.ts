@@ -70,6 +70,8 @@ export function ListProjects():Promise<Array<domain.Project>>;
 
 export function ListResumeTemplates():Promise<Array<domain.ResumeTemplate>>;
 
+export function OpenResumeVersion(arg1:string):Promise<domain.ResumeVersionWorkspace>;
+
 export function RenderResumeTemplate(arg1:string,arg2:Array<string>):Promise<string>;
 
 export function SaveAISettings(arg1:domain.AISettings):Promise<domain.AISettings>;

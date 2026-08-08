@@ -2,14 +2,17 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/jscyril/tailorcv/internal/ai"
+	"github.com/jscyril/tailorcv/internal/atomicfile"
 	backupfile "github.com/jscyril/tailorcv/internal/backup"
 	"github.com/jscyril/tailorcv/internal/credentials"
 	"github.com/jscyril/tailorcv/internal/domain"
@@ -19,13 +22,27 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+type latexCompiler interface {
+	Compile(context.Context, string) (domain.CompileResult, []byte, error)
+}
+
+type githubRepositoryClient interface {
+	ListPublicRepositories(context.Context, string) ([]domain.GitHubRepository, error)
+}
+
+type saveFileDialog func(context.Context, runtime.SaveDialogOptions) (string, error)
+type openFileDialog func(context.Context, runtime.OpenDialogOptions) (string, error)
+
 // App is the Wails-facing application service. Domain and persistence details
 // stay behind this deliberately small API.
 type App struct {
 	ctx               context.Context
 	store             *storage.Store
-	github            *githubclient.Client
-	compiler          *resume.Compiler
+	github            githubRepositoryClient
+	compiler          latexCompiler
+	saveFileDialog    saveFileDialog
+	openFileDialog    openFileDialog
+	artifactDirectory string
 	initErr           error
 	compileMu         sync.RWMutex
 	lastPDF           []byte
@@ -37,7 +54,10 @@ type App struct {
 }
 
 func NewApp() *App {
-	return &App{github: githubclient.NewClient(nil), compiler: resume.NewCompiler(""), credentials: credentials.OSStore{}}
+	return &App{
+		github: githubclient.NewClient(nil), compiler: resume.NewCompiler(""), credentials: credentials.OSStore{},
+		saveFileDialog: runtime.SaveFileDialog, openFileDialog: runtime.OpenFileDialog,
+	}
 }
 
 func (a *App) startup(ctx context.Context) {
@@ -221,7 +241,7 @@ func (a *App) ExportProfileBackup() (domain.BackupResult, error) {
 	if err != nil {
 		return domain.BackupResult{}, err
 	}
-	path, err := runtime.SaveFileDialog(a.appContext(), runtime.SaveDialogOptions{
+	path, err := a.chooseSaveFile(a.appContext(), runtime.SaveDialogOptions{
 		Title:           "Export TailorCV profile backup",
 		DefaultFilename: "tailorcv-profile-backup.json",
 		Filters:         []runtime.FileFilter{{DisplayName: "JSON backup (*.json)", Pattern: "*.json"}},
@@ -252,7 +272,7 @@ func (a *App) ImportProfileBackup() (domain.BackupResult, error) {
 	if err := a.ready(); err != nil {
 		return domain.BackupResult{}, err
 	}
-	path, err := runtime.OpenFileDialog(a.appContext(), runtime.OpenDialogOptions{
+	path, err := a.chooseOpenFile(a.appContext(), runtime.OpenDialogOptions{
 		Title:   "Restore TailorCV profile backup",
 		Filters: []runtime.FileFilter{{DisplayName: "JSON backup (*.json)", Pattern: "*.json"}},
 	})
@@ -619,7 +639,7 @@ func (a *App) ImportResumeTemplate() (domain.ResumeTemplate, error) {
 	if err := a.ready(); err != nil {
 		return domain.ResumeTemplate{}, err
 	}
-	path, err := runtime.OpenFileDialog(a.appContext(), runtime.OpenDialogOptions{
+	path, err := a.chooseOpenFile(a.appContext(), runtime.OpenDialogOptions{
 		Title:   "Import LaTeX resume template",
 		Filters: []runtime.FileFilter{{DisplayName: "LaTeX template (*.tex)", Pattern: "*.tex"}},
 	})
@@ -736,13 +756,12 @@ func (a *App) CompileLatex(source string) (domain.CompileResult, error) {
 	if err := a.ready(); err != nil {
 		return domain.CompileResult{}, err
 	}
-	result, pdf, err := a.compiler.Compile(a.appContext(), source)
-	a.compileMu.Lock()
-	a.lastPDF = append(a.lastPDF[:0], pdf...)
-	a.compileMu.Unlock()
+	result, pdf, err := a.compile(a.appContext(), source)
 	if err != nil {
+		a.setLastPDF(nil)
 		return domain.CompileResult{}, err
 	}
+	a.setLastPDF(pdf)
 	return result, nil
 }
 
@@ -756,7 +775,8 @@ func (a *App) CompileResumeVersion(versionID string) (domain.CompileResult, erro
 	if err != nil {
 		return domain.CompileResult{}, err
 	}
-	result, pdf, err := a.compiler.Compile(a.appContext(), version.LatexSource)
+	a.setLastPDF(nil)
+	result, pdf, err := a.compile(a.appContext(), version.LatexSource)
 	if err != nil {
 		return domain.CompileResult{}, err
 	}
@@ -771,20 +791,62 @@ func (a *App) CompileResumeVersion(versionID string) (domain.CompileResult, erro
 		}
 	}
 	if err := a.store.RecordResumeCompilation(a.appContext(), version.ID, pdfPath, result); err != nil {
+		if pdfPath != "" {
+			_ = os.Remove(pdfPath)
+		}
 		return domain.CompileResult{}, err
 	}
-	a.compileMu.Lock()
-	a.lastPDF = append(a.lastPDF[:0], pdf...)
-	a.compileMu.Unlock()
+	a.setLastPDF(pdf)
 	return result, nil
 }
 
-func (a *App) resumeArtifactPath(versionID string) (string, error) {
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		return "", fmt.Errorf("resolve resume artifact directory: %w", err)
+// OpenResumeVersion restores an immutable source and, when present, its
+// private compiled artifact. This makes a saved PDF previewable and exportable
+// after navigating away or restarting the application without recompilation.
+func (a *App) OpenResumeVersion(versionID string) (domain.ResumeVersionWorkspace, error) {
+	if err := a.ready(); err != nil {
+		return domain.ResumeVersionWorkspace{}, err
 	}
-	directory := filepath.Join(configDir, "tailorcv", "artifacts")
+	a.setLastPDF(nil)
+	version, err := a.store.GetResumeVersion(a.appContext(), versionID)
+	if err != nil {
+		return domain.ResumeVersionWorkspace{}, err
+	}
+	result := domain.CompileResult{
+		Success: version.CompileSuccess, Engine: version.CompileEngine,
+		DurationMS: version.CompileDurationMS, Diagnostics: version.CompileDiagnostics,
+	}
+	if version.PDFPath == "" {
+		return domain.ResumeVersionWorkspace{Version: version, CompileResult: result}, nil
+	}
+	expectedPath, err := a.resumeArtifactPath(version.ID)
+	if err != nil {
+		return domain.ResumeVersionWorkspace{}, err
+	}
+	if filepath.Clean(version.PDFPath) != filepath.Clean(expectedPath) {
+		return domain.ResumeVersionWorkspace{}, fmt.Errorf("saved PDF artifact location is invalid")
+	}
+	if !version.PDFAvailable {
+		return domain.ResumeVersionWorkspace{Version: version, CompileResult: result}, nil
+	}
+	pdf, err := readPrivatePDF(expectedPath)
+	if err != nil {
+		return domain.ResumeVersionWorkspace{}, fmt.Errorf("open saved PDF artifact: %w", err)
+	}
+	result.PDFBase64 = base64.StdEncoding.EncodeToString(pdf)
+	a.setLastPDF(pdf)
+	return domain.ResumeVersionWorkspace{Version: version, CompileResult: result}, nil
+}
+
+func (a *App) resumeArtifactPath(versionID string) (string, error) {
+	directory := a.artifactDirectory
+	if directory == "" {
+		configDir, err := os.UserConfigDir()
+		if err != nil {
+			return "", fmt.Errorf("resolve resume artifact directory: %w", err)
+		}
+		directory = filepath.Join(configDir, "tailorcv", "artifacts")
+	}
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return "", fmt.Errorf("create resume artifact directory: %w", err)
 	}
@@ -801,7 +863,7 @@ func (a *App) ExportCompiledPDF() (domain.FileResult, error) {
 	if len(pdf) == 0 {
 		return domain.FileResult{}, fmt.Errorf("compile the current LaTeX source before exporting a PDF")
 	}
-	path, err := runtime.SaveFileDialog(a.appContext(), runtime.SaveDialogOptions{
+	path, err := a.chooseSaveFile(a.appContext(), runtime.SaveDialogOptions{
 		Title:           "Export compiled resume",
 		DefaultFilename: "resume.pdf",
 		Filters:         []runtime.FileFilter{{DisplayName: "PDF document (*.pdf)", Pattern: "*.pdf"}},
@@ -828,7 +890,7 @@ func (a *App) ExportLatexSource(source string) (domain.FileResult, error) {
 	if len(source) == 0 || len(source) > domain.MaxTemplateSourceBytes {
 		return domain.FileResult{}, fmt.Errorf("LaTeX source is empty or exceeds the 1 MiB size limit")
 	}
-	path, err := runtime.SaveFileDialog(a.appContext(), runtime.SaveDialogOptions{
+	path, err := a.chooseSaveFile(a.appContext(), runtime.SaveDialogOptions{
 		Title:           "Export LaTeX source",
 		DefaultFilename: "resume.tex",
 		Filters:         []runtime.FileFilter{{DisplayName: "LaTeX source (*.tex)", Pattern: "*.tex"}},
@@ -865,29 +927,61 @@ func (a *App) resumeTemplate(id string) (domain.ResumeTemplate, error) {
 }
 
 func writePrivateFile(path string, data []byte) error {
-	directory := filepath.Dir(path)
-	temporary, err := os.CreateTemp(directory, ".tailorcv-export-*.tmp")
+	return atomicfile.Write(path, data)
+}
+
+func readPrivatePDF(path string) ([]byte, error) {
+	info, err := os.Lstat(path)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	temporaryPath := temporary.Name()
-	defer os.Remove(temporaryPath)
-	if err := temporary.Chmod(0o600); err != nil {
-		_ = temporary.Close()
-		return err
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("artifact is not a regular file")
 	}
-	if _, err := temporary.Write(data); err != nil {
-		_ = temporary.Close()
-		return err
+	if info.Size() <= 0 || info.Size() > domain.MaxCompiledPDFBytes {
+		return nil, fmt.Errorf("artifact is empty or exceeds the 24 MiB size limit")
 	}
-	if err := temporary.Sync(); err != nil {
-		_ = temporary.Close()
-		return err
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
 	}
-	if err := temporary.Close(); err != nil {
-		return err
+	defer file.Close()
+	pdf, err := io.ReadAll(io.LimitReader(file, domain.MaxCompiledPDFBytes+1))
+	if err != nil {
+		return nil, err
 	}
-	return os.Rename(temporaryPath, path)
+	if len(pdf) > domain.MaxCompiledPDFBytes || !strings.HasPrefix(string(pdf), "%PDF-") {
+		return nil, fmt.Errorf("artifact is not a valid bounded PDF")
+	}
+	return pdf, nil
+}
+
+func (a *App) compile(ctx context.Context, source string) (domain.CompileResult, []byte, error) {
+	compiler := a.compiler
+	if compiler == nil {
+		compiler = resume.NewCompiler("")
+	}
+	return compiler.Compile(ctx, source)
+}
+
+func (a *App) setLastPDF(pdf []byte) {
+	a.compileMu.Lock()
+	a.lastPDF = append(a.lastPDF[:0], pdf...)
+	a.compileMu.Unlock()
+}
+
+func (a *App) chooseSaveFile(ctx context.Context, options runtime.SaveDialogOptions) (string, error) {
+	if a.saveFileDialog != nil {
+		return a.saveFileDialog(ctx, options)
+	}
+	return runtime.SaveFileDialog(ctx, options)
+}
+
+func (a *App) chooseOpenFile(ctx context.Context, options runtime.OpenDialogOptions) (string, error) {
+	if a.openFileDialog != nil {
+		return a.openFileDialog(ctx, options)
+	}
+	return runtime.OpenFileDialog(ctx, options)
 }
 
 func (a *App) ready() error {

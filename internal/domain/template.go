@@ -5,7 +5,10 @@ import (
 	"strings"
 )
 
-const MaxTemplateSourceBytes = 1 << 20
+const (
+	MaxTemplateSourceBytes = 1 << 20
+	MaxCompiledPDFBytes    = 24 << 20
+)
 
 type ResumeTemplate struct {
 	ID          string `json:"id"`
@@ -59,6 +62,15 @@ type CompileResult struct {
 	DurationMS  int64               `json:"durationMs"`
 	Log         string              `json:"log"`
 	Diagnostics []CompileDiagnostic `json:"diagnostics"`
+}
+
+// ResumeVersionWorkspace contains an immutable saved source and the derived
+// compilation state that can be safely restored when the version is reopened.
+// The PDF payload is loaded from the private artifact only for this response;
+// it is never stored in SQLite or included in a backup.
+type ResumeVersionWorkspace struct {
+	Version       ResumeVersion `json:"version"`
+	CompileResult CompileResult `json:"compileResult"`
 }
 
 type CompileDiagnostic struct {

@@ -11,9 +11,9 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 ## Repository state at this handoff
 
 - Branch: `main`, tracking `origin/main`.
-- Baseline before the active implementation set: `0099ce3 feat: add credentials and evidence ranking signals`.
-- This handoff resolves the v1 frontend-stack decision and adds deterministic and recorded-Ollama workflow coverage at the Go service and React/Wails-binding boundaries.
-- The implementation set was fully verified, committed, and pushed; the worktree is clean at handoff.
+- This delivery extends workflow coverage through onboarding/profile creation, public GitHub import/review, compile → reopen → export, and backup/restore at the Go service and React/Wails-binding boundaries.
+- It also adds native Linux amd64, macOS arm64, and Windows amd64 CI for Go tests and migrations, `go vet`, frontend tests and type-checking/build, and packaged Wails smoke-build artifacts.
+- The delivery is committed and pushed to `origin/main`; the worktree is expected to be clean at handoff.
 - No license has been selected.
 
 ## Implemented product capabilities
@@ -33,19 +33,23 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 - Structured compiler diagnostics with clickable navigation into the CodeMirror source editor.
 - PDF.js preview rendering with zoom controls; PDF.js loads only when a compiled preview exists.
 - Successful compilation of a saved immutable version records engine, duration, diagnostics, timestamp, and a private PDF artifact. JSON backup excludes the generated PDF and machine-specific path.
+- Reopening a compiled immutable version reloads its bounded private PDF artifact for preview and export without recompiling. Missing artifacts fall back to source-only reopen; corrupt, non-PDF, non-regular, and unexpected artifact paths are rejected and clear the export payload.
+- Backup, LaTeX, PDF, and private-artifact writes use one owner-only atomic writer. Unix uses atomic rename and Windows uses `MoveFileEx` with replace-existing and write-through flags, so an existing destination can be safely replaced.
 - Provider-neutral, versioned AI request/response contracts in `internal/ai` with strict structured decoding.
 - Evidence validation rejects unselected citations, duplicate targets/citations, unsupported metrics, new recognized technologies, malformed output, and proposals without meaningful evidence overlap.
 - Ollama connection/model discovery and structured generation with timeouts, cancellation, response limits, recorded contract tests, and no stored credential.
 - Gemini model discovery and JSON-constrained generation behind the shared provider contract, evidence validator, cancellation, response limits, and recorded contract tests.
 - Gemini API keys live only in the native operating-system keyring. The React credential field is write-only after save; SQLite stores only provider, endpoint, and model preferences.
 - The AI workspace is isolated in `frontend/src/features/ai/AIWorkspace.tsx`; React DOM integration tests cover both provider setup paths, credential states, connection/model selection, cancellation, blocked validation, proposal editing/exclusion, and acceptance.
-- `workflow_test.go` exercises deterministic analysis, evidence selection, immutable creation/edit history, and recorded-Ollama generation/acceptance through the Go `App` service boundary. `frontend/src/App.workflow.test.tsx` exercises deterministic version creation and recorded-Ollama review/acceptance through mocked generated Wails bindings.
+- `workflow_test.go` exercises deterministic analysis, evidence selection, immutable creation/edit history, public GitHub import/review/refresh preservation, compile/reopen/export, backup/restore, corrupt-artifact rejection, and recorded-Ollama generation/acceptance through the Go `App` service boundary. `frontend/src/App.workflow.test.tsx` exercises onboarding/profile creation, GitHub review gating, deterministic version creation, recorded-Ollama review/acceptance, compile/reopen/export, and backup/restore through mocked generated Wails bindings.
 - `TestLiveProviderContract` is an opt-in Ollama/Gemini harness using fictional evidence and the production decoder. It never prints raw provider output or persists an API key.
 - Side-by-side original/proposed evidence review with per-proposal edit/include controls before creating a new immutable resume version.
 - Auditable AI runs record provider, model, prompt/schema versions, selected fact IDs, validation outcome, failure category, proposals, acceptance timestamp, and resume-version linkage without raw prompts or secrets.
 - Application lifecycle controls transition saved applications between `draft`, `submitted`, and `archived` without changing immutable resume versions.
 - Public GitHub sync stores stable repository IDs, visibility, upstream update timestamps, bounded README snapshots, complete languages, and review state. README/language rate-limit fallbacks do not discard previously imported metadata.
+- First-run onboarding remains visible while its profile draft is edited and closes only after a successful save or an explicit “Explore first” action. Previously, entering the first character made the draft look non-empty and prematurely unmounted the form.
 - Backup schema 6 includes evidence ranking priorities, professional links, certifications, achievements, GitHub repository metadata, templates, AI-run metadata, and non-secret preferences while remaining compatible with schema 1 through 5 imports. Credentials are explicitly excluded.
+- `.github/workflows/ci.yml` runs the verification suite and native Wails packaging on Ubuntu 24.04 amd64, macOS 15 arm64, and Windows 2025 amd64. Uploaded outputs are short-lived unsigned smoke artifacts and do not yet contain the pinned offline Tectonic runtime.
 
 ## Important architecture and invariants
 
@@ -78,18 +82,20 @@ npm --prefix frontend run build
 At this handoff:
 
 - All Go package tests pass.
-- All 24 frontend unit and React integration tests pass.
+- All 28 frontend unit and React integration tests pass.
 - TypeScript checking passes.
 - The Vite production build passes.
 - The opt-in production-contract test passes against local `gemma4:12b` using fictional evidence.
 - The credential adapter test binary cross-compiles with CGO disabled for Linux amd64, macOS amd64/arm64, and Windows amd64. Native packaged-app credential prompts still require verification on each operating system.
+- The atomic writer, backup package, and full app test binaries compile for Windows amd64 with CGO disabled. Native Windows replacement behavior still belongs in packaged platform verification.
+- GitHub Actions repeats tests, migrations, vetting, frontend validation, and Wails packaging on native Linux, macOS, and Windows runners. Linux explicitly selects WebKitGTK 4.1; Windows uses the browser WebView2 strategy so CI does not bundle a runtime installer.
 - The real Tectonic integration suite remains opt-in with `TAILORCV_TECTONIC_INTEGRATION=1`.
 
 ## Next implementation set
 
 The next major milestone is remaining v1 product work and platform hardening:
 
-1. Extend workflow coverage to compile → reopen → export, backup/restore, onboarding, and GitHub review, including a packaged Wails runtime where native dialogs or filesystem behavior matter.
+1. Exercise the delivered onboarding/profile, GitHub review, compile/reopen/export, and backup/restore workflows in packaged Wails runtimes where native dialogs and filesystem behavior matter.
 2. Add a later AI schema version only if certifications and achievements can retain the same evidence citation and review guarantees.
 3. Verify native credential set/get/delete behavior in packaged Windows, macOS, and Linux builds.
 
@@ -98,10 +104,10 @@ Authenticated/private GitHub access is explicitly post-v1. The v1 UI remains pub
 Release-hardening work that remains:
 
 - Ship and verify pinned Tectonic binaries/resources for Windows, macOS, and Linux rather than only supporting the runtime lookup hook.
-- Add a true offline Tectonic integration fixture and platform CI coverage.
-- Extend the delivered edit/version workflow test through compile → reopen → export.
+- Add a true offline Tectonic integration fixture; platform CI exists, but its smoke artifacts intentionally omit the future offline Tectonic bundle.
+- Exercise the delivered edit/version compile → reopen → export workflow in packaged Windows, macOS, and Linux builds.
 - Consider code splitting the editor bundle further; PDF.js is already lazy-loaded.
 
 ## Delivery workflow note
 
-For the implementation set captured here, the user explicitly requested that all resulting changes be staged, committed, and pushed to GitHub. Future sessions should still confirm the current user request before treating a new external push as authorized. Preserve unrelated user changes if the worktree is not clean.
+This implementation set was committed and pushed at the user's explicit request. Future sessions should confirm the current user request before treating another push as authorized. Preserve unrelated user changes if the worktree is not clean.
