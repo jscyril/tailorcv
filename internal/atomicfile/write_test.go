@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -26,7 +27,9 @@ func TestWriteAtomicallyCreatesAndReplacesPrivateFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Stat() error = %v", err)
 	}
-	if info.Mode().Perm()&0o077 != 0 {
+	// Windows reports synthesized Unix permission bits; access is governed by
+	// the destination directory's inherited ACL instead.
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
 		t.Fatalf("file permissions = %o, want owner-only", info.Mode().Perm())
 	}
 }
