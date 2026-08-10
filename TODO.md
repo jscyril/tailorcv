@@ -94,8 +94,9 @@ These are already named or implied by `PLAN.md`, but are not implemented in the 
 - [x] Make atomic file replacement work consistently on Windows, including recompiling or re-exporting to an existing destination. The shared writer uses `MoveFileEx` replacement semantics on Windows and is compile-checked for Windows amd64.
 - [x] Add platform CI for Go tests, frontend tests/type checking/builds, migrations, and packaged Wails builds. Native Linux amd64, macOS arm64, and Windows amd64 jobs upload seven-day unsigned smoke artifacts.
 - [x] Compile-check the OS credential adapter for Linux amd64, macOS amd64/arm64, and Windows amd64.
-- [ ] Run native credential set/get/delete verification in packaged Windows, macOS, and Linux applications.
-- [ ] Exercise the delivered onboarding/profile creation, GitHub import/review, compile/reopen/export, and backup/restore workflows in a packaged Wails runtime for native dialogs and filesystem behavior.
+- [x] Run native credential set/get/delete verification from packaged Windows, macOS, and Linux application binaries without exposing or retaining the disposable secret.
+- [x] Exercise profile persistence, GitHub import/review, immutable edit/compile/reopen/export, and backup/restore from packaged application binaries with real filesystem writes, bundled Tectonic, and scripted dialog selections.
+- [ ] Exercise first-run onboarding and the delivered workflows interactively in packaged Wails runtimes to verify native dialog presentation, focus, and user-selected filesystem paths.
 - [ ] Add security tests proving malicious job/model/template content cannot enable shell escape, read arbitrary files, or write outside the compile workspace.
 - [ ] Add accessibility testing and keyboard/focus checks for dialogs, navigation, forms, evidence selection, diagnostics, and the PDF workspace.
 - [ ] Add failure-recovery tests for interrupted backup restore, missing/corrupt PDF artifacts, unavailable compilers/providers, and database migration failure.

@@ -30,7 +30,7 @@ TailorCV has a complete deterministic resume-building vertical slice, local comp
 - Native operating-system keyring storage for the Gemini API key, with write-only credential UI and separately persisted non-secret provider preferences.
 - Auditable AI-run history without secrets or raw prompts; failed provider and validation runs are recorded safely.
 - End-to-end service tests for deterministic and recorded-Ollama resume workflows, plus React integration tests that exercise the corresponding Wails binding calls.
-- Native Linux, macOS, and Windows CI that runs Go tests and migrations, frontend tests and type-checking, packaged Wails builds, and real offline Tectonic integration checks.
+- Native Linux, macOS, and Windows CI that runs Go tests and migrations, frontend tests and type-checking, packaged Wails builds, real offline Tectonic integration checks, disposable application workflows, and native credential-store lifecycle checks.
 
 See [PLAN.md](PLAN.md) for the product architecture and delivery milestones.
 
@@ -134,6 +134,8 @@ wails build -tags webkit2_41
 GitHub Actions runs the Go test and vet suites, frontend tests and production build, and a native Wails package build on Linux amd64, macOS arm64, and Windows amd64. Storage migration coverage is part of the Go suite.
 
 Successful runs retain each platform build for seven days. These unsigned artifacts include the checksum-verified Tectonic 0.16.9 executable and a pinned, curated TeX Live 2022.0r0 resource bundle for the built-in templates. Each native job compiles both built-in templates from the packaged resources with network access disabled at the Tectonic layer before uploading its artifact.
+
+Before upload, CI also runs the packaged application binary in two verification modes. The workflow check uses a disposable database and scripted dialog destinations to exercise profile persistence, GitHub review, immutable edit/compile/reopen/export, and backup/restore with the bundled compiler. The credential check writes a randomly generated disposable secret to Windows Credential Manager, macOS Keychain, or Linux Secret Service, verifies it, deletes it, and confirms deletion without printing the secret. Interactive native-dialog and first-run UI checks remain a manual release gate.
 
 ## Local data
 

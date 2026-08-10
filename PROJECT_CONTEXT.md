@@ -51,6 +51,7 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 - Backup schema 6 includes evidence ranking priorities, professional links, certifications, achievements, GitHub repository metadata, templates, AI-run metadata, and non-secret preferences while remaining compatible with schema 1 through 5 imports. Credentials are explicitly excluded.
 - `.github/workflows/ci.yml` runs the verification suite and native Wails packaging on Ubuntu 24.04 amd64, macOS 15 arm64, and Windows 2025 amd64. Each short-lived unsigned artifact contains a checksum-verified Tectonic 0.16.9 executable and curated offline TeX Live 2022.0r0 resource bundle.
 - `cmd/packagetectonic` downloads the official platform archive, verifies its pinned SHA-256 digest, hydrates only the resources exercised by the two built-in-template fixtures, writes a deterministic local ZIP bundle, and performs an offline PDF smoke compile before packaging succeeds.
+- Packaged application binaries expose narrowly scoped CI verification flags before Wails startup. One runs a disposable profile → GitHub review → immutable edit/compile/reopen/export → backup/restore workflow using the real filesystem and bundled Tectonic; the other performs a random set/get/delete cycle against the native credential store and confirms cleanup without printing secrets.
 
 ## Important architecture and invariants
 
@@ -90,22 +91,21 @@ At this handoff:
 - The opt-in production-contract test passes against local `gemma4:12b` using fictional evidence.
 - The credential adapter test binary cross-compiles with CGO disabled for Linux amd64, macOS amd64/arm64, and Windows amd64. Native packaged-app credential prompts still require verification on each operating system.
 - The atomic writer, backup package, and full app test binaries compile for Windows amd64 with CGO disabled. Native Windows replacement behavior still belongs in packaged platform verification.
-- GitHub Actions repeats tests, migrations, vetting, frontend validation, Wails packaging, Tectonic runtime assembly, and real offline compilation on native Linux, macOS, and Windows runners. Linux explicitly selects WebKitGTK 4.1; Windows uses the browser WebView2 strategy so CI does not bundle a runtime installer.
+- GitHub Actions repeats tests, migrations, vetting, frontend validation, Wails packaging, Tectonic runtime assembly, real offline compilation, disposable packaged workflows, and native credential lifecycle checks on Linux, macOS, and Windows runners. Linux explicitly selects WebKitGTK 4.1 and starts an isolated Secret Service session; Windows uses the browser WebView2 strategy so CI does not bundle a runtime installer.
 - The real Tectonic integration suite remains opt-in locally with `TAILORCV_TECTONIC_INTEGRATION=1`; platform CI enables it against the packaged executable and local bundle.
 
 ## Next implementation set
 
 The next major milestone is remaining v1 product work and platform hardening:
 
-1. Exercise the delivered onboarding/profile, GitHub review, compile/reopen/export, and backup/restore workflows in packaged Wails runtimes where native dialogs and filesystem behavior matter.
+1. Exercise first-run onboarding and the delivered workflows interactively in packaged Wails runtimes where native dialog presentation and focus behavior matter. Scripted packaged-binary filesystem workflows are covered in CI.
 2. Add a later AI schema version only if certifications and achievements can retain the same evidence citation and review guarantees.
-3. Verify native credential set/get/delete behavior in packaged Windows, macOS, and Linux builds.
 
 Authenticated/private GitHub access is explicitly post-v1. The v1 UI remains public-only and stores no GitHub credential.
 
 Release-hardening work that remains:
 
-- Exercise the delivered edit/version compile → reopen → export workflow in packaged Windows, macOS, and Linux builds.
+- Exercise the delivered edit/version compile → reopen → export workflow interactively in packaged Windows, macOS, and Linux builds; scripted packaged-binary coverage is complete.
 - Consider code splitting the editor bundle further; PDF.js is already lazy-loaded.
 
 ## Delivery workflow note

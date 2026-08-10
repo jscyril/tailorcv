@@ -37,6 +37,7 @@ jobs:
             target_arch: amd64
             runtime_dir: build/bin/bin
             tectonic_name: tectonic
+            app_executable: ./build/bin/tailorcv
             go_args: -tags=webkit2_41
             build_args: -tags=webkit2_41
           - name: macOS arm64
@@ -46,6 +47,7 @@ jobs:
             target_arch: arm64
             runtime_dir: build/bin/TailorCV.app/Contents/MacOS/bin
             tectonic_name: tectonic
+            app_executable: ./build/bin/TailorCV.app/Contents/MacOS/tailorcv
             go_args: ""
             build_args: ""
           - name: Windows amd64
@@ -55,6 +57,7 @@ jobs:
             target_arch: amd64
             runtime_dir: build/bin/bin
             tectonic_name: tectonic.exe
+            app_executable: ./build/bin/tailorcv.exe
             go_args: ""
             build_args: -webview2=browser
 
@@ -80,7 +83,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --yes libgtk-3-dev libwebkit2gtk-4.1-dev
+          sudo apt-get install --yes dbus-x11 gnome-keyring libgtk-3-dev libwebkit2gtk-4.1-dev
 
       - name: Install frontend dependencies
         run: pnpm --dir frontend install --frozen-lockfile
@@ -121,6 +124,25 @@ jobs:
           TAILORCV_TECTONIC_BUNDLE: ${{ github.workspace }}/${{ matrix.runtime_dir }}/tectonic-resources.zip
           TAILORCV_TECTONIC_INTEGRATION: "1"
         run: go test ${{ matrix.go_args }} -count=1 -run TestCompilerIntegration ./internal/resume
+
+      - name: Verify packaged application workflow
+        run: ${{ matrix.app_executable }} --verify-packaged-workflow
+
+      - name: Verify native credential lifecycle
+        if: runner.os != 'Linux'
+        run: ${{ matrix.app_executable }} --verify-native-credentials
+
+      - name: Verify Linux Secret Service credential lifecycle
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          verification_root="$(mktemp -d "${RUNNER_TEMP}/tailorcv-keyring-XXXXXX")"
+          mkdir -p "${verification_root}/data" "${verification_root}/runtime"
+          chmod 700 "${verification_root}/runtime"
+          XDG_DATA_HOME="${verification_root}/data" XDG_RUNTIME_DIR="${verification_root}/runtime" dbus-run-session -- bash -eu -c '
+            printf "\n" | gnome-keyring-daemon --unlock --components=secrets >/dev/null
+            ./build/bin/tailorcv --verify-native-credentials
+          '
 
       - name: Upload packaged build artifact
         uses: actions/upload-artifact@v6

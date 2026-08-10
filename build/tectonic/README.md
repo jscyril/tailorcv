@@ -10,4 +10,4 @@ From the repository root, package the current platform into a chosen runtime dir
 go run ./cmd/packagetectonic -destination /path/to/application/bin
 ```
 
-The platform builds in `.github/workflows/ci.yml` run this command after the Wails build and then execute the real compiler integration test against the packaged executable and resource bundle.
+The platform builds in `.github/workflows/ci.yml` run this command after the Wails build and then execute the real compiler integration test and disposable packaged application workflow against the executable and resource bundle.

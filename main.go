@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"log"
+	"os"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -13,6 +14,12 @@ import (
 var assets embed.FS
 
 func main() {
+	if handled, err := runVerificationCommand(os.Args[1:]); handled {
+		if err != nil {
+			log.Fatalf("TailorCV native verification failed: %v", err)
+		}
+		return
+	}
 	app := NewApp()
 
 	err := wails.Run(&options.App{
