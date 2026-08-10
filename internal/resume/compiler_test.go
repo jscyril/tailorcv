@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -63,6 +64,17 @@ func TestCompilerArgumentsRequireOfflineLocalBundle(t *testing.T) {
 		if !slices.Contains(arguments, expected) {
 			t.Fatalf("compilerArguments() = %#v, missing %q", arguments, expected)
 		}
+	}
+}
+
+func TestLocalBundleLocatorUsesFileURLForAbsolutePath(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "resources with spaces.zip")
+	locator := localBundleLocator(path)
+	if !strings.HasPrefix(locator, "file://") || !strings.Contains(locator, "resources%20with%20spaces.zip") {
+		t.Fatalf("localBundleLocator(%q) = %q", path, locator)
+	}
+	if runtime.GOOS == "windows" && !strings.HasPrefix(locator, "file:///") {
+		t.Fatalf("localBundleLocator(%q) = %q, want a Windows file URL", path, locator)
 	}
 }
 

@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -159,10 +161,21 @@ func compilerArguments(workspace, inputPath, bundle string) []string {
 		"--untrusted",
 		"--keep-logs",
 		"--color", "never",
-		"--bundle", bundle,
+		"--bundle", localBundleLocator(bundle),
 		"--outdir", workspace,
 		inputPath,
 	}
+}
+
+func localBundleLocator(path string) string {
+	if !filepath.IsAbs(path) {
+		return path
+	}
+	slashed := filepath.ToSlash(path)
+	if runtime.GOOS == "windows" && filepath.VolumeName(path) != "" && !strings.HasPrefix(slashed, "/") {
+		slashed = "/" + slashed
+	}
+	return (&url.URL{Scheme: "file", Path: slashed}).String()
 }
 
 var (
