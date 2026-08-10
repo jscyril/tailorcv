@@ -66,7 +66,9 @@ func (compiler *Compiler) Compile(ctx context.Context, source string) (domain.Co
 	log := &cappedBuffer{limit: maxCompilerLog}
 	command := exec.CommandContext(compileContext, executable, compilerArguments(workspace, inputPath, bundle)...)
 	command.Dir = workspace
-	commandEnvironment := withEnvironment(os.Environ(), "XDG_CACHE_HOME", compilerCacheDirectory(workspace))
+	cacheDirectory := compilerCacheDirectory(workspace)
+	commandEnvironment := withEnvironment(os.Environ(), "XDG_CACHE_HOME", cacheDirectory)
+	commandEnvironment = withEnvironment(commandEnvironment, "TECTONIC_CACHE_DIR", cacheDirectory)
 	command.Env = withEnvironment(commandEnvironment, "TECTONIC_UNTRUSTED_MODE", "1")
 	command.Stdout, command.Stderr = log, log
 	started := time.Now()

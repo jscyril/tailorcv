@@ -383,6 +383,7 @@ func runTectonic(executable string, arguments []string, cacheRoot string, blockN
 	command := exec.CommandContext(ctx, executable, arguments...)
 	environment := setEnvironment(os.Environ(), "XDG_CACHE_HOME", cacheRoot)
 	environment = setEnvironment(environment, "LOCALAPPDATA", cacheRoot)
+	environment = setEnvironment(environment, "TECTONIC_CACHE_DIR", cacheRoot)
 	environment = setEnvironment(environment, "TECTONIC_UNTRUSTED_MODE", "1")
 	if blockNetwork {
 		for _, key := range []string{"HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"} {
