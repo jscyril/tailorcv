@@ -109,7 +109,7 @@ func (compiler *Compiler) Compile(ctx context.Context, source string) (domain.Co
 func resolveTectonicExecutable() (string, error) {
 	if configured := strings.TrimSpace(os.Getenv("TAILORCV_TECTONIC")); configured != "" {
 		if info, err := os.Stat(configured); err == nil && !info.IsDir() {
-			return configured, nil
+			return filepath.Clean(configured), nil
 		}
 		return "", fmt.Errorf("TAILORCV_TECTONIC does not point to a Tectonic executable")
 	}
@@ -136,7 +136,7 @@ func resolveTectonicExecutable() (string, error) {
 func resolveTectonicBundle(executable string) (string, error) {
 	if configured := strings.TrimSpace(os.Getenv("TAILORCV_TECTONIC_BUNDLE")); configured != "" {
 		if isRegularFile(configured) {
-			return configured, nil
+			return filepath.Clean(configured), nil
 		}
 		return "", fmt.Errorf("TAILORCV_TECTONIC_BUNDLE does not point to a local Tectonic resource bundle")
 	}
