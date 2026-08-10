@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -20,6 +21,48 @@ func TestResolveTectonicExecutableUsesConfiguredPath(t *testing.T) {
 	}
 	if resolved != path {
 		t.Fatalf("resolveTectonicExecutable() = %q", resolved)
+	}
+}
+
+func TestResolveTectonicBundleUsesConfiguredLocalFile(t *testing.T) {
+	bundle := filepath.Join(t.TempDir(), bundleFilename)
+	if err := os.WriteFile(bundle, []byte("fixture"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	t.Setenv("TAILORCV_TECTONIC_BUNDLE", bundle)
+
+	resolved, err := resolveTectonicBundle(filepath.Join(t.TempDir(), "tectonic"))
+	if err != nil {
+		t.Fatalf("resolveTectonicBundle() error = %v", err)
+	}
+	if resolved != bundle {
+		t.Fatalf("resolveTectonicBundle() = %q, want %q", resolved, bundle)
+	}
+}
+
+func TestResolveTectonicBundleUsesFileBesideExecutable(t *testing.T) {
+	directory := t.TempDir()
+	bundle := filepath.Join(directory, bundleFilename)
+	if err := os.WriteFile(bundle, []byte("fixture"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	t.Setenv("TAILORCV_TECTONIC_BUNDLE", "")
+
+	resolved, err := resolveTectonicBundle(filepath.Join(directory, "tectonic"))
+	if err != nil {
+		t.Fatalf("resolveTectonicBundle() error = %v", err)
+	}
+	if resolved != bundle {
+		t.Fatalf("resolveTectonicBundle() = %q, want %q", resolved, bundle)
+	}
+}
+
+func TestCompilerArgumentsRequireOfflineLocalBundle(t *testing.T) {
+	arguments := compilerArguments("workspace", "resume.tex", "resources.zip")
+	for _, expected := range []string{"--only-cached", "--untrusted", "--bundle", "resources.zip"} {
+		if !slices.Contains(arguments, expected) {
+			t.Fatalf("compilerArguments() = %#v, missing %q", arguments, expected)
+		}
 	}
 }
 

@@ -33,16 +33,28 @@ jobs:
           - name: Linux amd64
             os: ubuntu-24.04
             artifact: tailorcv-linux-amd64
+            target_os: linux
+            target_arch: amd64
+            runtime_dir: build/bin/bin
+            tectonic_name: tectonic
             go_args: -tags=webkit2_41
             build_args: -tags=webkit2_41
           - name: macOS arm64
             os: macos-15
             artifact: tailorcv-macos-arm64
+            target_os: darwin
+            target_arch: arm64
+            runtime_dir: build/bin/TailorCV.app/Contents/MacOS/bin
+            tectonic_name: tectonic
             go_args: ""
             build_args: ""
           - name: Windows amd64
             os: windows-2025
             artifact: tailorcv-windows-amd64
+            target_os: windows
+            target_arch: amd64
+            runtime_dir: build/bin/bin
+            tectonic_name: tectonic.exe
             go_args: ""
             build_args: -webview2=browser
 
@@ -94,7 +106,23 @@ jobs:
       - name: Build packaged application
         run: wails build -clean -m -trimpath ${{ matrix.build_args }}
 
-      - name: Upload smoke-build artifact
+      - name: Package pinned offline Tectonic runtime
+        run: go run ./cmd/packagetectonic -goos ${{ matrix.target_os }} -goarch ${{ matrix.target_arch }} -destination ${{ matrix.runtime_dir }}
+
+      - name: Restore macOS ad-hoc application signature
+        if: runner.os == 'macOS'
+        run: |
+          codesign --force --deep --sign - build/bin/TailorCV.app
+          codesign --verify --deep --strict build/bin/TailorCV.app
+
+      - name: Verify packaged Tectonic integration offline
+        env:
+          TAILORCV_TECTONIC: ${{ github.workspace }}/${{ matrix.runtime_dir }}/${{ matrix.tectonic_name }}
+          TAILORCV_TECTONIC_BUNDLE: ${{ github.workspace }}/${{ matrix.runtime_dir }}/tectonic-resources.zip
+          TAILORCV_TECTONIC_INTEGRATION: "1"
+        run: go test ${{ matrix.go_args }} -count=1 -run TestCompilerIntegration ./internal/resume
+
+      - name: Upload packaged build artifact
         uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact }}

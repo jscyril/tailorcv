@@ -19,6 +19,7 @@ import (
 const (
 	compileTimeout = 45 * time.Second
 	maxCompilerLog = 256 << 10
+	bundleFilename = "tectonic-resources.zip"
 )
 
 type Compiler struct {
@@ -47,6 +48,10 @@ func (compiler *Compiler) Compile(ctx context.Context, source string) (domain.Co
 			return domain.CompileResult{}, nil, err
 		}
 	}
+	bundle, err := resolveTectonicBundle(executable)
+	if err != nil {
+		return domain.CompileResult{}, nil, err
+	}
 	workspace, err := os.MkdirTemp("", "tailorcv-compile-*")
 	if err != nil {
 		return domain.CompileResult{}, nil, fmt.Errorf("create isolated compile workspace: %w", err)
@@ -59,9 +64,10 @@ func (compiler *Compiler) Compile(ctx context.Context, source string) (domain.Co
 	compileContext, cancel := context.WithTimeout(ctx, compileTimeout)
 	defer cancel()
 	log := &cappedBuffer{limit: maxCompilerLog}
-	command := exec.CommandContext(compileContext, executable, "--untrusted", "--keep-logs", "--color", "never", "--outdir", workspace, inputPath)
+	command := exec.CommandContext(compileContext, executable, compilerArguments(workspace, inputPath, bundle)...)
 	command.Dir = workspace
-	command.Env = withEnvironment(os.Environ(), "XDG_CACHE_HOME", compilerCacheDirectory(workspace))
+	commandEnvironment := withEnvironment(os.Environ(), "XDG_CACHE_HOME", compilerCacheDirectory(workspace))
+	command.Env = withEnvironment(commandEnvironment, "TECTONIC_UNTRUSTED_MODE", "1")
 	command.Stdout, command.Stderr = log, log
 	started := time.Now()
 	err = command.Run()
@@ -123,6 +129,38 @@ func resolveTectonicExecutable() (string, error) {
 		return executable, nil
 	}
 	return "", fmt.Errorf("Tectonic is unavailable; package it in TailorCV's bin directory, set TAILORCV_TECTONIC, or install it on PATH")
+}
+
+func resolveTectonicBundle(executable string) (string, error) {
+	if configured := strings.TrimSpace(os.Getenv("TAILORCV_TECTONIC_BUNDLE")); configured != "" {
+		if isRegularFile(configured) {
+			return configured, nil
+		}
+		return "", fmt.Errorf("TAILORCV_TECTONIC_BUNDLE does not point to a local Tectonic resource bundle")
+	}
+
+	candidate := filepath.Join(filepath.Dir(executable), bundleFilename)
+	if isRegularFile(candidate) {
+		return candidate, nil
+	}
+	return "", fmt.Errorf("Tectonic's offline resource bundle is unavailable; package %s beside Tectonic or set TAILORCV_TECTONIC_BUNDLE", bundleFilename)
+}
+
+func isRegularFile(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.Mode().IsRegular()
+}
+
+func compilerArguments(workspace, inputPath, bundle string) []string {
+	return []string{
+		"--only-cached",
+		"--untrusted",
+		"--keep-logs",
+		"--color", "never",
+		"--bundle", bundle,
+		"--outdir", workspace,
+		inputPath,
+	}
 }
 
 var (

@@ -2,7 +2,7 @@
 
 This is the working execution checklist for [PLAN.md](PLAN.md), which remains the authoritative product roadmap. [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) remains the durable engineering handoff. Keep this file short, checkable, and ordered; update the context file after completing a meaningful implementation set.
 
-Last audited: 2026-08-08
+Last audited: 2026-08-10
 
 ## Completed baseline
 
@@ -89,8 +89,8 @@ These are already named or implied by `PLAN.md`, but are not implemented in the 
 
 ## Release hardening
 
-- [ ] Package pinned Tectonic executables and offline resources for Windows, macOS, and Linux.
-- [ ] Ensure ordinary compilation cannot attempt network access and add a true offline integration fixture.
+- [x] Package checksum-verified Tectonic 0.16.9 executables and curated TeX Live 2022.0r0 resources for Windows amd64, macOS arm64, and Linux amd64.
+- [x] Ensure ordinary compilation cannot attempt network access and add true offline integration fixtures for both built-in templates.
 - [x] Make atomic file replacement work consistently on Windows, including recompiling or re-exporting to an existing destination. The shared writer uses `MoveFileEx` replacement semantics on Windows and is compile-checked for Windows amd64.
 - [x] Add platform CI for Go tests, frontend tests/type checking/builds, migrations, and packaged Wails builds. Native Linux amd64, macOS arm64, and Windows amd64 jobs upload seven-day unsigned smoke artifacts.
 - [x] Compile-check the OS credential adapter for Linux amd64, macOS amd64/arm64, and Windows amd64.

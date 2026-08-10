@@ -30,7 +30,7 @@ TailorCV has a complete deterministic resume-building vertical slice, local comp
 - Native operating-system keyring storage for the Gemini API key, with write-only credential UI and separately persisted non-secret provider preferences.
 - Auditable AI-run history without secrets or raw prompts; failed provider and validation runs are recorded safely.
 - End-to-end service tests for deterministic and recorded-Ollama resume workflows, plus React integration tests that exercise the corresponding Wails binding calls.
-- Native Linux, macOS, and Windows CI that runs Go tests and migrations, frontend tests and type-checking, and packaged Wails smoke builds.
+- Native Linux, macOS, and Windows CI that runs Go tests and migrations, frontend tests and type-checking, packaged Wails builds, and real offline Tectonic integration checks.
 
 See [PLAN.md](PLAN.md) for the product architecture and delivery milestones.
 
@@ -62,7 +62,7 @@ See [PLAN.md](PLAN.md) for the product architecture and delivery milestones.
 - Node.js 20 or newer
 - pnpm
 - Wails v2 CLI
-- Tectonic available beside a packaged app in `bin/`, configured through `TAILORCV_TECTONIC`, or available on `PATH`
+- For development compilation, Tectonic plus a local `tectonic-resources.zip` beside it, or paths configured through `TAILORCV_TECTONIC` and `TAILORCV_TECTONIC_BUNDLE`
 - Linux development packages required by Wails, or the corresponding Windows/macOS toolchain
 
 Install the Wails CLI:
@@ -115,6 +115,14 @@ Build the desktop application:
 wails build
 ```
 
+To assemble the current platform's pinned Tectonic 0.16.9 executable and curated offline TeX Live 2022.0r0 resources beside a packaged application, run:
+
+```bash
+go run ./cmd/packagetectonic -destination build/bin/bin
+```
+
+On macOS, use `build/bin/TailorCV.app/Contents/MacOS/bin` as the destination. The packager verifies the official executable archive checksum, hydrates the built-in-template resources, and compiles both offline fixtures before succeeding. Packaging needs network access; ordinary application compilation does not.
+
 On Linux distributions that provide WebKitGTK 4.1 rather than 4.0, use:
 
 ```bash
@@ -125,7 +133,7 @@ wails build -tags webkit2_41
 
 GitHub Actions runs the Go test and vet suites, frontend tests and production build, and a native Wails package build on Linux amd64, macOS arm64, and Windows amd64. Storage migration coverage is part of the Go suite.
 
-Successful runs retain each platform build for seven days. These are unsigned smoke-build artifacts: they verify the native application build but do not include the pinned offline Tectonic bundle required for a release.
+Successful runs retain each platform build for seven days. These unsigned artifacts include the checksum-verified Tectonic 0.16.9 executable and a pinned, curated TeX Live 2022.0r0 resource bundle for the built-in templates. Each native job compiles both built-in templates from the packaged resources with network access disabled at the Tectonic layer before uploading its artifact.
 
 ## Local data
 
@@ -137,7 +145,7 @@ Custom templates are stored locally in the same SQLite database. Use **Templates
 
 Compiled resume-version PDFs are derived artifacts stored privately in the local `tailorcv/artifacts` application-data folder. JSON backups preserve source, evidence, hashes, and compilation diagnostics, but intentionally exclude generated PDF files and machine-specific artifact paths.
 
-For packaged builds, TailorCV resolves Tectonic in this order: `TAILORCV_TECTONIC`, a `bin/tectonic` executable beside the app, an executable beside the app, then the system `PATH`. Release builds should ship a pinned platform-specific executable in the `bin` location.
+For packaged builds, TailorCV resolves Tectonic in this order: `TAILORCV_TECTONIC`, a `bin/tectonic` executable beside the app, an executable beside the app, then the system `PATH`. It then requires `TAILORCV_TECTONIC_BUNDLE` or `tectonic-resources.zip` beside that executable. Every compilation uses the local bundle with `--only-cached` and `--untrusted`; a custom template that needs resources outside the curated built-in set fails with a diagnostic instead of downloading them.
 
 ## Repository layout
 

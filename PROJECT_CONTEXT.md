@@ -12,8 +12,8 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 
 - Branch: `main`, tracking `origin/main`.
 - This delivery extends workflow coverage through onboarding/profile creation, public GitHub import/review, compile → reopen → export, and backup/restore at the Go service and React/Wails-binding boundaries.
-- It also adds native Linux amd64, macOS arm64, and Windows amd64 CI for Go tests and migrations, `go vet`, frontend tests and type-checking/build, and packaged Wails smoke-build artifacts.
-- The delivery is committed and pushed to `origin/main`; the worktree is expected to be clean at handoff.
+- It also adds native Linux amd64, macOS arm64, and Windows amd64 CI for Go tests and migrations, `go vet`, frontend tests and type-checking/build, packaged Wails artifacts, and offline Tectonic integration checks.
+- The delivery is committed and pushed to `origin/main`. A pre-existing deletion of `frontend/dist/.gitkeep` was deliberately left outside this delivery, so the worktree is otherwise clean at handoff.
 - No license has been selected.
 
 ## Implemented product capabilities
@@ -49,7 +49,8 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 - Public GitHub sync stores stable repository IDs, visibility, upstream update timestamps, bounded README snapshots, complete languages, and review state. README/language rate-limit fallbacks do not discard previously imported metadata.
 - First-run onboarding remains visible while its profile draft is edited and closes only after a successful save or an explicit “Explore first” action. Previously, entering the first character made the draft look non-empty and prematurely unmounted the form.
 - Backup schema 6 includes evidence ranking priorities, professional links, certifications, achievements, GitHub repository metadata, templates, AI-run metadata, and non-secret preferences while remaining compatible with schema 1 through 5 imports. Credentials are explicitly excluded.
-- `.github/workflows/ci.yml` runs the verification suite and native Wails packaging on Ubuntu 24.04 amd64, macOS 15 arm64, and Windows 2025 amd64. Uploaded outputs are short-lived unsigned smoke artifacts and do not yet contain the pinned offline Tectonic runtime.
+- `.github/workflows/ci.yml` runs the verification suite and native Wails packaging on Ubuntu 24.04 amd64, macOS 15 arm64, and Windows 2025 amd64. Each short-lived unsigned artifact contains a checksum-verified Tectonic 0.16.9 executable and curated offline TeX Live 2022.0r0 resource bundle.
+- `cmd/packagetectonic` downloads the official platform archive, verifies its pinned SHA-256 digest, hydrates only the resources exercised by the two built-in-template fixtures, writes a deterministic local ZIP bundle, and performs an offline PDF smoke compile before packaging succeeds.
 
 ## Important architecture and invariants
 
@@ -64,7 +65,8 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 - Compilation metadata is a derived attachment and may be updated without mutating the saved source snapshot.
 - `ResumeVersion.PDFPath` is deliberately excluded from JSON. `PDFAvailable` is the safe UI-facing indicator.
 - `ResumeContentHash` is SHA-256 over the exact UTF-8 LaTeX source.
-- Tectonic resolution order is `TAILORCV_TECTONIC`, `bin/tectonic` beside the app, `tectonic` beside the app, then `PATH`. Release packaging still needs pinned binaries for each platform.
+- Tectonic resolution order is `TAILORCV_TECTONIC`, `bin/tectonic` beside the app, `tectonic` beside the app, then `PATH`. A local resource bundle is mandatory through `TAILORCV_TECTONIC_BUNDLE` or `tectonic-resources.zip` beside the selected executable, and every compile uses `--only-cached` plus `--untrusted`.
+- The packaged resource ZIP intentionally covers the built-in templates rather than the multi-gigabyte upstream TeX Live archive. Custom templates that need other packages fail offline with compiler diagnostics.
 - Built-in templates remain read-only. Editing one must create a user-owned copy.
 - Generated facts must never become verified facts automatically.
 
@@ -88,8 +90,8 @@ At this handoff:
 - The opt-in production-contract test passes against local `gemma4:12b` using fictional evidence.
 - The credential adapter test binary cross-compiles with CGO disabled for Linux amd64, macOS amd64/arm64, and Windows amd64. Native packaged-app credential prompts still require verification on each operating system.
 - The atomic writer, backup package, and full app test binaries compile for Windows amd64 with CGO disabled. Native Windows replacement behavior still belongs in packaged platform verification.
-- GitHub Actions repeats tests, migrations, vetting, frontend validation, and Wails packaging on native Linux, macOS, and Windows runners. Linux explicitly selects WebKitGTK 4.1; Windows uses the browser WebView2 strategy so CI does not bundle a runtime installer.
-- The real Tectonic integration suite remains opt-in with `TAILORCV_TECTONIC_INTEGRATION=1`.
+- GitHub Actions repeats tests, migrations, vetting, frontend validation, Wails packaging, Tectonic runtime assembly, and real offline compilation on native Linux, macOS, and Windows runners. Linux explicitly selects WebKitGTK 4.1; Windows uses the browser WebView2 strategy so CI does not bundle a runtime installer.
+- The real Tectonic integration suite remains opt-in locally with `TAILORCV_TECTONIC_INTEGRATION=1`; platform CI enables it against the packaged executable and local bundle.
 
 ## Next implementation set
 
@@ -103,8 +105,6 @@ Authenticated/private GitHub access is explicitly post-v1. The v1 UI remains pub
 
 Release-hardening work that remains:
 
-- Ship and verify pinned Tectonic binaries/resources for Windows, macOS, and Linux rather than only supporting the runtime lookup hook.
-- Add a true offline Tectonic integration fixture; platform CI exists, but its smoke artifacts intentionally omit the future offline Tectonic bundle.
 - Exercise the delivered edit/version compile → reopen → export workflow in packaged Windows, macOS, and Linux builds.
 - Consider code splitting the editor bundle further; PDF.js is already lazy-loaded.
 
