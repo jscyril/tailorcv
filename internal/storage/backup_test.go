@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/jscyril/tailorcv/internal/domain"
@@ -134,5 +135,33 @@ func TestProfileBackupImportIsAtomicOnInvalidID(t *testing.T) {
 	got, err := store.GetProfile(ctx)
 	if err != nil || got.Name != "Keep Me" {
 		t.Fatalf("profile after rejected import = %#v, %v", got, err)
+	}
+}
+
+func TestProfileBackupImportRollsBackAfterWriteInterruption(t *testing.T) {
+	store, err := Open(filepath.Join(t.TempDir(), "tailorcv.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	ctx := context.Background()
+	profile, _ := (domain.ProfileInput{Name: "Keep Me", Skills: []string{"Go"}}).Validate()
+	if _, err := store.SaveProfile(ctx, profile); err != nil {
+		t.Fatalf("SaveProfile() error = %v", err)
+	}
+	backup, err := store.CreateProfileBackup(ctx)
+	if err != nil {
+		t.Fatalf("CreateProfileBackup() error = %v", err)
+	}
+	backup.Profile.Name = "Interrupted Replacement"
+	if _, err := store.db.Exec(`CREATE TRIGGER interrupt_backup_import BEFORE INSERT ON profiles BEGIN SELECT RAISE(ABORT, 'simulated interruption'); END`); err != nil {
+		t.Fatalf("create interruption trigger: %v", err)
+	}
+	if err := store.ReplaceProfileFromBackup(ctx, backup); err == nil || !strings.Contains(err.Error(), "simulated interruption") {
+		t.Fatalf("ReplaceProfileFromBackup() interruption error = %v", err)
+	}
+	got, err := store.GetProfile(ctx)
+	if err != nil || got.Name != "Keep Me" || len(got.Skills) != 1 || got.Skills[0] != "Go" {
+		t.Fatalf("profile after interrupted import = %#v, %v", got, err)
 	}
 }

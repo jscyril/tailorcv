@@ -256,4 +256,74 @@ describe("App Wails workflow integration", () => {
     await user.click(addButton);
     expect(await screen.findByText("1 projects selected")).toBeTruthy();
   });
+
+  it("supports keyboard navigation and exposes current-view, form, and evidence semantics", async () => {
+    const user = await analyzeJobThroughUI();
+    expect(screen.getByRole("button", { name: /^Job match/ }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByLabelText("Job description")).toBeTruthy();
+
+    const evidenceCheckbox = screen.getByRole("checkbox", { name: /Remove Platform Engineer · Example Systems evidence from resume/ });
+    evidenceCheckbox.focus();
+    await user.keyboard(" ");
+    expect((evidenceCheckbox as HTMLInputElement).checked).toBe(false);
+    expect(screen.getByRole("checkbox", { name: /Add Platform Engineer · Example Systems evidence to resume/ })).toBeTruthy();
+
+    const projects = screen.getByRole("button", { name: "Projects" });
+    projects.focus();
+    await user.keyboard("{Enter}");
+    expect(projects.getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("button", { name: /Select for resume/ }).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("announces compiler diagnostics and moves keyboard focus to the source line", async () => {
+    bindings.CompileLatex.mockResolvedValue({
+      success: false, pdfBase64: "", engine: "Recorded Tectonic", durationMs: 8, log: "", diagnostics: [
+        { line: 1, severity: "error", message: "Undefined control sequence" },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<App />);
+    const latexNavigation = await screen.findByRole("button", { name: "LaTeX source" });
+    latexNavigation.focus();
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("region", { name: "LaTeX source" })).toBeTruthy();
+    const sourceEditor = screen.getByRole("textbox", { name: "LaTeX source editor" });
+    expect(screen.getByRole("complementary", { name: "Resume preview" })).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Compile PDF" }));
+    const diagnostics = await screen.findByRole("region", { name: "Compiler diagnostics" });
+    expect(diagnostics.getAttribute("aria-live")).toBe("polite");
+    const diagnostic = screen.getByRole("button", { name: /error Line 1 Undefined control sequence/ });
+    diagnostic.focus();
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(document.activeElement).toBe(sourceEditor));
+  });
+
+  it("operates PDF preview controls from the keyboard", async () => {
+    bindings.CompileLatex.mockResolvedValue({
+      success: true, pdfBase64: "JVBERi0xLjcKJSVFT0YK", engine: "Recorded Tectonic", durationMs: 8, log: "", diagnostics: [],
+    });
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "LaTeX source" }));
+    await user.click(screen.getByRole("button", { name: "Compile PDF" }));
+    const controls = await screen.findByRole("group", { name: "PDF preview controls" });
+    expect(controls.textContent).toContain("100%");
+    const zoomIn = screen.getByRole("button", { name: "Zoom in" });
+    zoomIn.focus();
+    await user.keyboard("{Enter}");
+    expect(controls.textContent).toContain("115%");
+  });
+
+  it("keeps focus on a native-dialog trigger when selection is cancelled", async () => {
+    bindings.ExportProfileBackup.mockResolvedValue({ cancelled: true });
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Backup & restore" }));
+    const trigger = screen.getByRole("button", { name: "Choose destination" });
+    trigger.focus();
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(bindings.ExportProfileBackup).toHaveBeenCalledOnce());
+    expect(document.activeElement).toBe(trigger);
+  });
 });

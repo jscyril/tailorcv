@@ -135,7 +135,7 @@ GitHub Actions runs the Go test and vet suites, frontend tests and production bu
 
 Successful runs retain each platform build for seven days. These unsigned artifacts include the checksum-verified Tectonic 0.16.9 executable and a pinned, curated TeX Live 2022.0r0 resource bundle for the built-in templates. Each native job compiles both built-in templates from the packaged resources with network access disabled at the Tectonic layer before uploading its artifact.
 
-Before upload, CI also runs the packaged application binary in two verification modes. The workflow check uses a disposable database and scripted dialog destinations to exercise profile persistence, GitHub review, immutable edit/compile/reopen/export, and backup/restore with the bundled compiler. The credential check writes a randomly generated disposable secret to Windows Credential Manager, macOS Keychain, or Linux Secret Service, verifies it, deletes it, and confirms deletion without printing the secret. Interactive native-dialog and first-run UI checks remain a manual release gate.
+Before upload, CI also runs the packaged application binary in two verification modes. The workflow check uses a disposable database and scripted dialog destinations to exercise profile persistence, GitHub review, immutable edit/compile/reopen/export, and backup/restore with the bundled compiler. The credential check writes a randomly generated disposable secret to Windows Credential Manager, macOS Keychain, or Linux Secret Service, verifies it, deletes it, and confirms deletion without printing the secret. Interactive native-dialog and first-run UI checks remain a manual release gate documented in [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
 
 ## Local data
 

@@ -65,6 +65,24 @@ func TestCompilerArgumentsRequireOfflineLocalBundle(t *testing.T) {
 			t.Fatalf("compilerArguments() = %#v, missing %q", arguments, expected)
 		}
 	}
+	for _, forbidden := range []string{"--shell-escape", "--keep-intermediates"} {
+		if slices.Contains(arguments, forbidden) {
+			t.Fatalf("compilerArguments() = %#v, contains unsafe %q", arguments, forbidden)
+		}
+	}
+}
+
+func TestCompilerCacheIsConfinedToCompileWorkspace(t *testing.T) {
+	workspace := t.TempDir()
+	cache := compilerCacheDirectory(workspace)
+	relative, err := filepath.Rel(workspace, cache)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		t.Fatalf("compilerCacheDirectory(%q) = %q, outside workspace", workspace, cache)
+	}
+	info, err := os.Stat(cache)
+	if err != nil || !info.IsDir() {
+		t.Fatalf("compiler cache was not created: %v", err)
+	}
 }
 
 func TestLocalBundleLocatorUsesFileURLForAbsolutePath(t *testing.T) {
@@ -85,6 +103,23 @@ func TestCompilerRejectsInvalidInputBeforeExecution(t *testing.T) {
 	}
 	if _, _, err := compiler.Compile(context.Background(), "bad\x00source"); err == nil || !strings.Contains(err.Error(), "null byte") {
 		t.Fatalf("Compile(null) error = %v", err)
+	}
+}
+
+func TestCompilerReportsUnavailableExecutableAndBundle(t *testing.T) {
+	t.Setenv("TAILORCV_TECTONIC", filepath.Join(t.TempDir(), "missing-tectonic"))
+	if _, _, err := NewCompiler("").Compile(context.Background(), `\documentclass{article}`); err == nil || !strings.Contains(err.Error(), "does not point") {
+		t.Fatalf("Compile() unavailable executable error = %v", err)
+	}
+
+	executable := filepath.Join(t.TempDir(), "tectonic")
+	if err := os.WriteFile(executable, []byte("fixture"), 0o700); err != nil {
+		t.Fatalf("WriteFile(executable) error = %v", err)
+	}
+	t.Setenv("TAILORCV_TECTONIC", executable)
+	t.Setenv("TAILORCV_TECTONIC_BUNDLE", filepath.Join(t.TempDir(), "missing-bundle.zip"))
+	if _, _, err := NewCompiler("").Compile(context.Background(), `\documentclass{article}`); err == nil || !strings.Contains(err.Error(), "does not point") {
+		t.Fatalf("Compile() unavailable bundle error = %v", err)
 	}
 }
 
@@ -147,4 +182,44 @@ func TestCompilerIntegration(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("untrusted-input-cannot-read-an-arbitrary-file", func(t *testing.T) {
+		outside := t.TempDir()
+		secretToken := "TAILORCV-UNTRUSTED-SECRET-74A5"
+		secretPath := filepath.Join(outside, "secret.tex")
+		if err := os.WriteFile(secretPath, []byte(`\errmessage{`+secretToken+`}`), 0o600); err != nil {
+			t.Fatalf("WriteFile(secret) error = %v", err)
+		}
+		source := `\documentclass{article}\begin{document}\input{` + filepath.ToSlash(secretPath) + `}\end{document}`
+		result, _, err := compiler.Compile(context.Background(), source)
+		if err != nil {
+			t.Fatalf("Compile(read attempt) setup error = %v", err)
+		}
+		if strings.Contains(result.Log, secretToken) {
+			t.Fatalf("untrusted compilation read arbitrary input; log contains secret token")
+		}
+	})
+
+	t.Run("untrusted-input-cannot-write-or-run-shell-outside-workspace", func(t *testing.T) {
+		outside := t.TempDir()
+		texWritePath := filepath.Join(outside, "tex-write.txt")
+		shellWritePath := filepath.Join(outside, "shell-write.txt")
+		source := `\documentclass{article}
+\begin{document}
+\newwrite\outside
+\immediate\openout\outside=` + filepath.ToSlash(texWritePath) + `
+\immediate\write\outside{compromised}
+\immediate\closeout\outside
+\immediate\write18{echo compromised > "` + filepath.ToSlash(shellWritePath) + `"}
+Safe output
+\end{document}`
+		if _, _, err := compiler.Compile(context.Background(), source); err != nil {
+			t.Fatalf("Compile(write attempt) setup error = %v", err)
+		}
+		for _, path := range []string{texWritePath, shellWritePath} {
+			if _, err := os.Stat(path); !os.IsNotExist(err) {
+				t.Fatalf("untrusted compilation wrote outside its workspace: %s", path)
+			}
+		}
+	})
 }

@@ -66,8 +66,9 @@ func TestGenerateAITailoringUsesOllamaAndPersistsValidatedRun(t *testing.T) {
 }
 
 type recordedAIProvider struct {
-	response []byte
-	inspect  func(ai.Request)
+	response    []byte
+	generateErr error
+	inspect     func(ai.Request)
 }
 
 func (recordedAIProvider) Name() string                             { return "ollama" }
@@ -76,7 +77,45 @@ func (provider recordedAIProvider) Generate(_ context.Context, _ string, request
 	if provider.inspect != nil {
 		provider.inspect(request)
 	}
+	if provider.generateErr != nil {
+		return nil, provider.generateErr
+	}
 	return append([]byte(nil), provider.response...), nil
+}
+
+func TestGenerateAITailoringPersistsRecoverableProviderFailure(t *testing.T) {
+	ctx := context.Background()
+	store, err := storage.Open(filepath.Join(t.TempDir(), "provider-failure.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close()
+	profile, _ := (domain.ProfileInput{Name: "Ada Lovelace", Skills: []string{"Go"}}).Validate()
+	_, _ = store.SaveProfile(ctx, profile)
+	experience, _ := (domain.ExperienceInput{Company: "Example", Title: "Engineer", StartDate: "2024-01", Bullets: []domain.EvidenceBulletInput{{Text: "Built reliable Go services for production systems", Verification: domain.VerificationVerified}}}).Validate()
+	savedExperience, err := store.SaveExperience(ctx, experience)
+	if err != nil {
+		t.Fatalf("SaveExperience() error = %v", err)
+	}
+	job, _ := (domain.JobInput{Role: "Platform Engineer", Description: "Build reliable Go services for secure production systems and release operations."}).Validate()
+	savedJob, err := store.SaveJob(ctx, job)
+	if err != nil {
+		t.Fatalf("SaveJob() error = %v", err)
+	}
+	app := &App{ctx: ctx, store: store, aiProviderFactory: func(string, string) (ai.Provider, error) {
+		return recordedAIProvider{generateErr: fmt.Errorf("recorded provider unavailable")}, nil
+	}}
+	run, err := app.GenerateAITailoring(domain.GenerateAITailoringInput{JobID: savedJob.ID, SelectedFactIDs: []string{savedExperience.Bullets[0].ID}, Model: "recorded"})
+	if err != nil {
+		t.Fatalf("GenerateAITailoring() returned transport error instead of audit run: %v", err)
+	}
+	if run.ValidationPassed || run.FailureCategory != "provider" || len(run.ValidationErrors) != 1 || !strings.Contains(run.ValidationErrors[0], "provider unavailable") {
+		t.Fatalf("provider failure run = %#v", run)
+	}
+	loaded, err := store.GetAIRun(ctx, run.ID)
+	if err != nil || loaded.FailureCategory != "provider" {
+		t.Fatalf("persisted provider failure = %#v, %v", loaded, err)
+	}
 }
 
 func TestAcceptAITailoringCreatesImmutableVersionWithoutChangingEvidence(t *testing.T) {

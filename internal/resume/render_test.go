@@ -40,3 +40,23 @@ func TestRenderIncludesAdditionalProfileEvidence(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderTreatsJobAndModelDerivedEvidenceAsLiteralText(t *testing.T) {
+	payload := `\input{/private/secret}\immediate\write18{touch /tmp/tailorcv-pwned}%_${}`
+	source := `\documentclass{article}\begin{document}{{TAILORCV_SUMMARY_SECTION}}{{TAILORCV_EXPERIENCE_SECTION}}\end{document}`
+	result := Render(source, Data{
+		Profile: domain.Profile{Summary: payload},
+		Experiences: []domain.Experience{{
+			Company: "Example", Title: "Engineer", StartDate: "2026-01",
+			Bullets: []domain.EvidenceBullet{{Text: payload}},
+		}},
+	})
+	for _, unsafe := range []string{`\input{/private/secret}`, `\immediate\write18`} {
+		if strings.Contains(result, unsafe) {
+			t.Fatalf("Render() preserved executable control %q in:\n%s", unsafe, result)
+		}
+	}
+	if count := strings.Count(result, `\textbackslash{}`); count < 4 {
+		t.Fatalf("Render() did not escape injected control sequences in:\n%s", result)
+	}
+}

@@ -11,9 +11,9 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 ## Repository state at this handoff
 
 - Branch: `main`, tracking `origin/main`.
-- This delivery extends workflow coverage through onboarding/profile creation, public GitHub import/review, compile → reopen → export, and backup/restore at the Go service and React/Wails-binding boundaries.
+- The current hardening set adds malicious LaTeX/evidence tests, transactional restore and migration-failure rollback tests, provider/compiler/artifact recovery coverage, and keyboard/focus semantics across onboarding, navigation, evidence, diagnostics, native-dialog triggers, and PDF controls.
 - It also adds native Linux amd64, macOS arm64, and Windows amd64 CI for Go tests and migrations, `go vet`, frontend tests and type-checking/build, packaged Wails artifacts, and offline Tectonic integration checks.
-- The delivery is committed and pushed to `origin/main`. A pre-existing deletion of `frontend/dist/.gitkeep` was deliberately left outside this delivery, so the worktree is otherwise clean at handoff.
+- The hardening set is not committed or pushed. A pre-existing deletion of `frontend/dist/.gitkeep` remains unrelated and deliberately untouched.
 - No license has been selected.
 
 ## Implemented product capabilities
@@ -30,6 +30,7 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 - Immutable application resume versions with job snapshots, selected fact IDs, ranking explanations, source hashes, and numbered history.
 - New immutable versions created from edited saved source; prior snapshots are never updated.
 - Local Tectonic compilation with time, source-size, PDF-size, log-size, isolated-workspace, and untrusted-mode controls.
+- Tectonic cache and intermediate writes are confined to the disposable compile workspace. Packaged integration tests attempt arbitrary file reads, outside writes, and shell execution under the production flags.
 - Structured compiler diagnostics with clickable navigation into the CodeMirror source editor.
 - PDF.js preview rendering with zoom controls; PDF.js loads only when a compiled preview exists.
 - Successful compilation of a saved immutable version records engine, duration, diagnostics, timestamp, and a private PDF artifact. JSON backup excludes the generated PDF and machine-specific path.
@@ -48,6 +49,7 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 - Application lifecycle controls transition saved applications between `draft`, `submitted`, and `archived` without changing immutable resume versions.
 - Public GitHub sync stores stable repository IDs, visibility, upstream update timestamps, bounded README snapshots, complete languages, and review state. README/language rate-limit fallbacks do not discard previously imported metadata.
 - First-run onboarding remains visible while its profile draft is edited and closes only after a successful save or an explicit “Explore first” action. Previously, entering the first character made the draft look non-empty and prematurely unmounted the form.
+- First-run onboarding is isolated in `frontend/src/features/onboarding/Onboarding.tsx` with modal semantics, initial focus, focus containment, and keyboard tests. Navigation, forms, evidence selection, diagnostics, native-dialog cancellation, and PDF zoom controls have focused accessibility coverage.
 - Backup schema 6 includes evidence ranking priorities, professional links, certifications, achievements, GitHub repository metadata, templates, AI-run metadata, and non-secret preferences while remaining compatible with schema 1 through 5 imports. Credentials are explicitly excluded.
 - `.github/workflows/ci.yml` runs the verification suite and native Wails packaging on Ubuntu 24.04 amd64, macOS 15 arm64, and Windows 2025 amd64. Each short-lived unsigned artifact contains a checksum-verified Tectonic 0.16.9 executable and curated offline TeX Live 2022.0r0 resource bundle.
 - `cmd/packagetectonic` downloads the official platform archive, verifies its pinned SHA-256 digest, hydrates only the resources exercised by the two built-in-template fixtures, writes a deterministic local ZIP bundle, and performs an offline PDF smoke compile before packaging succeeds.
@@ -67,6 +69,7 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 - `ResumeVersion.PDFPath` is deliberately excluded from JSON. `PDFAvailable` is the safe UI-facing indicator.
 - `ResumeContentHash` is SHA-256 over the exact UTF-8 LaTeX source.
 - Tectonic resolution order is `TAILORCV_TECTONIC`, `bin/tectonic` beside the app, `tectonic` beside the app, then `PATH`. A local resource bundle is mandatory through `TAILORCV_TECTONIC_BUNDLE` or `tectonic-resources.zip` beside the selected executable, and every compile uses `--only-cached` plus `--untrusted`.
+- Runtime Tectonic cache variables point inside the per-compile temporary workspace; no persistent user-cache directory is writable by compilation.
 - The packaged resource ZIP intentionally covers the built-in templates rather than the multi-gigabyte upstream TeX Live archive. Custom templates that need other packages fail offline with compiler diagnostics.
 - Built-in templates remain read-only. Editing one must create a user-owned copy.
 - Generated facts must never become verified facts automatically.
@@ -85,7 +88,7 @@ npm --prefix frontend run build
 At this handoff:
 
 - All Go package tests pass.
-- All 28 frontend unit and React integration tests pass.
+- All 34 frontend unit and React integration tests pass.
 - TypeScript checking passes.
 - The Vite production build passes.
 - The opt-in production-contract test passes against local `gemma4:12b` using fictional evidence.
@@ -98,16 +101,17 @@ At this handoff:
 
 The next major milestone is remaining v1 product work and platform hardening:
 
-1. Exercise first-run onboarding and the delivered workflows interactively in packaged Wails runtimes where native dialog presentation and focus behavior matter. Scripted packaged-binary filesystem workflows are covered in CI.
-2. Add a later AI schema version only if certifications and achievements can retain the same evidence citation and review guarantees.
+1. Exercise `RELEASE_CHECKLIST.md` against the packaged Windows amd64, macOS arm64, and Linux amd64 artifacts. Automated UI and scripted filesystem workflows are covered, but native dialog presentation and real WebView focus still require human verification.
+2. Select a license and contribution policy before the first public source release.
+3. Add a later AI schema version only if certifications and achievements can retain the same evidence citation and review guarantees.
 
 Authenticated/private GitHub access is explicitly post-v1. The v1 UI remains public-only and stores no GitHub credential.
 
 Release-hardening work that remains:
 
-- Exercise the delivered edit/version compile → reopen → export workflow interactively in packaged Windows, macOS, and Linux builds; scripted packaged-binary coverage is complete.
-- Consider code splitting the editor bundle further; PDF.js is already lazy-loaded.
+- Complete and record the packaged release checklist on Windows, macOS, and Linux; scripted packaged-binary coverage is complete.
+- Consider code splitting the roughly 565 KB main editor bundle further; PDF.js is already lazy-loaded.
 
 ## Delivery workflow note
 
-This implementation set was committed and pushed at the user's explicit request. Future sessions should confirm the current user request before treating another push as authorized. Preserve unrelated user changes if the worktree is not clean.
+The prior packaged-workflow set was committed and pushed at the user's explicit request. This hardening set is currently uncommitted; future sessions should not treat a commit or push as authorized without a current request. Preserve unrelated user changes if the worktree is not clean.

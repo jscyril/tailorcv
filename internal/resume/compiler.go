@@ -257,12 +257,6 @@ func firstCompilerMessage(output string) string {
 }
 
 func compilerCacheDirectory(fallback string) string {
-	if root, err := os.UserCacheDir(); err == nil {
-		path := filepath.Join(root, "tailorcv")
-		if err := os.MkdirAll(path, 0o700); err == nil {
-			return path
-		}
-	}
 	path := filepath.Join(fallback, "cache")
 	_ = os.MkdirAll(path, 0o700)
 	return path

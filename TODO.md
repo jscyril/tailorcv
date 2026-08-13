@@ -2,7 +2,7 @@
 
 This is the working execution checklist for [PLAN.md](PLAN.md), which remains the authoritative product roadmap. [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) remains the durable engineering handoff. Keep this file short, checkable, and ordered; update the context file after completing a meaningful implementation set.
 
-Last audited: 2026-08-10
+Last audited: 2026-08-13
 
 ## Completed baseline
 
@@ -97,12 +97,12 @@ These are already named or implied by `PLAN.md`, but are not implemented in the 
 - [x] Run native credential set/get/delete verification from packaged Windows, macOS, and Linux application binaries without exposing or retaining the disposable secret.
 - [x] Exercise profile persistence, GitHub import/review, immutable edit/compile/reopen/export, and backup/restore from packaged application binaries with real filesystem writes, bundled Tectonic, and scripted dialog selections.
 - [ ] Exercise first-run onboarding and the delivered workflows interactively in packaged Wails runtimes to verify native dialog presentation, focus, and user-selected filesystem paths.
-- [ ] Add security tests proving malicious job/model/template content cannot enable shell escape, read arbitrary files, or write outside the compile workspace.
-- [ ] Add accessibility testing and keyboard/focus checks for dialogs, navigation, forms, evidence selection, diagnostics, and the PDF workspace.
-- [ ] Add failure-recovery tests for interrupted backup restore, missing/corrupt PDF artifacts, unavailable compilers/providers, and database migration failure.
+- [x] Add security tests proving malicious job/model/template content cannot enable shell escape, read arbitrary files, or write outside the compile workspace. Real packaged Tectonic integration tests exercise arbitrary read/write and shell-command attempts; rendered evidence injection remains literal, and compiler cache writes are confined to the disposable workspace.
+- [x] Add accessibility testing and keyboard/focus checks for dialogs, navigation, forms, evidence selection, diagnostics, and the PDF workspace. Onboarding is an extracted modal with initial focus, focus containment, and dialog semantics; current navigation, project tabs, job/evidence labels, diagnostic-to-editor focus, live status, preview regions, and keyboard PDF controls have React coverage.
+- [x] Add failure-recovery tests for interrupted backup restore, missing/corrupt PDF artifacts, unavailable compilers/providers, and database migration failure. Mid-transaction restore and migration faults roll back; provider failures remain audited; compiler failure preserves the prior saved artifact; missing artifacts reopen source-only and corrupt artifacts are rejected.
 - [ ] Continue focused `app.go` and `App.tsx` tests beyond deterministic, recorded-Ollama, onboarding/profile creation, GitHub import/review, compile/reopen/export, and backup/restore coverage, prioritizing remaining native-dialog behavior and failure paths.
 - [ ] Split `App.tsx` into feature-focused modules as those tests are added; avoid a standalone rewrite.
-- [ ] Revisit editor bundle splitting after AI UI work. PDF.js is already lazy-loaded; the main production JS bundle is about 561 KB at the current audit.
+- [ ] Revisit editor bundle splitting after AI UI work. PDF.js is already lazy-loaded; the main production JS bundle is about 565 KB at the current audit.
 - [ ] Select a license and contribution policy before the first public source release.
 - [ ] Add signed release artifacts and updater support only after manual installation is stable.
 

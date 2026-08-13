@@ -64,9 +64,10 @@ func TestNoAIWorkflowAtAppBoundary(t *testing.T) {
 		t.Fatalf("SaveAchievement() error = %v", err)
 	}
 
+	jobInjection := `\immediate\write18{touch /tmp/tailorcv-job-injection}`
 	analysis, err := app.AnalyzeJobDescription(domain.JobAnalysisInput{
 		Company: "Fictional Cloud", Role: "Senior Platform Engineer",
-		Description: "Build reliable Go services and Kubernetes deployment workflows for secure production systems and improve release operations.",
+		Description: "Build reliable Go services and Kubernetes deployment workflows for secure production systems and improve release operations. " + jobInjection,
 	})
 	if err != nil {
 		t.Fatalf("AnalyzeJobDescription() error = %v", err)
@@ -90,6 +91,9 @@ func TestNoAIWorkflowAtAppBoundary(t *testing.T) {
 	}
 	if created.Version.VersionNumber != 1 || len(created.Version.RankingExplanations) != 2 {
 		t.Fatalf("created version = %#v", created.Version)
+	}
+	if !strings.Contains(created.Version.JobDescriptionSnapshot, jobInjection) || strings.Contains(created.Version.LatexSource, jobInjection) {
+		t.Fatalf("untrusted job text crossed into executable resume source")
 	}
 
 	editedSource := strings.Replace(created.Version.LatexSource, "Senior Platform Engineer", "Staff Platform Engineer", 1)
@@ -156,6 +160,17 @@ func TestNoAIWorkflowAtAppBoundary(t *testing.T) {
 	if exported.Path != exportPath || string(exportedPDF) != string(pdf) {
 		t.Fatalf("exported = %#v, bytes = %q", exported, exportedPDF)
 	}
+	app.compiler = recordedCompiler{err: fmt.Errorf("Tectonic is unavailable")}
+	if _, err := app.CompileResumeVersion(edited.ID); err == nil || !strings.Contains(err.Error(), "unavailable") {
+		t.Fatalf("CompileResumeVersion(unavailable compiler) error = %v", err)
+	}
+	if _, err := app.ExportCompiledPDF(); err == nil || !strings.Contains(err.Error(), "compile the current LaTeX source") {
+		t.Fatalf("ExportCompiledPDF(after unavailable compiler) error = %v", err)
+	}
+	opened, err = app.OpenResumeVersion(edited.ID)
+	if err != nil || !opened.Version.PDFAvailable || opened.CompileResult.PDFBase64 == "" {
+		t.Fatalf("OpenResumeVersion(after unavailable compiler) = %#v, %v", opened, err)
+	}
 	artifactPath, err := app.resumeArtifactPath(edited.ID)
 	if err != nil {
 		t.Fatalf("resumeArtifactPath() error = %v", err)
@@ -169,6 +184,13 @@ func TestNoAIWorkflowAtAppBoundary(t *testing.T) {
 	}
 	if _, err := app.ExportCompiledPDF(); err == nil || !strings.Contains(err.Error(), "compile the current LaTeX source") {
 		t.Fatalf("ExportCompiledPDF(after corrupt artifact) error = %v", err)
+	}
+	if err := os.Remove(artifactPath); err != nil {
+		t.Fatalf("remove artifact fixture: %v", err)
+	}
+	opened, err = app.OpenResumeVersion(edited.ID)
+	if err != nil || opened.Version.PDFAvailable || opened.CompileResult.PDFBase64 != "" {
+		t.Fatalf("OpenResumeVersion(missing artifact) = %#v, %v", opened, err)
 	}
 }
 

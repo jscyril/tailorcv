@@ -281,7 +281,11 @@ var migrations = []migration{
 }
 
 func (s *Store) applyMigrations(ctx context.Context) error {
-	for _, item := range migrations {
+	return s.applyMigrationSet(ctx, migrations)
+}
+
+func (s *Store) applyMigrationSet(ctx context.Context, items []migration) error {
+	for _, item := range items {
 		var applied int
 		err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM schema_migrations WHERE version = ?`, item.version).Scan(&applied)
 		if err != nil {
