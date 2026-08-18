@@ -42,6 +42,8 @@ export function ExportProfileBackup():Promise<domain.BackupResult>;
 
 export function GenerateAITailoring(arg1:domain.GenerateAITailoringInput):Promise<domain.AIRun>;
 
+export function GenerateProjectReadmeBullets(arg1:domain.GenerateProjectReadmeBulletsInput):Promise<domain.ProjectReadmeBulletsResult>;
+
 export function GetAISettings():Promise<domain.AISettings>;
 
 export function GetGeminiCredentialStatus():Promise<domain.CredentialStatus>;
@@ -49,6 +51,8 @@ export function GetGeminiCredentialStatus():Promise<domain.CredentialStatus>;
 export function GetProfile():Promise<domain.Profile>;
 
 export function GetSelectedResumeTemplateID():Promise<string>;
+
+export function ImportGitHubProject(arg1:string):Promise<domain.Project>;
 
 export function ImportGitHubProjects():Promise<domain.GitHubImportResult>;
 

@@ -9,7 +9,7 @@ const bindings = vi.hoisted(() => ({
   AcceptAITailoring: vi.fn(), AnalyzeJobDescription: vi.fn(), CancelAITailoring: vi.fn(), CheckGemini: vi.fn(), CheckOllama: vi.fn(),
   CompileLatex: vi.fn(), CompileResumeVersion: vi.fn(), CreateResumeVersion: vi.fn(), DeleteAchievement: vi.fn(), DeleteCertification: vi.fn(),
   DeleteEducation: vi.fn(), DeleteExperience: vi.fn(), DeleteGeminiAPIKey: vi.fn(), DeleteJob: vi.fn(), DeleteProject: vi.fn(), DeleteResumeTemplate: vi.fn(),
-  ExportCompiledPDF: vi.fn(), ExportLatexSource: vi.fn(), ExportProfileBackup: vi.fn(), GenerateAITailoring: vi.fn(), GetAISettings: vi.fn(),
+  ExportCompiledPDF: vi.fn(), ExportLatexSource: vi.fn(), ExportProfileBackup: vi.fn(), GenerateAITailoring: vi.fn(), GenerateProjectReadmeBullets: vi.fn(), GetAISettings: vi.fn(),
   GetGeminiCredentialStatus: vi.fn(), GetProfile: vi.fn(), GetSelectedResumeTemplateID: vi.fn(), ImportGitHubProjects: vi.fn(), ImportProfileBackup: vi.fn(),
   ImportResumeTemplate: vi.fn(), ListAchievements: vi.fn(), ListAIRuns: vi.fn(), ListApplications: vi.fn(), ListCertifications: vi.fn(), ListEducations: vi.fn(),
   ListExperiences: vi.fn(), ListJobs: vi.fn(), ListProjects: vi.fn(), ListResumeTemplates: vi.fn(), OpenResumeVersion: vi.fn(), RenderResumeTemplate: vi.fn(), SaveAchievement: vi.fn(),
@@ -127,6 +127,29 @@ describe("App Wails workflow integration", () => {
     await user.click(screen.getByRole("button", { name: "Accept new resume version" }));
     await waitFor(() => expect(bindings.AcceptAITailoring).toHaveBeenCalledOnce());
     expect(bindings.AcceptAITailoring.mock.calls[0][0]).toMatchObject({ runId: run.id, templateId: template.id, proposals: [proposal] });
+  });
+
+  it("adds editable, unsaved project bullets from a GitHub README", async () => {
+    const project = {
+      id: "project-1", name: "TailorCV", role: "Creator", description: "", url: "", repositoryUrl: "https://github.com/example/tailorcv", repositoryId: 1,
+      repositoryReadme: "TailorCV is a Go and React desktop app for evidence-backed resumes.", repositoryVisibility: "public", repositoryUpdatedAt: "2026-01-01T00:00:00Z",
+      startDate: "", endDate: "", ongoing: false, provenance: "github", verification: "verified", resumeEligible: true, skills: ["Go", "React"], detectedLanguages: [], bullets: [], createdAt: "", updatedAt: "",
+    };
+    bindings.ListProjects.mockResolvedValue([project]);
+    bindings.CheckOllama.mockResolvedValue({ provider: "ollama", endpoint: "http://127.0.0.1:11434", available: true, models: ["recorded"], message: "Ollama is available." });
+    bindings.GenerateProjectReadmeBullets.mockResolvedValue({ bullets: ["Built a Go and React desktop app for evidence-backed resumes."] });
+
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: /^AI assistant/ }));
+    await user.click(screen.getByRole("button", { name: "Check connection" }));
+    await user.click(screen.getByRole("button", { name: "Projects" }));
+    await user.click(screen.getByRole("button", { name: "Manage evidence" }));
+    await user.click(await screen.findByRole("button", { name: "Generate editable bullets from README" }));
+
+    await waitFor(() => expect(bindings.GenerateProjectReadmeBullets).toHaveBeenCalledWith({ projectId: project.id, provider: "ollama", model: "recorded", endpoint: "http://127.0.0.1:11434" }));
+    expect(await screen.findByText("1 editable README bullet added. Review and save the project to keep them.")).toBeTruthy();
+    expect(screen.getByDisplayValue("Built a Go and React desktop app for evidence-backed resumes.")).toBeTruthy();
   });
 
   it("compiles, reopens, and exports a saved resume artifact through bindings", async () => {

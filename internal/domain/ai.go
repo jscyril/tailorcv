@@ -39,6 +39,49 @@ type GenerateAITailoringInput struct {
 	Endpoint        string   `json:"endpoint"`
 }
 
+// GenerateProjectReadmeBulletsInput requests editable, unverified project
+// bullets from a README snapshot. Nothing is persisted until the user saves
+// the project form.
+type GenerateProjectReadmeBulletsInput struct {
+	ProjectID string `json:"projectId"`
+	Provider  string `json:"provider"`
+	Model     string `json:"model"`
+	Endpoint  string `json:"endpoint"`
+}
+
+func (input GenerateProjectReadmeBulletsInput) Validate() (GenerateProjectReadmeBulletsInput, error) {
+	input.ProjectID = strings.TrimSpace(input.ProjectID)
+	if input.ProjectID == "" {
+		return GenerateProjectReadmeBulletsInput{}, fmt.Errorf("save the project before generating README bullets")
+	}
+	input.Provider = strings.ToLower(strings.TrimSpace(input.Provider))
+	if input.Provider == "" {
+		input.Provider = "ollama"
+	}
+	if input.Provider != "ollama" && input.Provider != "gemini" {
+		return GenerateProjectReadmeBulletsInput{}, fmt.Errorf("AI provider %q is not supported", input.Provider)
+	}
+	input.Model = strings.TrimSpace(input.Model)
+	if input.Model == "" || len(input.Model) > 200 {
+		return GenerateProjectReadmeBulletsInput{}, fmt.Errorf("select a model for %s", input.Provider)
+	}
+	if input.Provider == "ollama" {
+		endpoint, err := ValidateOllamaEndpoint(input.Endpoint)
+		if err != nil {
+			return GenerateProjectReadmeBulletsInput{}, err
+		}
+		input.Endpoint = endpoint
+	} else {
+		input.Model = strings.TrimPrefix(input.Model, "models/")
+		input.Endpoint = ""
+	}
+	return input, nil
+}
+
+type ProjectReadmeBulletsResult struct {
+	Bullets []string `json:"bullets"`
+}
+
 func (input GenerateAITailoringInput) Validate() (GenerateAITailoringInput, error) {
 	selection, err := (CreateResumeVersionInput{JobID: input.JobID, TemplateID: "ai-validation", SelectedFactIDs: input.SelectedFactIDs}).Validate()
 	if err != nil {

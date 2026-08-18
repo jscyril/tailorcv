@@ -29,6 +29,31 @@ type Client struct {
 	httpClient *http.Client
 }
 
+// GetPublicRepository fetches one public github.com owner/repository URL.
+func (c *Client) GetPublicRepository(ctx context.Context, repositoryURL string) (domain.GitHubRepository, error) {
+	owner, repository, err := parsePublicRepositoryURL(repositoryURL)
+	if err != nil {
+		return domain.GitHubRepository{}, err
+	}
+	endpoint := c.baseURL + "/repos/" + url.PathEscape(owner) + "/" + url.PathEscape(repository)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return domain.GitHubRepository{}, fmt.Errorf("create GitHub repository request: %w", err)
+	}
+	request.Header.Set("Accept", "application/vnd.github+json")
+	request.Header.Set("X-GitHub-Api-Version", apiVersion)
+	request.Header.Set("User-Agent", "TailorCV/0.1")
+	response, err := c.httpClient.Do(request)
+	if err != nil {
+		return domain.GitHubRepository{}, fmt.Errorf("fetch GitHub repository: %w", err)
+	}
+	item, err := decodeSingleRepositoryResponse(response)
+	if err != nil {
+		return domain.GitHubRepository{}, err
+	}
+	return c.hydrateRepository(ctx, owner, item)
+}
+
 type repositoryResponse struct {
 	ID          int64    `json:"id"`
 	Name        string   `json:"name"`
@@ -87,18 +112,11 @@ func (c *Client) ListPublicRepositories(ctx context.Context, username string) ([
 			return nil, err
 		}
 		for _, repository := range pageRepositories {
-			item := domain.GitHubRepository{
-				ID:   repository.ID,
-				Name: repository.Name, Description: repository.Description, HTMLURL: repository.HTMLURL,
-				Homepage: repository.Homepage, Language: repository.Language, Topics: repository.Topics,
-				Fork: repository.Fork, Archived: repository.Archived, Visibility: repository.Visibility,
-				UpdatedAt: repository.UpdatedAt,
-			}
+			item := repositoryToDomain(repository)
 			if !repository.Fork && !repository.Archived && repository.Language != "" && languageRequestsAvailable {
 				languages, err := c.listRepositoryLanguages(ctx, username, repository.Name)
 				if err == nil {
-					item.Languages = languages
-					item.LanguagesComplete = true
+					item.Languages, item.LanguagesComplete = languages, true
 				} else if errors.Is(err, errRateLimit) {
 					languageRequestsAvailable = false
 				} else if ctx.Err() != nil {
@@ -108,8 +126,7 @@ func (c *Client) ListPublicRepositories(ctx context.Context, username string) ([
 			if !repository.Fork && !repository.Archived && readmeRequestsAvailable {
 				readme, err := c.getRepositoryReadme(ctx, username, repository.Name)
 				if err == nil {
-					item.Readme = readme
-					item.ReadmeComplete = true
+					item.Readme, item.ReadmeComplete = readme, true
 				} else if errors.Is(err, errRateLimit) {
 					readmeRequestsAvailable = false
 				} else if ctx.Err() != nil {
@@ -123,6 +140,44 @@ func (c *Client) ListPublicRepositories(ctx context.Context, username string) ([
 		}
 	}
 	return repositories, nil
+}
+
+func (c *Client) hydrateRepository(ctx context.Context, owner string, repository repositoryResponse) (domain.GitHubRepository, error) {
+	item := repositoryToDomain(repository)
+	if item.Fork || item.Archived {
+		return item, nil
+	}
+	if repository.Language != "" {
+		languages, err := c.listRepositoryLanguages(ctx, owner, repository.Name)
+		if err == nil {
+			item.Languages, item.LanguagesComplete = languages, true
+		} else if ctx.Err() != nil {
+			return domain.GitHubRepository{}, ctx.Err()
+		}
+	}
+	readme, err := c.getRepositoryReadme(ctx, owner, repository.Name)
+	if err == nil {
+		item.Readme, item.ReadmeComplete = readme, true
+	} else if ctx.Err() != nil {
+		return domain.GitHubRepository{}, ctx.Err()
+	}
+	return item, nil
+}
+
+func repositoryToDomain(repository repositoryResponse) domain.GitHubRepository {
+	return domain.GitHubRepository{ID: repository.ID, Name: repository.Name, Description: repository.Description, HTMLURL: repository.HTMLURL, Homepage: repository.Homepage, Language: repository.Language, Topics: repository.Topics, Fork: repository.Fork, Archived: repository.Archived, Visibility: repository.Visibility, UpdatedAt: repository.UpdatedAt}
+}
+
+func parsePublicRepositoryURL(value string) (string, string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || (parsed.Host != "github.com" && parsed.Host != "www.github.com") || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", "", fmt.Errorf("enter a public GitHub repository URL such as https://github.com/owner/repository")
+	}
+	parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", fmt.Errorf("enter a public GitHub repository URL such as https://github.com/owner/repository")
+	}
+	return parts[0], strings.TrimSuffix(parts[1], ".git"), nil
 }
 
 func (c *Client) getRepositoryReadme(ctx context.Context, owner, repository string) (string, error) {
@@ -229,4 +284,30 @@ func decodeRepositoryResponse(response *http.Response) ([]repositoryResponse, er
 		return nil, fmt.Errorf("decode GitHub repositories: %w", err)
 	}
 	return repositories, nil
+}
+
+func decodeSingleRepositoryResponse(response *http.Response) (repositoryResponse, error) {
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		message, _ := io.ReadAll(io.LimitReader(response.Body, 1024))
+		if response.StatusCode == http.StatusNotFound {
+			return repositoryResponse{}, fmt.Errorf("GitHub repository was not found or is private")
+		}
+		if response.StatusCode == http.StatusForbidden || response.StatusCode == http.StatusTooManyRequests {
+			return repositoryResponse{}, fmt.Errorf("%w; try again later", errRateLimit)
+		}
+		return repositoryResponse{}, fmt.Errorf("GitHub returned %s: %s", response.Status, strings.TrimSpace(string(message)))
+	}
+	data, err := io.ReadAll(io.LimitReader(response.Body, maxResponseSize+1))
+	if err != nil {
+		return repositoryResponse{}, fmt.Errorf("read GitHub repository response: %w", err)
+	}
+	if len(data) > maxResponseSize {
+		return repositoryResponse{}, fmt.Errorf("GitHub repository response exceeded the size limit")
+	}
+	var repository repositoryResponse
+	if err := json.Unmarshal(data, &repository); err != nil {
+		return repositoryResponse{}, fmt.Errorf("decode GitHub repository: %w", err)
+	}
+	return repository, nil
 }

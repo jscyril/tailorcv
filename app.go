@@ -30,6 +30,10 @@ type githubRepositoryClient interface {
 	ListPublicRepositories(context.Context, string) ([]domain.GitHubRepository, error)
 }
 
+type githubRepositoryURLClient interface {
+	GetPublicRepository(context.Context, string) (domain.GitHubRepository, error)
+}
+
 type saveFileDialog func(context.Context, runtime.SaveDialogOptions) (string, error)
 type openFileDialog func(context.Context, runtime.OpenDialogOptions) (string, error)
 
@@ -370,6 +374,44 @@ func (a *App) ImportGitHubProjects() (domain.GitHubImportResult, error) {
 		}
 	}
 	return result, nil
+}
+
+// ImportGitHubProject imports one public GitHub repository by URL into the
+// same review-first project workflow used by profile-wide syncing.
+func (a *App) ImportGitHubProject(repositoryURL string) (domain.Project, error) {
+	if err := a.ready(); err != nil {
+		return domain.Project{}, err
+	}
+	client, ok := a.github.(githubRepositoryURLClient)
+	if !ok {
+		return domain.Project{}, fmt.Errorf("direct GitHub repository import is unavailable")
+	}
+	repository, err := client.GetPublicRepository(a.appContext(), repositoryURL)
+	if err != nil {
+		return domain.Project{}, err
+	}
+	if repository.Fork || repository.Archived {
+		return domain.Project{}, fmt.Errorf("forked and archived repositories cannot be imported")
+	}
+	projects, err := a.store.ListProjects(a.appContext())
+	if err != nil {
+		return domain.Project{}, err
+	}
+	var existing *domain.Project
+	for index := range projects {
+		if projects[index].RepositoryID == repository.ID || strings.EqualFold(projects[index].RepositoryURL, repository.HTMLURL) {
+			if projects[index].Provenance != domain.ProvenanceGitHub {
+				return domain.Project{}, fmt.Errorf("this repository is already associated with a non-GitHub project")
+			}
+			existing = &projects[index]
+			break
+		}
+	}
+	project, err := repository.Project(existing)
+	if err != nil {
+		return domain.Project{}, fmt.Errorf("prepare GitHub project %q: %w", repository.Name, err)
+	}
+	return a.store.SaveProject(a.appContext(), project)
 }
 
 // AnalyzeJobDescription performs the deterministic first-stage comparison.

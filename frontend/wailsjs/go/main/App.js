@@ -82,6 +82,10 @@ export function GenerateAITailoring(arg1) {
   return window['go']['main']['App']['GenerateAITailoring'](arg1);
 }
 
+export function GenerateProjectReadmeBullets(arg1) {
+  return window['go']['main']['App']['GenerateProjectReadmeBullets'](arg1);
+}
+
 export function GetAISettings() {
   return window['go']['main']['App']['GetAISettings']();
 }
@@ -96,6 +100,10 @@ export function GetProfile() {
 
 export function GetSelectedResumeTemplateID() {
   return window['go']['main']['App']['GetSelectedResumeTemplateID']();
+}
+
+export function ImportGitHubProject(arg1) {
+  return window['go']['main']['App']['ImportGitHubProject'](arg1);
 }
 
 export function ImportGitHubProjects() {

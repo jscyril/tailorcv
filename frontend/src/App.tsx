@@ -25,12 +25,14 @@ import {
   ExportCompiledPDF,
   ExportLatexSource,
   ExportProfileBackup,
+  GenerateProjectReadmeBullets,
   GetProfile,
   GetAISettings,
   GetGeminiCredentialStatus,
   GetSelectedResumeTemplateID,
   GenerateAITailoring,
   ImportGitHubProjects,
+  ImportGitHubProject,
   ImportProfileBackup,
   ImportResumeTemplate,
   ListEducations,
@@ -193,6 +195,7 @@ export default function App() {
   const [busy, setBusy] = useState(true);
   const [experienceBusyKey, setExperienceBusyKey] = useState("");
   const [projectBusyKey, setProjectBusyKey] = useState("");
+  const [projectReadmeBusyKey, setProjectReadmeBusyKey] = useState("");
   const [educationBusyKey, setEducationBusyKey] = useState("");
   const [credentialBusyKey,setCredentialBusyKey]=useState("");
   const [backupBusy, setBackupBusy] = useState<"export" | "import" | "">("");
@@ -549,6 +552,21 @@ export default function App() {
     }
   };
 
+  const generateProjectReadmeBullets = async (draft: ProjectDraft) => {
+    setProjectReadmeBusyKey(draft.key);
+    setError("");
+    setMessage("");
+    try {
+      const result = await GenerateProjectReadmeBullets({ projectId: draft.id, provider: aiProvider, model: aiProvider === "ollama" ? ollamaModel : geminiModel, endpoint: aiProvider === "ollama" ? ollamaEndpoint : "" }) as { bullets: string[] };
+      setProjects((current) => current.map((project) => project.key !== draft.key ? project : { ...project, bullets: [...project.bullets, ...result.bullets.map((text) => ({ ...newEvidenceBullet(), text, provenance: "github" as const, sourceUrl: project.repositoryUrl }))] }));
+      setMessage(`${result.bullets.length} editable README bullet${result.bullets.length === 1 ? "" : "s"} added. Review and save the project to keep them.`);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setProjectReadmeBusyKey("");
+    }
+  };
+
   const addEducation = () => {
     setEducations((current) => [...current, newEducationDraft()]);
     setMessage("");
@@ -809,6 +827,22 @@ export default function App() {
     }
   };
 
+  const importGitHubProject = async (repositoryURL: string) => {
+    setGitHubBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const project = await ImportGitHubProject(repositoryURL) as unknown as Project;
+      const savedProjects = await ListProjects();
+      setProjects((savedProjects as unknown as Project[]).map(projectToDraft));
+      setMessage(`${project.name} imported from GitHub. Review it before adding it to a resume.`);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setGitHubBusy(false);
+    }
+  };
+
   const selectedSavedProjectIDs = () => selectedProjectKeys
     .map((key) => projects.find((project) => project.key === key)?.id ?? "")
     .filter(Boolean);
@@ -1055,7 +1089,7 @@ export default function App() {
             {view === "overview" && <WorkspaceOverview profile={profile} completion={completion} experiences={experiences} projects={projects} applications={applications} onOpen={setView} />}
             {view === "profile" && <ProfileWorkspace profile={profile} busy={busy} message={message} onChange={updateProfile} onSubmit={saveProfile} />}
             {view === "experience" && <section className="workspace-panel scroll-panel"><PanelHeader eyebrow="Career evidence" title="Experience" description="Keep every claim factual, ordered, and reviewable." action={<button className="secondary-button" onClick={addExperience}>Add role</button>} /><ExperienceSection experiences={experiences} busyKey={experienceBusyKey} onAdd={addExperience} onUpdate={updateExperience} onSave={saveExperience} onDelete={deleteExperience} /></section>}
-            {view === "projects" && <ProjectWorkspace projects={projects} selectedKeys={selectedProjectKeys} busyKey={projectBusyKey} githubUsername={profile.githubUsername} githubBusy={githubBusy} onToggle={toggleProject} onAdd={addProject} onUpdate={updateProject} onSave={saveProject} onDelete={deleteProject} onSyncGitHub={syncGitHubProjects} onOpenProfile={() => setView("profile")} />}
+            {view === "projects" && <ProjectWorkspace projects={projects} selectedKeys={selectedProjectKeys} busyKey={projectBusyKey} readmeBusyKey={projectReadmeBusyKey} aiReady={Boolean(aiProviderStatus?.available && (aiProvider === "ollama" ? ollamaModel : geminiModel))} githubUsername={profile.githubUsername} githubBusy={githubBusy} onToggle={toggleProject} onAdd={addProject} onUpdate={updateProject} onSave={saveProject} onDelete={deleteProject} onGenerateReadmeBullets={generateProjectReadmeBullets} onImportGitHubProject={importGitHubProject} onSyncGitHub={syncGitHubProjects} onOpenProfile={() => setView("profile")} />}
             {view === "education" && <EducationWorkspace educations={educations} busyKey={educationBusyKey} onAdd={addEducation} onUpdate={updateEducation} onSave={saveEducation} onDelete={deleteEducation} />}
             {view === "credentials"&&<CredentialsWorkspace certifications={certifications} achievements={achievements} busyKey={credentialBusyKey} onCertifications={setCertifications} onAchievements={setAchievements} onSaveCertification={saveCertification} onDeleteCertification={deleteCertification} onSaveAchievement={saveAchievement} onDeleteAchievement={deleteAchievement}/>}
             {view === "skills" && <SkillsWorkspace skillsText={skillsText} busy={busy} message={message} onChange={setSkillsText} onSubmit={saveProfile} />}
@@ -1116,7 +1150,6 @@ function TopToolbar({ profile, templateName, compiling, canExport, onCompile, on
     <div className="ats-pill"><span className={`status-dot ${canExport ? "" : "muted"}`} /> {canExport ? "PDF ready" : "Source draft"}</div>
     <button className="toolbar-button" disabled={compiling} onClick={onCompile}><Icon name="refresh" size={16} />{compiling ? "Compiling…" : "Compile"}</button>
     <button className="export-button" disabled={!canExport || compiling} title={canExport ? "Export the latest compiled PDF" : "Compile the current source before exporting"} onClick={onExport}><Icon name="download" size={16} />Export PDF</button>
-    <button className="icon-button" aria-label="More document options">•••</button>
   </header>;
 }
 
@@ -1153,9 +1186,10 @@ function FormBlock({ title, description, children }: { title: string; descriptio
   return <section className="form-block"><header><h2>{title}</h2><p>{description}</p></header><div>{children}</div></section>;
 }
 
-function ProjectWorkspace({ projects, selectedKeys, busyKey, githubUsername, githubBusy, onToggle, onAdd, onUpdate, onSave, onDelete, onSyncGitHub, onOpenProfile }: { projects: ProjectDraft[]; selectedKeys: string[]; busyKey: string; githubUsername: string; githubBusy: boolean; onToggle: (key: string) => void; onAdd: () => void; onUpdate: (key: string, project: ProjectDraft) => void; onSave: (event: FormEvent, project: ProjectDraft) => void; onDelete: (project: ProjectDraft) => void; onSyncGitHub: () => void; onOpenProfile: () => void }) {
+function ProjectWorkspace({ projects, selectedKeys, busyKey, readmeBusyKey, aiReady, githubUsername, githubBusy, onToggle, onAdd, onUpdate, onSave, onDelete, onGenerateReadmeBullets, onImportGitHubProject, onSyncGitHub, onOpenProfile }: { projects: ProjectDraft[]; selectedKeys: string[]; busyKey: string; readmeBusyKey: string; aiReady: boolean; githubUsername: string; githubBusy: boolean; onToggle: (key: string) => void; onAdd: () => void; onUpdate: (key: string, project: ProjectDraft) => void; onSave: (event: FormEvent, project: ProjectDraft) => void; onDelete: (project: ProjectDraft) => void; onGenerateReadmeBullets: (project: ProjectDraft) => void; onImportGitHubProject: (repositoryURL: string) => void; onSyncGitHub: () => void; onOpenProfile: () => void }) {
   const [tab, setTab] = useState<"select" | "manage">("select");
   const [query, setQuery] = useState("");
+  const [repositoryURL, setRepositoryURL] = useState("");
   const [reviewKey, setReviewKey] = useState("");
   const filteredProjects = filterProjects(projects, query);
   useEffect(() => {
@@ -1171,6 +1205,7 @@ function ProjectWorkspace({ projects, selectedKeys, busyKey, githubUsername, git
     <div className="panel-tabs" role="group" aria-label="Project workspace"><button aria-pressed={tab === "select"} className={tab === "select" ? "active" : ""} onClick={() => setTab("select")}>Select for resume <span>{selectedKeys.length}</span></button><button aria-pressed={tab === "manage"} className={tab === "manage" ? "active" : ""} onClick={() => setTab("manage")}>Manage evidence</button></div>
     {tab === "select" ? <div className="project-selector">
       <div className="github-sync-note"><span className="github-mark">GH</span><div><strong>{githubUsername ? `github.com/${githubUsername}` : "Connect your GitHub profile"}</strong><p>{githubUsername ? "Public, owned repositories sync into Manage evidence for review." : "Add a username in Profile to import your public repositories."}</p></div><button onClick={githubUsername ? onSyncGitHub : onOpenProfile} disabled={githubBusy}>{githubBusy ? "Syncing…" : githubUsername ? "Refresh" : "Open profile"}</button></div>
+      <form className="github-import-form" onSubmit={(event) => { event.preventDefault(); onImportGitHubProject(repositoryURL); }}><input aria-label="Public GitHub repository URL" type="url" required value={repositoryURL} onChange={(event) => setRepositoryURL(event.target.value)} placeholder="https://github.com/owner/repository" /><button className="secondary-button" disabled={githubBusy || !repositoryURL.trim()}>{githubBusy ? "Importing…" : "Import repository"}</button></form>
       <label className="search-field"><Icon name="search" size={16} /><input aria-label="Search projects" placeholder="Search projects, roles, or skills" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
       <div className="selection-note"><span className="status-dot" /><div><strong>{selectedKeys.length} projects selected</strong><p>The preview updates as you select evidence.</p></div></div>
       {projects.length === 0 ? <div className="panel-empty"><span className="empty-icon"><Icon name="folder" size={22} /></span><strong>No projects yet</strong><p>Add a project with evidence bullets, technologies, and a review state.</p><button className="primary-button" onClick={() => { onAdd(); setTab("manage"); }}>Add first project</button></div> : filteredProjects.length === 0 ? <div className="panel-empty search-empty"><span className="empty-icon"><Icon name="search" size={22} /></span><strong>No matching projects</strong><p>Try a project name, role, description, or technology.</p><button className="text-button" onClick={() => setQuery("")}>Clear search</button></div> : filteredProjects.map((project) => {
@@ -1181,7 +1216,7 @@ function ProjectWorkspace({ projects, selectedKeys, busyKey, githubUsername, git
           <div className="project-card-copy"><div className="project-title-row"><strong>{project.name || "Untitled project"}</strong><span>{selectable ? selected ? "Selected" : "Available" : "Review required"}</span></div><p>{project.description || "Add a concise description of the problem, your contribution, and the outcome."}</p><div className="tag-row">{project.skills.slice(0, 4).map((skill) => <span key={skill}>{skill}</span>)}{project.skills.length === 0 && <span>Skills not added</span>}</div><small>{project.verification === "verified" ? "Verified evidence" : "Needs review"} · {project.bullets.length} bullets</small>{!selectable && <button className="review-project-link" onClick={() => openReview(project.key)}>Review details and enable selection →</button>}</div>
         </article>;
       })}
-    </div> : <ProjectSection projects={projects} busyKey={busyKey} onAdd={onAdd} onUpdate={onUpdate} onSave={onSave} onDelete={onDelete} />}
+    </div> : <ProjectSection projects={projects} busyKey={busyKey} readmeBusyKey={readmeBusyKey} aiReady={aiReady} onAdd={onAdd} onUpdate={onUpdate} onSave={onSave} onDelete={onDelete} onGenerateReadmeBullets={onGenerateReadmeBullets} />}
   </section>;
 }
 
@@ -1491,14 +1526,6 @@ function ProfileEditor({
         onSave={onSaveExperience}
         onDelete={onDeleteExperience}
       />
-      <ProjectSection
-        projects={projects}
-        busyKey={projectBusyKey}
-        onAdd={onAddProject}
-        onUpdate={onUpdateProject}
-        onSave={onSaveProject}
-        onDelete={onDeleteProject}
-      />
     </section>
   );
 }
@@ -1582,13 +1609,16 @@ function ExperienceCard({ experience, busy, onUpdate, onSave, onDelete }: {
   );
 }
 
-function ProjectSection({ projects, busyKey, onAdd, onUpdate, onSave, onDelete }: {
+function ProjectSection({ projects, busyKey, readmeBusyKey, aiReady, onAdd, onUpdate, onSave, onDelete, onGenerateReadmeBullets }: {
   projects: ProjectDraft[];
   busyKey: string;
+  readmeBusyKey: string;
+  aiReady: boolean;
   onAdd: () => void;
   onUpdate: (key: string, project: ProjectDraft) => void;
   onSave: (event: FormEvent, project: ProjectDraft) => void;
   onDelete: (project: ProjectDraft) => void;
+  onGenerateReadmeBullets: (project: ProjectDraft) => void;
 }) {
   return (
     <section className="experience-section project-section">
@@ -1611,21 +1641,27 @@ function ProjectSection({ projects, busyKey, onAdd, onUpdate, onSave, onDelete }
           key={project.key}
           project={project}
           busy={busyKey === project.key}
+          readmeBusy={readmeBusyKey === project.key}
+          aiReady={aiReady}
           onUpdate={(next) => onUpdate(project.key, next)}
           onSave={(event) => onSave(event, project)}
           onDelete={() => onDelete(project)}
+          onGenerateReadmeBullets={() => onGenerateReadmeBullets(project)}
         />
       ))}
     </section>
   );
 }
 
-function ProjectCard({ project, busy, onUpdate, onSave, onDelete }: {
+function ProjectCard({ project, busy, readmeBusy, aiReady, onUpdate, onSave, onDelete, onGenerateReadmeBullets }: {
   project: ProjectDraft;
   busy: boolean;
+  readmeBusy: boolean;
+  aiReady: boolean;
   onUpdate: (project: ProjectDraft) => void;
   onSave: (event: FormEvent) => void;
   onDelete: () => void;
+  onGenerateReadmeBullets: () => void;
 }) {
   const updateField = <K extends keyof ProjectDraft>(field: K, value: ProjectDraft[K]) => {
     onUpdate({ ...project, [field]: value });
@@ -1667,7 +1703,7 @@ function ProjectCard({ project, busy, onUpdate, onSave, onDelete }: {
           <Field label="Project URL" type="url" value={project.url} onChange={(value) => updateField("url", value)} placeholder="https://example.com/project" />
           <Field label="Repository URL" type="url" value={project.repositoryUrl} onChange={(value) => updateField("repositoryUrl", value)} placeholder="https://github.com/owner/repository" />
         </div>
-        {project.provenance === "github" && <section className="repository-metadata"><header><div><strong>GitHub repository snapshot</strong><p>Reference metadata from the latest successful public sync.</p></div><span>{project.repositoryVisibility || "public"}</span></header><div><small>Repository ID</small><strong>{project.repositoryId || "Unavailable"}</strong><small>Updated on GitHub</small><strong>{project.repositoryUpdatedAt ? new Date(project.repositoryUpdatedAt).toLocaleString() : "Unavailable"}</strong></div><details><summary>README snapshot{project.repositoryReadme ? "" : " unavailable"}</summary><pre>{project.repositoryReadme || "No README content was returned by GitHub."}</pre></details></section>}
+        {project.provenance === "github" && <section className="repository-metadata"><header><div><strong>GitHub repository snapshot</strong><p>Reference metadata from the latest successful public sync.</p></div><span>{project.repositoryVisibility || "public"}</span></header><div><small>Repository ID</small><strong>{project.repositoryId || "Unavailable"}</strong><small>Updated on GitHub</small><strong>{project.repositoryUpdatedAt ? new Date(project.repositoryUpdatedAt).toLocaleString() : "Unavailable"}</strong></div><details><summary>README snapshot{project.repositoryReadme ? "" : " unavailable"}</summary><pre>{project.repositoryReadme || "No README content was returned by GitHub."}</pre></details>{project.repositoryReadme && <button className="secondary-button" type="button" disabled={busy || readmeBusy || !aiReady} title={aiReady ? "Generate editable, unverified project bullets from this saved README" : "Check an AI provider and select a model first"} onClick={onGenerateReadmeBullets}>{readmeBusy ? "Generating README bullets…" : "Generate editable bullets from README"}</button>}</section>}
         <label className="field full">
           <span>Technologies and skills</span>
           <textarea rows={2} value={project.skillsText} onChange={(event) => updateField("skillsText", event.target.value)} placeholder="Go, React, SQLite, Docker" />

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -115,6 +116,32 @@ func TestGenerateAITailoringPersistsRecoverableProviderFailure(t *testing.T) {
 	loaded, err := store.GetAIRun(ctx, run.ID)
 	if err != nil || loaded.FailureCategory != "provider" {
 		t.Fatalf("persisted provider failure = %#v, %v", loaded, err)
+	}
+}
+
+func TestGenerateProjectReadmeBulletsReturnsOnlyValidatedDrafts(t *testing.T) {
+	ctx := context.Background()
+	store, err := storage.Open(filepath.Join(t.TempDir(), "readme-bullets.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close()
+	project, _ := (domain.ProjectInput{Name: "TailorCV", RepositoryReadme: "TailorCV is a Go and React desktop app that creates evidence-backed resumes from local career data.", Skills: []string{"Go", "React"}}).Validate()
+	savedProject, err := store.SaveProject(ctx, project)
+	if err != nil {
+		t.Fatalf("SaveProject() error = %v", err)
+	}
+	factID := savedProject.ID + ":readme:1"
+	proposal := fmt.Sprintf(`{"schemaVersion":"tailorcv.ai.tailoring.v1","proposals":[{"targetFactId":%q,"supportingFactIds":[%q],"text":"Built TailorCV, a Go and React desktop app for evidence-backed resumes."}]}`, factID, factID)
+	app := &App{ctx: ctx, store: store, aiProviderFactory: func(string, string) (ai.Provider, error) {
+		return recordedAIProvider{response: []byte(proposal)}, nil
+	}}
+	result, err := app.GenerateProjectReadmeBullets(domain.GenerateProjectReadmeBulletsInput{ProjectID: savedProject.ID, Model: "recorded"})
+	if err != nil {
+		t.Fatalf("GenerateProjectReadmeBullets() error = %v", err)
+	}
+	if got, want := result.Bullets, []string{"Built TailorCV, a Go and React desktop app for evidence-backed resumes."}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("Bullets = %#v, want %#v", got, want)
 	}
 }
 

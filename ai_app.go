@@ -173,6 +173,74 @@ func (a *App) GenerateAITailoring(input domain.GenerateAITailoringInput) (domain
 	return a.store.SaveAIRun(a.appContext(), run)
 }
 
+// GenerateProjectReadmeBullets turns a saved GitHub README snapshot into up to
+// three editable draft bullets. The returned text is deliberately not stored.
+func (a *App) GenerateProjectReadmeBullets(input domain.GenerateProjectReadmeBulletsInput) (domain.ProjectReadmeBulletsResult, error) {
+	if err := a.ready(); err != nil {
+		return domain.ProjectReadmeBulletsResult{}, err
+	}
+	validated, err := input.Validate()
+	if err != nil {
+		return domain.ProjectReadmeBulletsResult{}, err
+	}
+	projects, err := a.store.ListProjects(a.appContext())
+	if err != nil {
+		return domain.ProjectReadmeBulletsResult{}, err
+	}
+	var project domain.Project
+	for _, candidate := range projects {
+		if candidate.ID == validated.ProjectID {
+			project = candidate
+			break
+		}
+	}
+	if project.ID == "" {
+		return domain.ProjectReadmeBulletsResult{}, fmt.Errorf("project not found")
+	}
+	if strings.TrimSpace(project.RepositoryReadme) == "" {
+		return domain.ProjectReadmeBulletsResult{}, fmt.Errorf("this project has no README snapshot; sync GitHub first")
+	}
+	provider, err := a.newAIProvider(validated.Provider, validated.Endpoint)
+	if err != nil {
+		return domain.ProjectReadmeBulletsResult{}, err
+	}
+	request := ai.ProjectReadmeBulletsRequest(project)
+	ctx, cancel := context.WithTimeout(a.appContext(), 90*time.Second)
+	a.aiMu.Lock()
+	if a.aiCancel != nil {
+		a.aiCancel()
+	}
+	a.aiGeneration++
+	generation := a.aiGeneration
+	a.aiCancel = cancel
+	a.aiMu.Unlock()
+	defer func() {
+		cancel()
+		a.aiMu.Lock()
+		if a.aiGeneration == generation {
+			a.aiCancel = nil
+		}
+		a.aiMu.Unlock()
+	}()
+	raw, err := provider.Generate(ctx, validated.Model, request)
+	if err != nil {
+		return domain.ProjectReadmeBulletsResult{}, fmt.Errorf("generate README bullets: %w", err)
+	}
+	validation := ai.DecodeAndValidate(request, raw)
+	if len(validation.Errors) > 0 {
+		return domain.ProjectReadmeBulletsResult{}, fmt.Errorf("README bullets failed evidence validation: %s", strings.Join(validation.Errors, "; "))
+	}
+	proposals := ai.NormalizeProposals(validation.Response.Proposals)
+	if len(proposals) > 3 {
+		return domain.ProjectReadmeBulletsResult{}, fmt.Errorf("README generation returned more than three bullets")
+	}
+	result := domain.ProjectReadmeBulletsResult{Bullets: make([]string, 0, len(proposals))}
+	for _, proposal := range proposals {
+		result.Bullets = append(result.Bullets, proposal.Text)
+	}
+	return result, nil
+}
+
 func (a *App) newAIProvider(name, endpoint string) (ai.Provider, error) {
 	if a.aiProviderFactory != nil {
 		return a.aiProviderFactory(name, endpoint)
