@@ -101,7 +101,8 @@ These are already named or implied by `PLAN.md`, but are not implemented in the 
 - [x] Add accessibility testing and keyboard/focus checks for dialogs, navigation, forms, evidence selection, diagnostics, and the PDF workspace. Onboarding is an extracted modal with initial focus, focus containment, and dialog semantics; current navigation, project tabs, job/evidence labels, diagnostic-to-editor focus, live status, preview regions, and keyboard PDF controls have React coverage.
 - [x] Add failure-recovery tests for interrupted backup restore, missing/corrupt PDF artifacts, unavailable compilers/providers, and database migration failure. Mid-transaction restore and migration faults roll back; provider failures remain audited; compiler failure preserves the prior saved artifact; missing artifacts reopen source-only and corrupt artifacts are rejected.
 - [ ] Continue focused `app.go` and `App.tsx` tests beyond deterministic, recorded-Ollama, onboarding/profile creation, GitHub import/review, compile/reopen/export, and backup/restore coverage, prioritizing remaining native-dialog behavior and failure paths.
-- [ ] Split `App.tsx` into feature-focused modules as those tests are added; avoid a standalone rewrite.
+- [x] Split presentational workspaces out of `App.tsx` into `components/`, `features/*`, and `lib/resume.ts` (about 1,980 → 1,050 lines); unused `Overview` and `ProfileEditor` removed.
+- [ ] Move `App.tsx` state and handlers into feature hooks as their tests are added; avoid a standalone rewrite.
 - [ ] Revisit editor bundle splitting after AI UI work. PDF.js is already lazy-loaded; the main production JS bundle is about 565 KB at the current audit.
 - [ ] Select a license and contribution policy before the first public source release.
 - [ ] Add signed release artifacts and updater support only after manual installation is stable.
