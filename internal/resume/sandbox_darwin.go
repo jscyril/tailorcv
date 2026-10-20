@@ -19,9 +19,10 @@ func sandboxAvailable() bool {
 	return err == nil
 }
 
-// runSandboxed runs the compiler under sandbox-exec. Later rules win, so the
-// profile denies user, temp, and network access and then re-allows only the
-// workspace, the executable, and the bundle.
+// runSandboxed runs the compiler under sandbox-exec. The profile denies user,
+// temp, and network access, then re-allows the workspace, the executable, and
+// the bundle. The allow must name file-read-data too: a rule for that specific
+// operation beats a file-read* wildcard regardless of order.
 func runSandboxed(command *exec.Cmd, policy sandboxPolicy) error {
 	command.Args = append([]string{sandboxExec, "-p", darwinSandboxProfile(policy), command.Path}, command.Args[1:]...)
 	command.Path = sandboxExec
@@ -42,6 +43,6 @@ func darwinSandboxProfile(policy sandboxPolicy) string {
 (deny file-write*)
 (allow file-write* (subpath ` + workspace + `) (literal "/dev/null") (literal "/dev/dtracehelper"))
 (deny file-read-data (subpath "/Users") (subpath "/Volumes") (subpath "/private/var/folders") (subpath "/private/tmp") (subpath "/private/var/root") (subpath "/Library/Keychains") (subpath "/Library/Application Support"))
-(allow file-read* (subpath ` + workspace + `) (literal ` + quote(policy.executable) + `) (literal ` + quote(policy.bundle) + `))
+(allow file-read* file-read-data (subpath ` + workspace + `) (literal ` + quote(policy.executable) + `) (literal ` + quote(policy.bundle) + `))
 `
 }
