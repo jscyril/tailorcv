@@ -2,6 +2,7 @@ package resume
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -222,4 +223,29 @@ Safe output
 			}
 		}
 	})
+}
+
+func TestCompilerSandboxDoesNotRestrictTheApp(t *testing.T) {
+	if os.Getenv("TAILORCV_TECTONIC_INTEGRATION") == "" {
+		t.Skip("set TAILORCV_TECTONIC_INTEGRATION=1 to exercise the local Tectonic executable")
+	}
+	compiler := NewCompiler("")
+	outside := t.TempDir()
+	// Several rounds, so a restricted thread reused by Go would show up here.
+	for round := 0; round < 4; round++ {
+		if _, _, err := compiler.Compile(context.Background(), `\documentclass{article}\begin{document}ok\end{document}`); err != nil {
+			t.Fatalf("Compile() error = %v", err)
+		}
+		done := make(chan error, 8)
+		for worker := 0; worker < 8; worker++ {
+			go func(worker int) {
+				done <- os.WriteFile(filepath.Join(outside, fmt.Sprintf("app-%d-%d.txt", round, worker)), []byte("still writable"), 0o600)
+			}(worker)
+		}
+		for worker := 0; worker < 8; worker++ {
+			if err := <-done; err != nil {
+				t.Fatalf("app lost file access after compiling: %v", err)
+			}
+		}
+	}
 }

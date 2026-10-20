@@ -54,6 +54,14 @@ func (compiler *Compiler) Compile(ctx context.Context, source string) (domain.Co
 	if err != nil {
 		return domain.CompileResult{}, nil, err
 	}
+	// Tectonic's --untrusted blocks shell escape but not file access, so the
+	// OS sandbox confines it; without one, refuse sources that touch files.
+	sandboxed := sandboxAvailable()
+	if !sandboxed {
+		if reason := unsafeSourceReason(source, sandboxPlatform); reason != "" {
+			return domain.CompileResult{Engine: "Tectonic", Log: reason, Diagnostics: []domain.CompileDiagnostic{{Severity: "error", Message: reason}}}, nil, nil
+		}
+	}
 	workspace, err := os.MkdirTemp("", "tailorcv-compile-*")
 	if err != nil {
 		return domain.CompileResult{}, nil, fmt.Errorf("create isolated compile workspace: %w", err)
@@ -74,7 +82,11 @@ func (compiler *Compiler) Compile(ctx context.Context, source string) (domain.Co
 	command.Env = withEnvironment(commandEnvironment, "TECTONIC_UNTRUSTED_MODE", "1")
 	command.Stdout, command.Stderr = log, log
 	started := time.Now()
-	err = command.Run()
+	if sandboxed {
+		err = runSandboxed(command, sandboxPolicy{workspace: workspace, executable: executable, bundle: bundle})
+	} else {
+		err = command.Run()
+	}
 	duration := time.Since(started)
 	compilerLog := strings.TrimSpace(log.String())
 	if compileContext.Err() == context.DeadlineExceeded {

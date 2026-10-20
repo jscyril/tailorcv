@@ -109,8 +109,25 @@ jobs:
       - name: Build packaged application
         run: wails build -clean -m -trimpath ${{ matrix.build_args }}
 
+      # The TeX resource server rate-limits (HTTP 429), so reuse the pinned,
+      # checksum-verified runtime until the packaging tool changes.
+      - name: Restore pinned offline Tectonic runtime
+        id: tectonic-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ matrix.runtime_dir }}
+          key: tectonic-${{ matrix.target_os }}-${{ matrix.target_arch }}-${{ hashFiles('cmd/packagetectonic/**') }}
+
       - name: Package pinned offline Tectonic runtime
+        if: steps.tectonic-cache.outputs.cache-hit != 'true'
         run: go run ./cmd/packagetectonic -goos ${{ matrix.target_os }} -goarch ${{ matrix.target_arch }} -destination ${{ matrix.runtime_dir }}
+
+      - name: Save pinned offline Tectonic runtime
+        if: steps.tectonic-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ matrix.runtime_dir }}
+          key: ${{ steps.tectonic-cache.outputs.cache-primary-key }}
 
       - name: Restore macOS ad-hoc application signature
         if: runner.os == 'macOS'
