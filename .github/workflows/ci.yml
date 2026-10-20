@@ -19,7 +19,7 @@ concurrency:
 env:
   NODE_VERSION: "24"
   PNPM_VERSION: "10.29.3"
-  WAILS_VERSION: "v2.12.0"
+  WAILS_VERSION: "v2.17.0"
 
 jobs:
   verify-and-package:
