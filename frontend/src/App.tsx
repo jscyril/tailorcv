@@ -13,7 +13,11 @@ import {
   CheckOllama,
   CompileLatex,
   CompileResumeVersion,
+  CreateResume,
   CreateResumeVersion,
+  DeleteResume,
+  DuplicateResume,
+  RenameResume,
   DeleteEducation,
   DeleteCertification,
   DeleteAchievement,
@@ -134,6 +138,7 @@ type ResumeVersion = {
 type Application = {
   id: string;
   jobId: string;
+  name: string;
   status: ApplicationStatus;
   selectedFactIds: string[];
   versions: ResumeVersion[];
@@ -178,7 +183,7 @@ function profileHasData(profile: Profile): boolean {
 }
 
 export default function App() {
-  const [view, setView] = useState<View>("projects");
+  const [view, setView] = useState<View>("overview");
   const [profile, setProfile] = useState<Profile>(emptyProfile);
   const [experiences, setExperiences] = useState<ExperienceDraft[]>([]);
   const [projects, setProjects] = useState<ProjectDraft[]>([]);
@@ -430,6 +435,73 @@ export default function App() {
       setError(errorMessage(reason));
     } finally {
       setVersionBusy(false);
+    }
+  };
+
+  const refreshApplications = async () => setApplications((await ListApplications()) as unknown as Application[]);
+
+  const saveAsNewResume = async (name: string, source: string) => {
+    setVersionBusy(true);
+    setError("");
+    try {
+      const result = await CreateResume({ name, templateId: selectedTemplateID, latexSource: source });
+      await refreshApplications();
+      await openResumeVersion(result.version as unknown as ResumeVersion);
+      setMessage(`Saved "${result.application.name}" as version 1.`);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setVersionBusy(false);
+    }
+  };
+
+  const createGeneralResume = async () => {
+    setError("");
+    try {
+      const rendered = await RenderResumeTemplate(selectedTemplateID, selectedSavedProjectIDs());
+      await saveAsNewResume("General resume", rendered);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    }
+  };
+
+  const renameResume = async (application: Application, name: string) => {
+    setError("");
+    try {
+      const renamed = await RenameResume({ applicationId: application.id, name });
+      setApplications((current) => current.map((item) => item.id === application.id ? renamed as unknown as Application : item));
+      setMessage(`Renamed to "${renamed.name}".`);
+      return true;
+    } catch (reason) {
+      setError(errorMessage(reason));
+      return false;
+    }
+  };
+
+  const duplicateResume = async (application: Application) => {
+    setError("");
+    try {
+      const copy = await DuplicateResume(application.id);
+      await refreshApplications();
+      setMessage(`Created "${copy.name}" from the latest version.`);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    }
+  };
+
+  const deleteResume = async (application: Application, title: string) => {
+    if (!window.confirm(`Delete "${title}" and all ${application.versions.length} of its versions? This cannot be undone.`)) return;
+    setError("");
+    try {
+      await DeleteResume(application.id);
+      setApplications((current) => current.filter((item) => item.id !== application.id));
+      if (application.versions.some((version) => version.id === openVersionID)) {
+        setOpenVersionID("");
+        setSavedVersionSource("");
+      }
+      setMessage(`Deleted "${title}".`);
+    } catch (reason) {
+      setError(errorMessage(reason));
     }
   };
 
@@ -1041,7 +1113,8 @@ export default function App() {
 
   const selectedProjects = projects.filter((project) => selectedProjectKeys.includes(project.key));
   const activeTemplate = templates.find((template) => template.id === selectedTemplateID);
-  const currentApplication = applications.find((application) => application.jobId === jobDraft.id);
+  // General resumes have no job, so only match once the draft job is saved.
+  const currentApplication = jobDraft.id ? applications.find((application) => application.jobId === jobDraft.id) : undefined;
   const hasCareerEvidence = profile.skills.length > 0 || experiences.some((experience) => experience.bullets.length > 0) || projects.some((project) => project.skills.length > 0 || project.bullets.length > 0);
   const showOnboarding = !busy && onboardingPending;
 
@@ -1058,7 +1131,7 @@ export default function App() {
           </div>
           <nav aria-label="Resume sections">
             <p className="nav-section-label">Build</p>
-            <NavButton active={view === "overview"} label="Overview" icon="home" onClick={() => setView("overview")} />
+            <NavButton active={view === "overview"} label="Home" icon="home" onClick={() => setView("overview")} />
             <NavButton active={view === "profile"} label="Profile" icon="user" onClick={() => setView("profile")} />
             <NavButton active={view === "experience"} label="Experience" icon="briefcase" badge={experiences.length || undefined} onClick={() => setView("experience")} />
             <NavButton active={view === "projects"} label="Projects" icon="folder" badge={selectedProjectKeys.length || undefined} onClick={() => setView("projects")} />
@@ -1086,7 +1159,7 @@ export default function App() {
           {message && <div className="notice success" role="status">{message}<button aria-label="Dismiss message" onClick={() => setMessage("")}>×</button></div>}
 
           <div className="editor-pane">
-            {view === "overview" && <WorkspaceOverview profile={profile} completion={completion} experiences={experiences} projects={projects} applications={applications} onOpen={setView} />}
+            {view === "overview" && <WorkspaceOverview profile={profile} completion={completion} experiences={experiences} projects={projects} applications={applications} jobs={jobs} busy={versionBusy} onOpen={setView} onNewResume={() => { newJob(); setView("job"); }} onNewGeneralResume={createGeneralResume} onOpenJob={(job) => { openJob(job); setView("job"); }} onOpenVersion={openResumeVersion} onRename={renameResume} onDuplicate={duplicateResume} onDelete={deleteResume} />}
             {view === "profile" && <ProfileWorkspace profile={profile} busy={busy} message={message} onChange={updateProfile} onSubmit={saveProfile} />}
             {view === "experience" && <section className="workspace-panel scroll-panel"><PanelHeader eyebrow="Career evidence" title="Experience" description="Keep every claim factual, ordered, and reviewable." action={<button className="secondary-button" onClick={addExperience}>Add role</button>} /><ExperienceSection experiences={experiences} busyKey={experienceBusyKey} onAdd={addExperience} onUpdate={updateExperience} onSave={saveExperience} onDelete={deleteExperience} /></section>}
             {view === "projects" && <ProjectWorkspace projects={projects} selectedKeys={selectedProjectKeys} busyKey={projectBusyKey} readmeBusyKey={projectReadmeBusyKey} aiReady={Boolean(aiProviderStatus?.available && (aiProvider === "ollama" ? ollamaModel : geminiModel))} githubUsername={profile.githubUsername} githubBusy={githubBusy} onToggle={toggleProject} onAdd={addProject} onUpdate={updateProject} onSave={saveProject} onDelete={deleteProject} onGenerateReadmeBullets={generateProjectReadmeBullets} onImportGitHubProject={importGitHubProject} onSyncGitHub={syncGitHubProjects} onOpenProfile={() => setView("profile")} />}
@@ -1094,7 +1167,7 @@ export default function App() {
             {view === "credentials"&&<CredentialsWorkspace certifications={certifications} achievements={achievements} busyKey={credentialBusyKey} onCertifications={setCertifications} onAchievements={setAchievements} onSaveCertification={saveCertification} onDeleteCertification={deleteCertification} onSaveAchievement={saveAchievement} onDeleteAchievement={deleteAchievement}/>}
             {view === "skills" && <SkillsWorkspace skillsText={skillsText} busy={busy} message={message} onChange={setSkillsText} onSubmit={saveProfile} />}
             {view === "templates" && <TemplatesWorkspace templates={templates} selectedID={selectedTemplateID} busyKey={templateBusyKey} onImport={importResumeTemplate} onUse={(id) => useResumeTemplate(id)} onEdit={(id) => useResumeTemplate(id, true)} onDuplicate={duplicateResumeTemplate} onDelete={deleteResumeTemplate} />}
-            {view === "latex" && <LatexWorkspace source={latexSource} template={activeTemplate} result={compileResult} busy={templateBusyKey !== ""} compiling={compileBusy} versionBusy={versionBusy} hasOpenVersion={openVersionID !== ""} versionDirty={openVersionID !== "" && latexSource !== savedVersionSource} onChange={updateLatexSource} onSave={saveCurrentTemplate} onSaveVersion={saveResumeVersionEdit} onReload={() => useResumeTemplate(selectedTemplateID)} onCompile={compileLatex} onExport={exportLatexSource} />}
+            {view === "latex" && <LatexWorkspace source={latexSource} template={activeTemplate} result={compileResult} busy={templateBusyKey !== ""} compiling={compileBusy} versionBusy={versionBusy} hasOpenVersion={openVersionID !== ""} versionDirty={openVersionID !== "" && latexSource !== savedVersionSource} onChange={updateLatexSource} onSave={saveCurrentTemplate} onSaveVersion={saveResumeVersionEdit} onSaveAsResume={() => saveAsNewResume(`${activeTemplate?.name ?? "General"} resume`, latexSource)} onReload={() => useResumeTemplate(selectedTemplateID)} onCompile={compileLatex} onExport={exportLatexSource} />}
             {view === "job" && <JobTailor job={jobDraft} jobs={jobs} application={currentApplication} analysis={analysis} selectedFactIDs={selectedFactIDs} busy={busy} versionBusy={versionBusy} statusBusy={applicationStatusBusy} hasEvidence={hasCareerEvidence} templateName={activeTemplate?.name ?? "Selected template"} onChange={updateJobDraft} onNew={newJob} onOpen={openJob} onDelete={deleteJob} onToggleEvidence={toggleEvidenceFact} onCreateVersion={createResumeVersion} onOpenVersion={openResumeVersion} onStatusChange={updateApplicationStatus} onSubmit={analyzeJob} onProfile={() => setView("skills")} />}
             {view === "ai" && <AIWorkspace provider={aiProvider} endpoint={ollamaEndpoint} status={aiProviderStatus} model={aiProvider === "ollama" ? ollamaModel : geminiModel} credential={geminiCredential} apiKey={geminiAPIKey} run={aiRun} runs={aiRuns} proposals={reviewedProposals} acceptedProposalIDs={acceptedProposalIDs} job={jobDraft} analysis={analysis} selectedFactIDs={selectedFactIDs} templateName={activeTemplate?.name ?? "Selected template"} busy={aiBusy} onProviderChange={changeAIProvider} onEndpointChange={(value) => { setOllamaEndpoint(value); setAIProviderStatus(null); }} onModelChange={changeAIModel} onAPIKeyChange={setGeminiAPIKey} onSaveCredential={saveGeminiCredential} onDeleteCredential={deleteGeminiCredential} onCheck={checkAIProvider} onGenerate={generateAITailoring} onCancel={cancelAITailoring} onProposalChange={updateReviewedProposal} onToggleProposal={toggleAcceptedProposal} onAccept={acceptAITailoring} onOpenJob={() => setView("job")} />}
             {view === "data" && <DataWorkspace profile={profile} experiences={experiences} projects={projects} educations={educations} jobs={jobs} applications={applications} busy={backupBusy} lastResult={lastBackupResult} onExport={exportBackup} onImport={importBackup} />}
@@ -1157,10 +1230,56 @@ function PanelHeader({ eyebrow, title, description, action }: { eyebrow: string;
   return <header className="panel-header"><div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p>{description}</p></div>{action}</header>;
 }
 
-function WorkspaceOverview({ profile, completion, experiences, projects, applications, onOpen }: { profile: Profile; completion: number; experiences: ExperienceDraft[]; projects: ProjectDraft[]; applications: Application[]; onOpen: (view: View) => void }) {
+function resumeTitle(application: Application, jobs: Job[]): string {
+  if (application.name) return application.name;
+  const job = jobs.find((item) => item.id === application.jobId);
+  return [job?.role, job?.company].filter(Boolean).join(" at ") || "Untitled resume";
+}
+
+function WorkspaceOverview({ profile, completion, experiences, projects, applications, jobs, busy, onOpen, onNewResume, onNewGeneralResume, onOpenJob, onOpenVersion, onRename, onDuplicate, onDelete }: { profile: Profile; completion: number; experiences: ExperienceDraft[]; projects: ProjectDraft[]; applications: Application[]; jobs: Job[]; busy: boolean; onOpen: (view: View) => void; onNewResume: () => void; onNewGeneralResume: () => void; onOpenJob: (job: Job) => void; onOpenVersion: (version: ResumeVersion) => void; onRename: (application: Application, name: string) => Promise<boolean>; onDuplicate: (application: Application) => void; onDelete: (application: Application, title: string) => void }) {
   const versionCount = applications.reduce((sum, application) => sum + application.versions.length, 0);
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  const resumes = [...applications].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return <section className="workspace-panel scroll-panel">
-    <PanelHeader eyebrow="Your workspace" title={profile.name ? `Welcome back, ${profile.name.split(" ")[0]}.` : "Build your source of truth."} description="Keep one reliable career profile, then tailor the evidence for each role." action={<button className="primary-button" onClick={() => onOpen("job")}>Match a job</button>} />
+    <PanelHeader eyebrow="Your workspace" title={profile.name ? `Welcome back, ${profile.name.split(" ")[0]}.` : "Build your source of truth."} description="Keep one reliable career profile, then create general or job-tailored resumes from it." action={<div className="panel-actions"><button className="secondary-button" disabled={busy} onClick={onNewGeneralResume}>New general resume</button><button className="primary-button" onClick={onNewResume}>New tailored resume</button></div>} />
+    <section className="resume-library" aria-labelledby="resume-library-title">
+      <header><h2 id="resume-library-title">Your resumes</h2><span>{resumes.length} resume{resumes.length === 1 ? "" : "s"} · {versionCount} version{versionCount === 1 ? "" : "s"}</span></header>
+      {resumes.length ? <ul>{resumes.map((application) => {
+        const title = resumeTitle(application, jobs);
+        const job = jobs.find((item) => item.id === application.jobId);
+        const latest = application.versions[0];
+        const isRenaming = renaming?.id === application.id;
+        return <li key={application.id}>
+          <div className="resume-library-row">
+            <div className="resume-library-title">
+              {isRenaming ? <form onSubmit={async (event) => { event.preventDefault(); if (await onRename(application, renaming.name)) setRenaming(null); }}>
+                <label className="visually-hidden" htmlFor={`rename-${application.id}`}>Resume name</label>
+                <input id={`rename-${application.id}`} autoFocus maxLength={120} value={renaming.name} onChange={(event) => setRenaming({ id: application.id, name: event.target.value })} onKeyDown={(event) => { if (event.key === "Escape") setRenaming(null); }} />
+                <button className="primary-button" type="submit" disabled={!renaming.name.trim()}>Save</button>
+                <button className="text-button" type="button" onClick={() => setRenaming(null)}>Cancel</button>
+              </form> : <strong>{title}</strong>}
+              <small>{job ? `Tailored to ${[job.role, job.company].filter(Boolean).join(" at ") || "a saved job"}` : "General resume"}{latest ? ` · version ${latest.versionNumber} · ${new Date(latest.createdAt).toLocaleDateString()}${latest.pdfAvailable ? " · PDF ready" : ""}` : ""}</small>
+            </div>
+            <span className={`status-pill ${application.status}`}>{application.status}</span>
+            <div className="resume-library-actions">
+              {latest && <button className="primary-button" aria-label={`Open latest version of ${title}`} onClick={() => onOpenVersion(latest)}>Open</button>}
+              {job && <button className="secondary-button" aria-label={`Tailor ${title}`} onClick={() => onOpenJob(job)}>Tailor</button>}
+              <button className="secondary-button" aria-label={`Rename ${title}`} onClick={() => setRenaming({ id: application.id, name: title })}>Rename</button>
+              <button className="secondary-button" aria-label={`Duplicate ${title}`} disabled={!latest} onClick={() => onDuplicate(application)}>Duplicate</button>
+              <button className="secondary-button danger" aria-label={`Delete ${title}`} onClick={() => onDelete(application, title)}>Delete</button>
+            </div>
+          </div>
+          {application.versions.length > 0 && <details className="resume-versions">
+            <summary>{application.versions.length} version{application.versions.length === 1 ? "" : "s"}</summary>
+            <ol>{application.versions.map((version) => <li key={version.id}>
+              <span>Version {version.versionNumber}</span>
+              <small>{new Date(version.createdAt).toLocaleString()}{version.pdfAvailable ? " · PDF" : version.compiledAt && !version.compileSuccess ? " · failed to compile" : ""}</small>
+              <button className="text-button" aria-label={`Open version ${version.versionNumber} of ${title}`} onClick={() => onOpenVersion(version)}>Open</button>
+            </li>)}</ol>
+          </details>}
+        </li>;
+      })}</ul> : <div className="resume-library-empty"><p>No resumes yet. Create a general resume from your profile and the selected template, or paste a job description to build a tailored one.</p><div className="panel-actions"><button className="secondary-button" disabled={busy} onClick={onNewGeneralResume}>New general resume</button><button className="primary-button" onClick={onNewResume}>New tailored resume</button></div></div>}
+    </section>
     <div className="metric-grid">
       <article className="metric-card accent"><span>Profile readiness</span><strong>{completion}%</strong><div className="progress"><i style={{ width: `${completion}%` }} /></div><button onClick={() => onOpen("profile")}>Complete profile →</button></article>
       <article className="metric-card"><span>Evidence</span><strong>{experiences.reduce((sum, item) => sum + item.bullets.length, 0)}</strong><small>reviewable career claims</small></article>
@@ -1258,14 +1377,14 @@ function TemplatesWorkspace({ templates, selectedID, busyKey, onImport, onUse, o
   </section>;
 }
 
-function LatexWorkspace({ source, template, result, busy, compiling, versionBusy, hasOpenVersion, versionDirty, onChange, onSave, onSaveVersion, onReload, onCompile, onExport }: { source: string; template?: domain.ResumeTemplate; result: domain.CompileResult | null; busy: boolean; compiling: boolean; versionBusy: boolean; hasOpenVersion: boolean; versionDirty: boolean; onChange: (value: string) => void; onSave: () => void; onSaveVersion: () => void; onReload: () => void; onCompile: () => void; onExport: () => void }) {
+function LatexWorkspace({ source, template, result, busy, compiling, versionBusy, hasOpenVersion, versionDirty, onChange, onSave, onSaveVersion, onSaveAsResume, onReload, onCompile, onExport }: { source: string; template?: domain.ResumeTemplate; result: domain.CompileResult | null; busy: boolean; compiling: boolean; versionBusy: boolean; hasOpenVersion: boolean; versionDirty: boolean; onChange: (value: string) => void; onSave: () => void; onSaveVersion: () => void; onSaveAsResume: () => void; onReload: () => void; onCompile: () => void; onExport: () => void }) {
   const diagnostics = result?.diagnostics ?? [];
   const compileState = compiling ? "Compiling…" : result?.success ? "PDF ready" : result ? "Needs attention" : "Draft";
   const [diagnosticLine, setDiagnosticLine] = useState(0);
   const focusLine = (line: number) => {
     setDiagnosticLine(line > 0 ? line : 0);
   };
-  return <section className="workspace-panel latex-workspace"><PanelHeader eyebrow="Source editor" title="LaTeX" description={`Editing the rendered source from ${template?.name ?? "the selected template"}. Changes compile locally after a short pause.`} action={<div className="panel-actions latex-actions"><button className="text-button" disabled={busy || compiling || !template} onClick={onReload}>Reload data</button><button className="secondary-button" disabled={busy || compiling || !template} onClick={onSave}>{template?.builtIn ? "Save editable copy" : "Save template"}</button>{hasOpenVersion && <button className="secondary-button" disabled={versionBusy || compiling || !versionDirty} onClick={onSaveVersion}>{versionBusy ? "Saving…" : versionDirty ? "Save new version" : "Version saved"}</button>}<button className="secondary-button" disabled={compiling} onClick={onExport}>Export .tex</button><button className="primary-button" disabled={compiling} onClick={onCompile}>{compiling ? "Compiling…" : "Compile PDF"}</button></div>} /><div className="editor-tabs"><button className="active">resume.tex</button><span>{hasOpenVersion ? versionDirty ? "Saved version · edited draft" : "Immutable saved version" : template?.builtIn ? "Built-in source · edits are draft-only" : "Custom template · local"}</span></div><div className="latex-editor-body"><LatexCodeEditor value={source} focusLine={diagnosticLine} onChange={onChange} />{diagnostics.length > 0 && <section className="compiler-diagnostics" aria-label="Compiler diagnostics" aria-live="polite"><header><strong>Compiler diagnostics</strong><span>{diagnostics.length} issue{diagnostics.length === 1 ? "" : "s"}</span></header><div>{diagnostics.map((diagnostic, index) => <button type="button" className={`compiler-diagnostic ${diagnostic.severity}`} key={`${diagnostic.line}-${diagnostic.message}-${index}`} onClick={() => focusLine(diagnostic.line)}><span>{diagnostic.severity}</span><strong>{diagnostic.line > 0 ? `Line ${diagnostic.line}` : "Source"}</strong><p>{diagnostic.message}</p></button>)}</div></section>}</div><footer className="editor-status" role="status" aria-live="polite"><span>{compileState}</span><span>UTF-8</span><span>{template?.name ?? "LaTeX draft"}</span><span>{source.split("\n").length} lines</span></footer></section>;
+  return <section className="workspace-panel latex-workspace"><PanelHeader eyebrow="Source editor" title="LaTeX" description={`Editing the rendered source from ${template?.name ?? "the selected template"}. Changes compile locally after a short pause.`} action={<div className="panel-actions latex-actions"><button className="text-button" disabled={busy || compiling || !template} onClick={onReload}>Reload data</button><button className="secondary-button" disabled={busy || compiling || !template} onClick={onSave}>{template?.builtIn ? "Save editable copy" : "Save template"}</button>{hasOpenVersion ? <button className="secondary-button" disabled={versionBusy || compiling || !versionDirty} onClick={onSaveVersion}>{versionBusy ? "Saving…" : versionDirty ? "Save new version" : "Version saved"}</button> : <button className="secondary-button" disabled={versionBusy || compiling || !template || !source.trim()} onClick={onSaveAsResume}>{versionBusy ? "Saving…" : "Save as new resume"}</button>}<button className="secondary-button" disabled={compiling} onClick={onExport}>Export .tex</button><button className="primary-button" disabled={compiling} onClick={onCompile}>{compiling ? "Compiling…" : "Compile PDF"}</button></div>} /><div className="editor-tabs"><button className="active">resume.tex</button><span>{hasOpenVersion ? versionDirty ? "Saved version · edited draft" : "Immutable saved version" : template?.builtIn ? "Built-in source · edits are draft-only" : "Custom template · local"}</span></div><div className="latex-editor-body"><LatexCodeEditor value={source} focusLine={diagnosticLine} onChange={onChange} />{diagnostics.length > 0 && <section className="compiler-diagnostics" aria-label="Compiler diagnostics" aria-live="polite"><header><strong>Compiler diagnostics</strong><span>{diagnostics.length} issue{diagnostics.length === 1 ? "" : "s"}</span></header><div>{diagnostics.map((diagnostic, index) => <button type="button" className={`compiler-diagnostic ${diagnostic.severity}`} key={`${diagnostic.line}-${diagnostic.message}-${index}`} onClick={() => focusLine(diagnostic.line)}><span>{diagnostic.severity}</span><strong>{diagnostic.line > 0 ? `Line ${diagnostic.line}` : "Source"}</strong><p>{diagnostic.message}</p></button>)}</div></section>}</div><footer className="editor-status" role="status" aria-live="polite"><span>{compileState}</span><span>UTF-8</span><span>{template?.name ?? "LaTeX draft"}</span><span>{source.split("\n").length} lines</span></footer></section>;
 }
 
 function LatexCodeEditor({ value, focusLine, onChange }: { value: string; focusLine: number; onChange: (value: string) => void }) {

@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const ProfileBackupSchemaVersion = 6
+const ProfileBackupSchemaVersion = 7
 
 type ProfileBackup struct {
 	SchemaVersion      int              `json:"schemaVersion"`
@@ -271,11 +271,20 @@ func (backup ProfileBackup) Validate() (ProfileBackup, error) {
 		if err := validateBackupTimestamp(fmt.Sprintf("application %d update time", index+1), source.UpdatedAt, true); err != nil {
 			return ProfileBackup{}, err
 		}
-		selection, err := (CreateResumeVersionInput{JobID: source.JobID, TemplateID: "backup-validation", SelectedFactIDs: source.SelectedFactIDs}).Validate()
+		// Resumes without a job (general resumes and copies) carry no job
+		// snapshot and may have no selected evidence.
+		general := strings.TrimSpace(source.JobID) == ""
+		selection, err := validateBackupSelection(source.JobID, "backup-validation", source.SelectedFactIDs, general)
 		if err != nil {
 			return ProfileBackup{}, fmt.Errorf("application %d: %w", index+1, err)
 		}
-		application := Application{ID: source.ID, JobID: selection.JobID, Status: source.Status, SelectedFactIDs: selection.SelectedFactIDs, Versions: make([]ResumeVersion, 0, len(source.Versions)), CreatedAt: source.CreatedAt, UpdatedAt: source.UpdatedAt}
+		name := ""
+		if strings.TrimSpace(source.Name) != "" {
+			if name, err = NormalizeResumeName(source.Name); err != nil {
+				return ProfileBackup{}, fmt.Errorf("application %d: %w", index+1, err)
+			}
+		}
+		application := Application{ID: source.ID, JobID: selection.JobID, Name: name, Status: source.Status, SelectedFactIDs: selection.SelectedFactIDs, Versions: make([]ResumeVersion, 0, len(source.Versions)), CreatedAt: source.CreatedAt, UpdatedAt: source.UpdatedAt}
 		versionNumbers := make(map[int]struct{}, len(source.Versions))
 		for versionIndex, version := range source.Versions {
 			if version.ApplicationID != source.ID {
@@ -291,11 +300,11 @@ func (backup ProfileBackup) Validate() (ProfileBackup, error) {
 			if err := validateBackupTimestamp(fmt.Sprintf("application %d resume version %d creation time", index+1, versionIndex+1), version.CreatedAt, true); err != nil {
 				return ProfileBackup{}, err
 			}
-			validatedVersion, err := (CreateResumeVersionInput{JobID: source.JobID, TemplateID: version.TemplateID, SelectedFactIDs: version.SelectedFactIDs}).Validate()
+			validatedVersion, err := validateBackupSelection(source.JobID, version.TemplateID, version.SelectedFactIDs, general)
 			if err != nil {
 				return ProfileBackup{}, fmt.Errorf("application %d resume version %d: %w", index+1, versionIndex+1, err)
 			}
-			if len(version.JobDescriptionSnapshot) < 40 {
+			if !general && len(version.JobDescriptionSnapshot) < 40 {
 				return ProfileBackup{}, fmt.Errorf("application %d resume version %d job snapshot is not valid", index+1, versionIndex+1)
 			}
 			if len(version.LatexSource) == 0 || len(version.LatexSource) > MaxTemplateSourceBytes {
@@ -403,4 +412,20 @@ func (backup ProfileBackup) Result(path string) BackupResult {
 		versionCount += len(application.Versions)
 	}
 	return BackupResult{Path: path, ExperienceCount: len(backup.Experiences), ProjectCount: len(backup.Projects), EducationCount: len(backup.Educations), CertificationCount: len(backup.Certifications), AchievementCount: len(backup.Achievements), JobCount: len(backup.Jobs), ApplicationCount: len(backup.Applications), ResumeVersionCount: versionCount, TemplateCount: len(backup.Templates), AIRunCount: len(backup.AIRuns)}
+}
+
+func validateBackupSelection(jobID, templateID string, selected []string, general bool) (CreateResumeVersionInput, error) {
+	if !general {
+		return (CreateResumeVersionInput{JobID: jobID, TemplateID: templateID, SelectedFactIDs: selected}).Validate()
+	}
+	if len(selected) == 0 {
+		if strings.TrimSpace(templateID) == "" {
+			return CreateResumeVersionInput{}, fmt.Errorf("select a resume template")
+		}
+		return CreateResumeVersionInput{TemplateID: strings.TrimSpace(templateID), SelectedFactIDs: []string{}}, nil
+	}
+	// Reuse the job-tailored checks for evidence IDs with a placeholder job.
+	validated, err := (CreateResumeVersionInput{JobID: "general", TemplateID: templateID, SelectedFactIDs: selected}).Validate()
+	validated.JobID = ""
+	return validated, err
 }

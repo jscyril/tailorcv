@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,14 +15,14 @@ import (
 )
 
 func (s *Store) ListApplications(ctx context.Context) ([]domain.Application, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, job_id, status, created_at, updated_at FROM applications ORDER BY updated_at DESC, created_at DESC`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, COALESCE(job_id, ''), name, status, created_at, updated_at FROM applications ORDER BY updated_at DESC, created_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("list applications: %w", err)
 	}
 	applications := make([]domain.Application, 0)
 	for rows.Next() {
 		var application domain.Application
-		if err := rows.Scan(&application.ID, &application.JobID, &application.Status, &application.CreatedAt, &application.UpdatedAt); err != nil {
+		if err := rows.Scan(&application.ID, &application.JobID, &application.Name, &application.Status, &application.CreatedAt, &application.UpdatedAt); err != nil {
 			_ = rows.Close()
 			return nil, fmt.Errorf("scan application: %w", err)
 		}
@@ -65,16 +66,185 @@ func (s *Store) UpdateApplicationStatus(ctx context.Context, input domain.Update
 	if count, err := result.RowsAffected(); err != nil || count != 1 {
 		return domain.Application{}, fmt.Errorf("application was not found")
 	}
+	return s.getApplication(ctx, validated.ApplicationID)
+}
+
+func (s *Store) getApplication(ctx context.Context, id string) (domain.Application, error) {
 	applications, err := s.ListApplications(ctx)
 	if err != nil {
 		return domain.Application{}, err
 	}
 	for _, application := range applications {
-		if application.ID == validated.ApplicationID {
+		if application.ID == id {
 			return application, nil
 		}
 	}
-	return domain.Application{}, fmt.Errorf("application was not found")
+	return domain.Application{}, fmt.Errorf("resume was not found")
+}
+
+// CreateResume stores a general resume (no job) with its first immutable version.
+func (s *Store) CreateResume(ctx context.Context, input domain.CreateResumeInput) (domain.ApplicationResumeResult, error) {
+	validated, err := input.Validate()
+	if err != nil {
+		return domain.ApplicationResumeResult{}, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.ApplicationResumeResult{}, fmt.Errorf("begin resume: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	application := domain.Application{ID: uuid.NewString(), Name: validated.Name, Status: domain.ApplicationStatusDraft, SelectedFactIDs: []string{}, CreatedAt: now, UpdatedAt: now}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO applications(id, job_id, name, status, created_at, updated_at) VALUES (?, NULL, ?, 'draft', ?, ?)`, application.ID, application.Name, now, now); err != nil {
+		return domain.ApplicationResumeResult{}, fmt.Errorf("save resume: %w", err)
+	}
+	version := domain.ResumeVersion{ID: uuid.NewString(), ApplicationID: application.ID, VersionNumber: 1, SelectedFactIDs: []string{}, LatexSource: validated.LatexSource, TemplateID: validated.TemplateID, RankingExplanations: []domain.EvidenceMatch{}, ContentHash: domain.ResumeContentHash(validated.LatexSource), CompileDiagnostics: []domain.CompileDiagnostic{}, CreatedAt: now}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO resume_versions(
+			id, application_id, version_number, job_description_snapshot,
+			selected_fact_ids_json, latex_source, template_id,
+			ranking_explanations_json, content_hash, created_at
+		) VALUES (?, ?, 1, '', '[]', ?, ?, '[]', ?, ?)
+	`, version.ID, application.ID, version.LatexSource, version.TemplateID, version.ContentHash, now); err != nil {
+		return domain.ApplicationResumeResult{}, fmt.Errorf("save first resume version: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.ApplicationResumeResult{}, fmt.Errorf("commit resume: %w", err)
+	}
+	application.Versions = []domain.ResumeVersion{version}
+	return domain.ApplicationResumeResult{Application: application, Version: version}, nil
+}
+
+func (s *Store) RenameApplication(ctx context.Context, input domain.RenameResumeInput) (domain.Application, error) {
+	if _, err := uuid.Parse(input.ApplicationID); err != nil {
+		return domain.Application{}, fmt.Errorf("resume ID is not valid")
+	}
+	name, err := domain.NormalizeResumeName(input.Name)
+	if err != nil {
+		return domain.Application{}, err
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	result, err := s.db.ExecContext(ctx, `UPDATE applications SET name = ?, updated_at = ? WHERE id = ?`, name, now, input.ApplicationID)
+	if err != nil {
+		return domain.Application{}, fmt.Errorf("rename resume: %w", err)
+	}
+	if count, err := result.RowsAffected(); err != nil || count != 1 {
+		return domain.Application{}, fmt.Errorf("resume was not found")
+	}
+	return s.getApplication(ctx, input.ApplicationID)
+}
+
+// DuplicateApplication copies the latest version into a new, job-free resume.
+// The job description snapshot stays on the copied version for reference; the
+// compiled PDF is not copied, so the copy compiles on its own.
+func (s *Store) DuplicateApplication(ctx context.Context, id string) (domain.Application, error) {
+	if _, err := uuid.Parse(id); err != nil {
+		return domain.Application{}, fmt.Errorf("resume ID is not valid")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.Application{}, fmt.Errorf("begin resume copy: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	var name, role, company string
+	err = tx.QueryRowContext(ctx, `
+		SELECT a.name, COALESCE(j.role, ''), COALESCE(j.company, '')
+		FROM applications a LEFT JOIN jobs j ON j.id = a.job_id WHERE a.id = ?
+	`, id).Scan(&name, &role, &company)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Application{}, fmt.Errorf("resume was not found")
+	}
+	if err != nil {
+		return domain.Application{}, fmt.Errorf("read resume: %w", err)
+	}
+	if name == "" {
+		parts := make([]string, 0, 2)
+		for _, part := range []string{role, company} {
+			if part = strings.TrimSpace(part); part != "" {
+				parts = append(parts, part)
+			}
+		}
+		name = strings.Join(parts, " at ")
+	}
+	if name == "" {
+		name = "Untitled resume"
+	}
+	copyName := []rune("Copy of " + name)
+	for len(string(copyName)) > 120 {
+		copyName = copyName[:len(copyName)-1]
+	}
+	normalizedName, err := domain.NormalizeResumeName(string(copyName))
+	if err != nil {
+		return domain.Application{}, err
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	copyID := uuid.NewString()
+	if _, err := tx.ExecContext(ctx, `INSERT INTO applications(id, job_id, name, status, created_at, updated_at) VALUES (?, NULL, ?, 'draft', ?, ?)`, copyID, normalizedName, now, now); err != nil {
+		return domain.Application{}, fmt.Errorf("save resume copy: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO application_selected_facts(application_id, position, fact_id) SELECT ?, position, fact_id FROM application_selected_facts WHERE application_id = ?`, copyID, id); err != nil {
+		return domain.Application{}, fmt.Errorf("copy resume selection: %w", err)
+	}
+	result, err := tx.ExecContext(ctx, `
+		INSERT INTO resume_versions(
+			id, application_id, version_number, job_description_snapshot,
+			selected_fact_ids_json, latex_source, template_id,
+			ranking_explanations_json, content_hash, created_at
+		)
+		SELECT ?, ?, 1, job_description_snapshot, selected_fact_ids_json, latex_source,
+		       template_id, ranking_explanations_json, content_hash, ?
+		FROM resume_versions WHERE application_id = ? ORDER BY version_number DESC LIMIT 1
+	`, uuid.NewString(), copyID, now, id)
+	if err != nil {
+		return domain.Application{}, fmt.Errorf("copy latest resume version: %w", err)
+	}
+	if count, err := result.RowsAffected(); err != nil || count != 1 {
+		return domain.Application{}, fmt.Errorf("resume has no saved version to copy")
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.Application{}, fmt.Errorf("commit resume copy: %w", err)
+	}
+	return s.getApplication(ctx, copyID)
+}
+
+// DeleteApplication removes a resume and all its versions, keeping any linked
+// job. It returns the saved PDF paths so the caller can remove those files.
+func (s *Store) DeleteApplication(ctx context.Context, id string) ([]string, error) {
+	if _, err := uuid.Parse(id); err != nil {
+		return nil, fmt.Errorf("resume ID is not valid")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin resume delete: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	rows, err := tx.QueryContext(ctx, `SELECT pdf_path FROM resume_versions WHERE application_id = ? AND pdf_path <> ''`, id)
+	if err != nil {
+		return nil, fmt.Errorf("list resume artifacts: %w", err)
+	}
+	paths := make([]string, 0)
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			_ = rows.Close()
+			return nil, fmt.Errorf("scan resume artifact: %w", err)
+		}
+		paths = append(paths, path)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("close resume artifacts: %w", err)
+	}
+	result, err := tx.ExecContext(ctx, `DELETE FROM applications WHERE id = ?`, id)
+	if err != nil {
+		return nil, fmt.Errorf("delete resume: %w", err)
+	}
+	if count, err := result.RowsAffected(); err != nil || count != 1 {
+		return nil, fmt.Errorf("resume was not found")
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit resume delete: %w", err)
+	}
+	return paths, nil
 }
 
 func (s *Store) listApplicationSelectedFacts(ctx context.Context, applicationID string) ([]string, error) {
