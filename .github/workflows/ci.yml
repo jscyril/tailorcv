@@ -120,7 +120,14 @@ jobs:
 
       - name: Package pinned offline Tectonic runtime
         if: steps.tectonic-cache.outputs.cache-hit != 'true'
-        run: go run ./cmd/packagetectonic -goos ${{ matrix.target_os }} -goarch ${{ matrix.target_arch }} -destination ${{ matrix.runtime_dir }}
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            go run ./cmd/packagetectonic -goos ${{ matrix.target_os }} -goarch ${{ matrix.target_arch }} -destination ${{ matrix.runtime_dir }} && exit 0
+            echo "Packaging attempt $attempt failed; the TeX resource server may be rate-limiting. Retrying in 90 seconds."
+            sleep 90
+          done
+          exit 1
 
       - name: Save pinned offline Tectonic runtime
         if: steps.tectonic-cache.outputs.cache-hit != 'true'
@@ -141,6 +148,10 @@ jobs:
           TAILORCV_TECTONIC_BUNDLE: ${{ github.workspace }}/${{ matrix.runtime_dir }}/tectonic-resources.zip
           TAILORCV_TECTONIC_INTEGRATION: "1"
         run: go test ${{ matrix.go_args }} -count=1 -run TestCompilerIntegration ./internal/resume
+
+      - name: Show macOS sandbox denials
+        if: failure() && runner.os == 'macOS'
+        run: log show --last 10m --style compact --predicate 'sender == "Sandbox" OR eventMessage CONTAINS "deny("' | grep -i tectonic | tail -60 || true
 
       - name: Verify packaged application workflow
         run: ${{ matrix.app_executable }} --verify-packaged-workflow

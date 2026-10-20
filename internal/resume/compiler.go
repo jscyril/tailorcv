@@ -79,6 +79,8 @@ func (compiler *Compiler) Compile(ctx context.Context, source string) (domain.Co
 	cacheDirectory := compilerCacheDirectory(workspace)
 	commandEnvironment := withEnvironment(os.Environ(), "XDG_CACHE_HOME", cacheDirectory)
 	commandEnvironment = withEnvironment(commandEnvironment, "TECTONIC_CACHE_DIR", cacheDirectory)
+	// Keep per-user config and cache lookups inside the sandboxed workspace.
+	commandEnvironment = withEnvironment(commandEnvironment, "HOME", workspace)
 	command.Env = withEnvironment(commandEnvironment, "TECTONIC_UNTRUSTED_MODE", "1")
 	command.Stdout, command.Stderr = log, log
 	started := time.Now()
