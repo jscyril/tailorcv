@@ -106,7 +106,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .panel-header h1 { margin: 0; color: var(--text); font-size: 22px; line-height: 1.15; letter-spacing: -.025em; }
 .panel-header > div > p:last-child { max-width: 480px; margin: 7px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .panel-header > button { margin-top: 18px; }
-.panel-actions { display: flex; align-items: center; gap: 7px; margin-top: 18px; }
+.panel-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 7px; min-width: 0; margin-top: 18px; }
 
 .primary-button, .secondary-button { min-height: 36px; border-radius: 8px; padding: 0 14px; font-size: 11px; font-weight: 750; white-space: nowrap; }
 .primary-button { border: 1px solid var(--accent); background: var(--accent); color: #11160c; }
@@ -242,7 +242,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 
 .latex-workspace { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; overflow: hidden; }
 .latex-workspace .panel-header { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
-.latex-workspace .panel-actions { flex-wrap: wrap; margin-top: 13px; }
+.latex-workspace .panel-actions { justify-content: flex-start; margin-top: 13px; }
 .latex-actions .text-button { min-height: 36px; padding-inline: 4px; }
 .editor-tabs { display: flex; align-items: center; gap: 3px; padding: 0 16px; border-bottom: 1px solid var(--line); background: #0c0e0d; }
 .editor-tabs span { margin-left: auto; color: var(--muted); font-size: 8px; }
@@ -717,13 +717,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .resume-library ul { margin: 0; padding: 0; list-style: none; }
 .resume-library ul > li { padding: 12px 16px; border-bottom: 1px solid var(--line-soft); }
 .resume-library ul > li:last-child { border-bottom: 0; }
-.resume-library-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; }
+/* Actions get their own row so the title is not squeezed in the narrow center panel. */
+.resume-library-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px 12px; }
 .resume-library-title { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .resume-library-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-size: 13px; }
 .resume-library-title form { display: flex; align-items: center; gap: 8px; }
 .resume-library-title input { min-width: 0; flex: 1; min-height: 32px; padding: 0 10px; border: 1px solid var(--accent); border-radius: 8px; background: var(--surface, #0e100f); color: var(--text); font: inherit; font-size: 13px; }
 .resume-library small, .resume-library-empty p { color: var(--muted); font-size: 11px; }
-.resume-library-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.resume-library-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
 .resume-library-actions .danger { color: var(--danger); }
 .resume-versions { margin-top: 8px; }
 .resume-versions summary { width: fit-content; color: var(--secondary); font-size: 11px; cursor: pointer; }
@@ -732,7 +733,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .resume-versions > .secondary-button { margin-top: 8px; }
 .version-compare { margin-top: 10px; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--elevated); }
 .version-compare > header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--line-soft); font-size: 12px; color: var(--secondary); }
-.version-compare select { margin-left: 6px; }
+.version-compare select { height: 30px; margin-left: 6px; padding: 0 8px; border: 1px solid var(--line); border-radius: 7px; background: #0d100e; color: var(--text); font-size: 12px; }
+.version-compare select option { background: #0d100e; color: var(--text); }
 .version-compare-summary { margin-left: auto; }
 .version-compare-summary .added, .version-diff .added > span:first-child { color: var(--accent); }
 .version-compare-summary .removed, .version-diff .removed > span:first-child { color: var(--danger); }
