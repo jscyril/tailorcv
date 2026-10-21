@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -95,5 +96,20 @@ func TestResumeLibraryAtAppBoundaryRemovesArtifacts(t *testing.T) {
 	}
 	if applications, err := app.ListApplications(); err != nil || len(applications) != 1 || applications[0].ID != copied.ID {
 		t.Fatalf("remaining resumes = %#v, %v", applications, err)
+	}
+}
+
+func TestExportFilenameIsSafeForSaveDialogs(t *testing.T) {
+	cases := map[string]string{
+		"Jacob Cyril - Acme - Staff Engineer": "Jacob Cyril - Acme - Staff Engineer.pdf",
+		"  ../a/b:c*?\x00 ":                   "a-b-c.pdf",
+		"":                                    "resume.pdf",
+		"///":                                 "resume.pdf",
+		strings.Repeat("é", 150):              strings.Repeat("é", 100) + ".pdf",
+	}
+	for input, want := range cases {
+		if got := exportFilename(input, ".pdf"); got != want {
+			t.Errorf("exportFilename(%q) = %q, want %q", input, got, want)
+		}
 	}
 }

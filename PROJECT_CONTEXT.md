@@ -10,15 +10,16 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 
 ## Repository state at this handoff
 
-- Branch: `main`, tracking `origin/main`.
-- The current hardening set adds malicious LaTeX/evidence tests, transactional restore and migration-failure rollback tests, provider/compiler/artifact recovery coverage, and keyboard/focus semantics across onboarding, navigation, evidence, diagnostics, native-dialog triggers, and PDF controls.
-- It also adds native Linux amd64, macOS arm64, and Windows amd64 CI for Go tests and migrations, `go vet`, frontend tests and type-checking/build, packaged Wails artifacts, and offline Tectonic integration checks.
-- The hardening set is not committed or pushed. A pre-existing deletion of `frontend/dist/.gitkeep` remains unrelated and deliberately untouched.
+- Branch: `main`, tracking `origin/main`. Feature work lands through pull requests.
+- Development uses Go 1.27 with the Wails v2.17.0 CLI; `wails dev` needs `WAILS_DEV_ALLOWED_HOSTS=wails.localhost` (see README).
 - No license has been selected.
 
 ## Implemented product capabilities
 
 - Local SQLite career profile with contact details and skills.
+- A Home resume library (`frontend/src/features/home`) listing general resumes (no job, migration 15) and job-tailored resumes with rename, duplicate (latest version, no job link, no PDF), delete (removes owned PDF artifacts, keeps the job), version history, and a client-side LaTeX line diff between any two versions (`frontend/src/lib/diff.ts`).
+- Tectonic runs inside an OS sandbox: Landlock on Linux and `sandbox-exec` on macOS restrict it to its workspace, executable, bundle, and read-only system folders. Where no sandbox exists (Windows, Linux without Landlock) sources using file-access or name-building TeX commands are refused (`internal/resume/sandbox.go`).
+- Export dialogs suggest "Name - Company - Role" file names, sanitized in `exportFilename`.
 - Ordered experience and project evidence with provenance, verification, stable fact IDs, and user-set standard/important/essential ranking priority.
 - Education records and live deterministic resume rendering.
 - Evidence-backed certifications and achievements with stable IDs, provenance, verification, source metadata, CRUD controls, deterministic rendering, and backup coverage.
@@ -51,7 +52,7 @@ The planned v1 stack is Go, Wails v2, React, TypeScript, SQLite, CodeMirror, PDF
 - A saved GitHub README can generate up to three editable project-bullet drafts through the configured Ollama or Gemini provider. README text is capped and treated as untrusted; generated bullets are not persisted or marked verified until the user reviews and saves the project.
 - First-run onboarding remains visible while its profile draft is edited and closes only after a successful save or an explicit “Explore first” action. Previously, entering the first character made the draft look non-empty and prematurely unmounted the form.
 - First-run onboarding is isolated in `frontend/src/features/onboarding/Onboarding.tsx` with modal semantics, initial focus, focus containment, and keyboard tests. Navigation, forms, evidence selection, diagnostics, native-dialog cancellation, and PDF zoom controls have focused accessibility coverage.
-- Backup schema 6 includes evidence ranking priorities, professional links, certifications, achievements, GitHub repository metadata, templates, AI-run metadata, and non-secret preferences while remaining compatible with schema 1 through 5 imports. Credentials are explicitly excluded.
+- Backup schema 7 adds named and job-less general resumes. Schema 6 added evidence ranking priorities, professional links, certifications, achievements, GitHub repository metadata, templates, AI-run metadata, and non-secret preferences while imports remain compatible with schemas 1 through 6. Credentials are explicitly excluded.
 - `.github/workflows/ci.yml` runs the verification suite and native Wails packaging on Ubuntu 24.04 amd64, macOS 15 arm64, and Windows 2025 amd64. Each short-lived unsigned artifact contains a checksum-verified Tectonic 0.16.9 executable and curated offline TeX Live 2022.0r0 resource bundle.
 - `cmd/packagetectonic` downloads the official platform archive, verifies its pinned SHA-256 digest, hydrates only the resources exercised by the two built-in-template fixtures, writes a deterministic local ZIP bundle, and performs an offline PDF smoke compile before packaging succeeds.
 - Packaged application binaries expose narrowly scoped CI verification flags before Wails startup. One runs a disposable profile → GitHub review → immutable edit/compile/reopen/export → backup/restore workflow using the real filesystem and bundled Tectonic; the other performs a random set/get/delete cycle against the native credential store and confirms cleanup without printing secrets.

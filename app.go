@@ -940,7 +940,8 @@ func (a *App) resumeArtifactPath(versionID string) (string, error) {
 	return filepath.Join(directory, versionID+".pdf"), nil
 }
 
-func (a *App) ExportCompiledPDF() (domain.FileResult, error) {
+// ExportCompiledPDF saves the last compiled PDF; name suggests the file name.
+func (a *App) ExportCompiledPDF(name string) (domain.FileResult, error) {
 	if err := a.ready(); err != nil {
 		return domain.FileResult{}, err
 	}
@@ -952,7 +953,7 @@ func (a *App) ExportCompiledPDF() (domain.FileResult, error) {
 	}
 	path, err := a.chooseSaveFile(a.appContext(), runtime.SaveDialogOptions{
 		Title:           "Export compiled resume",
-		DefaultFilename: "resume.pdf",
+		DefaultFilename: exportFilename(name, ".pdf"),
 		Filters:         []runtime.FileFilter{{DisplayName: "PDF document (*.pdf)", Pattern: "*.pdf"}},
 	})
 	if err != nil {
@@ -970,7 +971,7 @@ func (a *App) ExportCompiledPDF() (domain.FileResult, error) {
 	return domain.FileResult{Path: path}, nil
 }
 
-func (a *App) ExportLatexSource(source string) (domain.FileResult, error) {
+func (a *App) ExportLatexSource(source, name string) (domain.FileResult, error) {
 	if err := a.ready(); err != nil {
 		return domain.FileResult{}, err
 	}
@@ -979,7 +980,7 @@ func (a *App) ExportLatexSource(source string) (domain.FileResult, error) {
 	}
 	path, err := a.chooseSaveFile(a.appContext(), runtime.SaveDialogOptions{
 		Title:           "Export LaTeX source",
-		DefaultFilename: "resume.tex",
+		DefaultFilename: exportFilename(name, ".tex"),
 		Filters:         []runtime.FileFilter{{DisplayName: "LaTeX source (*.tex)", Pattern: "*.tex"}},
 	})
 	if err != nil {
@@ -1086,4 +1087,22 @@ func (a *App) appContext() context.Context {
 		return a.ctx
 	}
 	return context.Background()
+}
+
+// exportFilename turns a display name into a safe default file name for save dialogs.
+func exportFilename(name, extension string) string {
+	name = strings.Map(func(r rune) rune {
+		if r < 32 || strings.ContainsRune(`/\:*?"<>|`, r) {
+			return '-'
+		}
+		return r
+	}, name)
+	name = strings.Trim(strings.Join(strings.Fields(name), " "), " .-")
+	if runes := []rune(name); len(runes) > 100 {
+		name = strings.TrimRight(string(runes[:100]), " .-")
+	}
+	if name == "" {
+		name = "resume"
+	}
+	return name + extension
 }

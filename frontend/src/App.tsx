@@ -961,10 +961,15 @@ export default function App() {
     };
   }, [view, latexSource]);
 
+  // Default export file name, e.g. "Ada Lovelace - Acme - Staff Engineer".
+  const openApplication = applications.find((application) => application.versions.some((version) => version.id === openVersionID));
+  const openApplicationJob = jobs.find((job) => job.id === openApplication?.jobId);
+  const exportName = [profile.name, ...(openApplicationJob ? [openApplicationJob.company, openApplicationJob.role] : [openApplication?.name])].filter(Boolean).join(" - ");
+
   const exportCompiledPDF = async () => {
     setError("");
     try {
-      const result = await ExportCompiledPDF();
+      const result = await ExportCompiledPDF(exportName);
       if (!result.cancelled) setMessage(`PDF exported to ${result.path}`);
     } catch (reason) {
       setError(errorMessage(reason));
@@ -974,7 +979,7 @@ export default function App() {
   const exportLatexSource = async () => {
     setError("");
     try {
-      const result = await ExportLatexSource(latexSource);
+      const result = await ExportLatexSource(latexSource, exportName);
       if (!result.cancelled) setMessage(`LaTeX source exported to ${result.path}`);
     } catch (reason) {
       setError(errorMessage(reason));

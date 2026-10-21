@@ -144,12 +144,12 @@ func TestNoAIWorkflowAtAppBoundary(t *testing.T) {
 		t.Fatalf("seed export destination: %v", err)
 	}
 	app.saveFileDialog = func(_ context.Context, options runtime.SaveDialogOptions) (string, error) {
-		if options.DefaultFilename != "resume.pdf" {
+		if options.DefaultFilename != "Ada Lovelace - Acme - Staff Engineer.pdf" {
 			t.Errorf("export dialog options = %#v", options)
 		}
 		return exportWithoutExtension, nil
 	}
-	exported, err := app.ExportCompiledPDF()
+	exported, err := app.ExportCompiledPDF("Ada Lovelace - Acme / Staff Engineer")
 	if err != nil {
 		t.Fatalf("ExportCompiledPDF() error = %v", err)
 	}
@@ -164,7 +164,7 @@ func TestNoAIWorkflowAtAppBoundary(t *testing.T) {
 	if _, err := app.CompileResumeVersion(edited.ID); err == nil || !strings.Contains(err.Error(), "unavailable") {
 		t.Fatalf("CompileResumeVersion(unavailable compiler) error = %v", err)
 	}
-	if _, err := app.ExportCompiledPDF(); err == nil || !strings.Contains(err.Error(), "compile the current LaTeX source") {
+	if _, err := app.ExportCompiledPDF(""); err == nil || !strings.Contains(err.Error(), "compile the current LaTeX source") {
 		t.Fatalf("ExportCompiledPDF(after unavailable compiler) error = %v", err)
 	}
 	opened, err = app.OpenResumeVersion(edited.ID)
@@ -182,7 +182,7 @@ func TestNoAIWorkflowAtAppBoundary(t *testing.T) {
 	if _, err := app.OpenResumeVersion(edited.ID); err == nil || !strings.Contains(err.Error(), "not a valid bounded PDF") {
 		t.Fatalf("OpenResumeVersion(corrupt artifact) error = %v", err)
 	}
-	if _, err := app.ExportCompiledPDF(); err == nil || !strings.Contains(err.Error(), "compile the current LaTeX source") {
+	if _, err := app.ExportCompiledPDF(""); err == nil || !strings.Contains(err.Error(), "compile the current LaTeX source") {
 		t.Fatalf("ExportCompiledPDF(after corrupt artifact) error = %v", err)
 	}
 	if err := os.Remove(artifactPath); err != nil {

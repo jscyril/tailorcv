@@ -78,12 +78,12 @@ export function DuplicateResume(arg1) {
   return window['go']['main']['App']['DuplicateResume'](arg1);
 }
 
-export function ExportCompiledPDF() {
-  return window['go']['main']['App']['ExportCompiledPDF']();
+export function ExportCompiledPDF(arg1) {
+  return window['go']['main']['App']['ExportCompiledPDF'](arg1);
 }
 
-export function ExportLatexSource(arg1) {
-  return window['go']['main']['App']['ExportLatexSource'](arg1);
+export function ExportLatexSource(arg1, arg2) {
+  return window['go']['main']['App']['ExportLatexSource'](arg1, arg2);
 }
 
 export function ExportProfileBackup() {

@@ -40,9 +40,9 @@ export function DeleteResumeTemplate(arg1:string):Promise<void>;
 
 export function DuplicateResume(arg1:string):Promise<domain.Application>;
 
-export function ExportCompiledPDF():Promise<domain.FileResult>;
+export function ExportCompiledPDF(arg1:string):Promise<domain.FileResult>;
 
-export function ExportLatexSource(arg1:string):Promise<domain.FileResult>;
+export function ExportLatexSource(arg1:string,arg2:string):Promise<domain.FileResult>;
 
 export function ExportProfileBackup():Promise<domain.BackupResult>;
 
