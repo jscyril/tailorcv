@@ -190,7 +190,7 @@ describe("App Wails workflow integration", () => {
     const exportButton = screen.getByRole("button", { name: "Export PDF" });
     expect((exportButton as HTMLButtonElement).disabled).toBe(false);
     await user.click(exportButton);
-    await waitFor(() => expect(bindings.ExportCompiledPDF).toHaveBeenCalledOnce());
+    await waitFor(() => expect(bindings.ExportCompiledPDF).toHaveBeenCalledWith(`Ada Lovelace - ${job.company} - ${job.role}`));
     expect(await screen.findByText("PDF exported to /tmp/staff-platform-resume.pdf")).toBeTruthy();
   });
 

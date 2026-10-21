@@ -134,7 +134,7 @@ func verifyPackagedWorkflow() error {
 			return "", fmt.Errorf("unexpected verification save dialog %q", options.DefaultFilename)
 		}
 	}
-	if exported, err := app.ExportCompiledPDF(); err != nil {
+	if exported, err := app.ExportCompiledPDF(""); err != nil {
 		return fmt.Errorf("export verification PDF: %w", err)
 	} else if exported.Path != pdfPath {
 		return fmt.Errorf("export verification PDF: unexpected destination")
