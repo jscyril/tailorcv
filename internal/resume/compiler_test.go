@@ -174,7 +174,7 @@ func TestCompilerIntegration(t *testing.T) {
 	compiler := NewCompiler("")
 	for _, template := range BuiltinTemplates() {
 		t.Run(template.ID, func(t *testing.T) {
-			result, pdf, err := compiler.Compile(context.Background(), Render(template.Source, Data{}))
+			result, pdf, err := compiler.Compile(context.Background(), Render(template.Source, fixtureData))
 			if err != nil {
 				t.Fatalf("Compile() error = %v", err)
 			}

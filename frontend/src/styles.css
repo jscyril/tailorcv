@@ -106,7 +106,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .panel-header h1 { margin: 0; color: var(--text); font-size: 22px; line-height: 1.15; letter-spacing: -.025em; }
 .panel-header > div > p:last-child { max-width: 480px; margin: 7px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .panel-header > button { margin-top: 18px; }
-.panel-actions { display: flex; align-items: center; gap: 7px; margin-top: 18px; }
+.panel-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 7px; min-width: 0; margin-top: 18px; }
 
 .primary-button, .secondary-button { min-height: 36px; border-radius: 8px; padding: 0 14px; font-size: 11px; font-weight: 750; white-space: nowrap; }
 .primary-button { border: 1px solid var(--accent); background: var(--accent); color: #11160c; }
@@ -240,13 +240,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .template-actions .primary-button, .template-actions .secondary-button { min-height: 32px; }
 .template-actions .danger-button { margin-left: auto; }
 
-.latex-workspace { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; overflow: hidden; }
+/* Flex column so optional bars (keyword coverage) do not shift the editor out of its row. */
+.latex-workspace { display: flex; flex-direction: column; overflow: hidden; }
 .latex-workspace .panel-header { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
-.latex-workspace .panel-actions { flex-wrap: wrap; margin-top: 13px; }
+.latex-workspace .panel-actions { justify-content: flex-start; margin-top: 13px; }
 .latex-actions .text-button { min-height: 36px; padding-inline: 4px; }
 .editor-tabs { display: flex; align-items: center; gap: 3px; padding: 0 16px; border-bottom: 1px solid var(--line); background: #0c0e0d; }
 .editor-tabs span { margin-left: auto; color: var(--muted); font-size: 8px; }
-.latex-editor-body { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; overflow: hidden; }
+.latex-editor-body { flex: 1 1 0; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; overflow: hidden; }
 .code-editor { min-height: 0; overflow: hidden; background: #090b0a; }
 .code-editor .cm-editor { height: 100%; background: #090b0a; color: #d9e3d5; font: 10px/1.7 "SFMono-Regular", Consolas, monospace; }
 .code-editor .cm-scroller { font-family: inherit; }
@@ -369,11 +370,19 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .preview-controls button { width: 24px; height: 24px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--elevated); color: var(--secondary); }
 .preview-controls i { width: 1px; height: 18px; margin: 0 4px; background: var(--line); }
 .preview-stage { min-height: 0; overflow: auto; display: grid; justify-items: center; align-items: start; padding: 28px; background-color: #080908; background-image: radial-gradient(#30342f 0.65px, transparent 0.65px); background-size: 12px 12px; scrollbar-color: #3a423d transparent; scrollbar-width: thin; }
-.pdf-preview { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+.pdf-preview { min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .pdf-controls { display: flex; align-items: center; justify-content: flex-end; gap: 7px; padding: 7px 12px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 9px; }
 .pdf-controls button { width: 24px; height: 24px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--elevated); color: var(--secondary); }
+.keyword-coverage { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 9px 16px; border-bottom: 1px solid var(--line); background: var(--panel); font-size: 12px; }
+.keyword-coverage > span { color: var(--muted); font-size: 11px; }
+.keyword-coverage ul { display: flex; flex-wrap: wrap; gap: 5px; width: 100%; margin: 0; padding: 0; list-style: none; }
+.keyword-coverage li { display: inline-flex; gap: 4px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 11px; }
+.keyword-coverage li.present { border-color: #c8e86b55; color: var(--accent); }
+.keyword-coverage li small { opacity: .7; }
+.pdf-controls button.copy-text { width: auto; padding: 0 8px; font-size: 11px; }
+.page-warning { margin: 0; padding: 8px 12px; border-bottom: 1px solid #e0b85a55; background: #e0b85a14; color: #e0b85a; font-size: 12px; }
 .pdf-controls i { width: 1px; height: 18px; margin: 0 4px; background: var(--line); }
-.preview-stage.compiled { display: block; padding: 18px; overflow: auto; text-align: center; }
+.preview-stage.compiled { flex: 1 1 0; display: block; padding: 18px; overflow: auto; text-align: center; }
 .preview-stage.compiled canvas { max-width: none; border-radius: 4px; background: var(--paper); box-shadow: 0 18px 55px #000a; }
 .pdf-error { padding: 18px; border: 1px solid #e16b6166; border-radius: 7px; background: #2c1715; color: #f0c1b8; text-align: left; }
 .resume-paper { width: min(100%, 560px); aspect-ratio: 8.5 / 11; min-height: 650px; padding: 7.5% 8%; background: var(--paper); color: var(--paper-ink); box-shadow: 0 18px 55px #000a; font-family: Arial, Helvetica, sans-serif; }
@@ -442,8 +451,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .evidence-order { display: flex; flex-direction: column; align-items: center; gap: 3px; }
 .evidence-order span { display: grid; place-items: center; width: 24px; height: 24px; margin-bottom: 2px; border-radius: 50%; background: var(--hover); color: var(--secondary); font-size: 8px; font-weight: 800; }
 .evidence-order button { width: 24px; height: 21px; padding: 0; border: 1px solid var(--line); border-radius: 5px; background: var(--elevated); color: var(--accent); font-size: 9px; }
-.evidence-fields { display: grid; gap: 9px; }
-.evidence-metadata { display: grid; grid-template-columns: 110px 125px minmax(120px, 1fr) 65px auto; align-items: end; gap: 9px; }
+.evidence-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 9px; }
+/* Wraps instead of overflowing the narrow center panel. */
+.evidence-metadata { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); align-items: end; gap: 9px; }
 .provenance-field { display: grid; gap: 6px; }
 .provenance-field strong { display: flex; align-items: center; height: 36px; color: var(--accent); font-size: 8px; text-transform: capitalize; }
 .remove-button { align-self: center; margin-top: 14px; padding: 6px; }
@@ -527,7 +537,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .application-history-heading .saved-jobs-heading { flex: 1; margin: 0; }
 .application-status-control { display: flex; align-items: center; gap: 8px; }
 .application-status-control > span { color: var(--muted); font-size: var(--text-xs); }
-.application-status-control > div { display: flex; padding: 2px; border: 1px solid var(--line); border-radius: 7px; background: #090b0a; }
+.application-status-control > div { display: flex; flex-wrap: wrap; padding: 2px; border: 1px solid var(--line); border-radius: 7px; background: #090b0a; }
 .application-status-control button { padding: 5px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font-size: var(--text-xs); }
 .application-status-control button.active { background: var(--hover); color: var(--accent); }
 .application-status-control button:disabled:not(.active) { opacity: .55; }
@@ -717,13 +727,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .resume-library ul { margin: 0; padding: 0; list-style: none; }
 .resume-library ul > li { padding: 12px 16px; border-bottom: 1px solid var(--line-soft); }
 .resume-library ul > li:last-child { border-bottom: 0; }
-.resume-library-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; }
+/* Actions get their own row so the title is not squeezed in the narrow center panel. */
+.resume-library-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px 12px; }
 .resume-library-title { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.resume-library-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-size: 13px; }
+.resume-library-title strong { overflow-wrap: anywhere; color: var(--text); font-size: 13px; }
 .resume-library-title form { display: flex; align-items: center; gap: 8px; }
 .resume-library-title input { min-width: 0; flex: 1; min-height: 32px; padding: 0 10px; border: 1px solid var(--accent); border-radius: 8px; background: var(--surface, #0e100f); color: var(--text); font: inherit; font-size: 13px; }
 .resume-library small, .resume-library-empty p { color: var(--muted); font-size: 11px; }
-.resume-library-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.resume-library-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
 .resume-library-actions .danger { color: var(--danger); }
 .resume-versions { margin-top: 8px; }
 .resume-versions summary { width: fit-content; color: var(--secondary); font-size: 11px; cursor: pointer; }
@@ -732,7 +743,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .resume-versions > .secondary-button { margin-top: 8px; }
 .version-compare { margin-top: 10px; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--elevated); }
 .version-compare > header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--line-soft); font-size: 12px; color: var(--secondary); }
-.version-compare select { margin-left: 6px; }
+.version-compare select { height: 30px; margin-left: 6px; padding: 0 8px; border: 1px solid var(--line); border-radius: 7px; background: #0d100e; color: var(--text); font-size: 12px; }
+.version-compare select option { background: #0d100e; color: var(--text); }
 .version-compare-summary { margin-left: auto; }
 .version-compare-summary .added, .version-diff .added > span:first-child { color: var(--accent); }
 .version-compare-summary .removed, .version-diff .removed > span:first-child { color: var(--danger); }
@@ -748,6 +760,23 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .status-pill { padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--secondary); font-size: 10px; font-weight: 700; text-transform: capitalize; }
 .status-pill.submitted { border-color: var(--accent); color: var(--accent); }
 .status-pill.archived { opacity: .6; }
+.status-pill.interviewing, .status-pill.offer { border-color: var(--accent); background: #c8e86b18; color: var(--accent); }
+.status-pill.rejected { border-color: #e16b6166; color: var(--danger); }
+.status-pill.follow-up { border-color: #e0b85a88; color: #e0b85a; text-transform: none; }
+.resume-library-badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.resume-library-filters { display: flex; gap: 8px; padding: 12px 16px 0; }
+.resume-library-filters input, .resume-library-filters select, .application-tracker input, .application-tracker textarea { min-height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 7px; background: #0d100e; color: var(--text); font-size: 12px; color-scheme: dark; }
+.resume-library-filters input { flex: 1; min-width: 0; }
+.resume-library-filters select option { background: #0d100e; }
+.resume-library-no-match { margin: 0; padding: 14px 16px; color: var(--muted); font-size: 12px; }
+.application-tracker { display: grid; gap: 12px; margin-top: 8px; padding: 12px; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--panel); }
+.application-tracker-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.application-tracker-grid label { display: grid; gap: 5px; color: var(--secondary); font-size: 11px; }
+.application-tracker-grid .wide { grid-column: 1 / -1; }
+.application-tracker textarea { padding: 8px 10px; resize: vertical; font: inherit; font-size: 12px; }
+.application-tracker-link { display: flex; align-items: center; gap: 8px; }
+.application-tracker-link input { flex: 1; min-width: 0; }
+.application-tracker footer { display: flex; align-items: center; gap: 10px; }
 @media (max-width: 860px) { .resume-library-row { grid-template-columns: 1fr; } .resume-library-actions { justify-content: flex-start; } }
 /* Bottom-right so it never covers the regular status notice. */
 .notice.draft-recovery { top: auto; bottom: 18px; flex-wrap: wrap; border-color: var(--accent); }

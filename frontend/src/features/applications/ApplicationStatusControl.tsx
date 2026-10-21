@@ -1,8 +1,11 @@
-export type ApplicationStatus = "draft" | "submitted" | "archived";
+export type ApplicationStatus = "draft" | "submitted" | "interviewing" | "offer" | "rejected" | "archived";
 
-const STATUS_OPTIONS: Array<{ value: ApplicationStatus; label: string }> = [
+export const STATUS_OPTIONS: Array<{ value: ApplicationStatus; label: string }> = [
   { value: "draft", label: "Draft" },
   { value: "submitted", label: "Submitted" },
+  { value: "interviewing", label: "Interviewing" },
+  { value: "offer", label: "Offer" },
+  { value: "rejected", label: "Rejected" },
   { value: "archived", label: "Archived" },
 ];
 

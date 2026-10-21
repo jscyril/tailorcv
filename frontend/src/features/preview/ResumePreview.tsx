@@ -1,5 +1,6 @@
 import pdfWorkerURL from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { useEffect, useRef, useState } from "react";
+import { ClipboardSetText } from "../../../wailsjs/runtime/runtime";
 import { domain } from "../../../wailsjs/go/models";
 import { AchievementDraft, CertificationDraft } from "../../lib/credentials";
 import { Education, EducationDraft } from "../../lib/education";
@@ -27,15 +28,51 @@ export function ResumePreview({ profile, experiences, projects, educations,certi
   </article></div>}</aside>;
 }
 
+type TextItem = { str?: string; hasEOL?: boolean };
+
+// Joins PDF.js text items into lines, one blank line between pages.
+export function joinPDFText(pages: TextItem[][]): string {
+  return pages.map((items) => items.map((item) => (item.str ?? "") + (item.hasEOL ? "\n" : "")).join("").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim()).filter(Boolean).join("\n\n");
+}
+
+const decodePDF = (data: string) => Uint8Array.from(atob(data), (character) => character.charCodeAt(0));
+
+async function pdfPlainText(data: string): Promise<string> {
+  const { getDocument, GlobalWorkerOptions } = await import("pdfjs-dist");
+  GlobalWorkerOptions.workerSrc = pdfWorkerURL;
+  const task = getDocument({ data: decodePDF(data) });
+  try {
+    const document = await task.promise;
+    const pages: TextItem[][] = [];
+    for (let number = 1; number <= document.numPages; number += 1) {
+      pages.push((await (await document.getPage(number)).getTextContent()).items as TextItem[]);
+    }
+    return joinPDFText(pages);
+  } finally {
+    void task.destroy();
+  }
+}
+
 export function PDFPreview({ data }: { data: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [copyState, setCopyState] = useState<"" | "copying" | "copied" | "failed">("");
+  const copyText = async () => {
+    setCopyState("copying");
+    try {
+      const text = await pdfPlainText(data);
+      setCopyState(text && await ClipboardSetText(text) ? "copied" : "failed");
+    } catch {
+      setCopyState("failed");
+    }
+    window.setTimeout(() => setCopyState(""), 2500);
+  };
   const [zoom, setZoom] = useState(1);
   const [pageCount, setPageCount] = useState(0);
   const [renderError, setRenderError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
-    const bytes = Uint8Array.from(atob(data), (character) => character.charCodeAt(0));
+    const bytes = decodePDF(data);
     let loadingTask: { promise: Promise<any>; destroy: () => Promise<void> } | undefined;
     let renderTask: { cancel: () => void; promise: Promise<unknown> } | undefined;
     import("pdfjs-dist").then(({ getDocument, GlobalWorkerOptions }) => {
@@ -47,7 +84,10 @@ export function PDFPreview({ data }: { data: string }) {
         setPageCount(document.numPages);
         const page = await document.getPage(1);
         if (cancelled || !canvasRef.current) return;
-        const viewport = page.getViewport({ scale: zoom * 1.35 });
+        // 100% fits the page to the panel width (capped at the old fixed scale).
+        const available = (canvasRef.current.parentElement?.clientWidth ?? 0) - 36;
+        const fit = available > 0 ? available / page.getViewport({ scale: 1 }).width : 1.35;
+        const viewport = page.getViewport({ scale: zoom * Math.min(1.35, fit) });
         const pixelRatio = window.devicePixelRatio || 1;
         const canvas = canvasRef.current;
         canvas.width = Math.floor(viewport.width * pixelRatio);
@@ -70,7 +110,7 @@ export function PDFPreview({ data }: { data: string }) {
     };
   }, [data, zoom]);
 
-  return <div className="pdf-preview"><div className="pdf-controls" role="group" aria-label="PDF preview controls"><button aria-label="Zoom out" disabled={zoom <= 0.7} onClick={() => setZoom((value) => Math.max(0.7, value - 0.15))}>−</button><output aria-live="polite">{Math.round(zoom * 100)}%</output><button aria-label="Zoom in" disabled={zoom >= 1.6} onClick={() => setZoom((value) => Math.min(1.6, value + 0.15))}>+</button><i /><span>{pageCount || 1} page{pageCount === 1 ? "" : "s"}</span></div><div className="preview-stage compiled">{renderError ? <div className="pdf-error" role="alert">{renderError}</div> : <canvas ref={canvasRef} aria-label="Compiled resume PDF page 1" />}</div></div>;
+  return <div className="pdf-preview"><div className="pdf-controls" role="group" aria-label="PDF preview controls"><button aria-label="Zoom out" disabled={zoom <= 0.7} onClick={() => setZoom((value) => Math.max(0.7, value - 0.15))}>−</button><output aria-live="polite">{Math.round(zoom * 100)}%</output><button aria-label="Zoom in" disabled={zoom >= 1.6} onClick={() => setZoom((value) => Math.min(1.6, value + 0.15))}>+</button><i /><span>{pageCount || 1} page{pageCount === 1 ? "" : "s"}</span><i /><button className="copy-text" disabled={copyState === "copying"} onClick={copyText} title="Copy the resume as plain text for job sites that ask you to paste it">{copyState === "copying" ? "Copying…" : copyState === "copied" ? "Copied" : copyState === "failed" ? "Copy failed" : "Copy text"}</button></div>{pageCount > 1 && <p className="page-warning" role="status">This resume runs to {pageCount} pages; most recruiters expect one. Only page 1 is shown here. Trim content or tighten spacing to fit.</p>}<div className="preview-stage compiled">{renderError ? <div className="pdf-error" role="alert">{renderError}</div> : <canvas ref={canvasRef} aria-label="Compiled resume PDF page 1" />}</div></div>;
 }
 
 export function ResumeSection({ title, children }: { title: string; children: React.ReactNode }) {

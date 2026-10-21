@@ -122,11 +122,11 @@ In priority order. Reliability comes first because losing data in a daily tool i
 
 ### Applying
 
-- [ ] Application tracker: applied date, job posting link, notes, follow-up date, and more statuses (interviewing, offer, rejected) beyond draft/submitted/archived.
-- [ ] Search and filters on Home by company, role, and status.
-- [ ] Keyword coverage: show which job-description skills appear in the final resume and which are missing, reusing the existing requirement extraction.
-- [ ] One-page warning when the compiled PDF runs past one page.
-- [ ] Copy a resume as plain text for job sites that require pasting.
+- [x] Application tracker: applied date, job posting link, notes, follow-up date, and more statuses (interviewing, offer, rejected) beyond draft/submitted/archived.
+- [x] Search and filters on Home by company, role, and status.
+- [x] Keyword coverage: show which job-description skills appear in the final resume and which are missing, reusing the existing requirement extraction.
+- [x] One-page warning when the compiled PDF runs past one page.
+- [x] Copy a resume as plain text for job sites that require pasting.
 
 ### Writing help
 

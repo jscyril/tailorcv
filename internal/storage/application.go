@@ -15,14 +15,14 @@ import (
 )
 
 func (s *Store) ListApplications(ctx context.Context) ([]domain.Application, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, COALESCE(job_id, ''), name, status, created_at, updated_at FROM applications ORDER BY updated_at DESC, created_at DESC`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, COALESCE(job_id, ''), name, status, applied_on, follow_up_on, posting_url, notes, created_at, updated_at FROM applications ORDER BY updated_at DESC, created_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("list applications: %w", err)
 	}
 	applications := make([]domain.Application, 0)
 	for rows.Next() {
 		var application domain.Application
-		if err := rows.Scan(&application.ID, &application.JobID, &application.Name, &application.Status, &application.CreatedAt, &application.UpdatedAt); err != nil {
+		if err := rows.Scan(&application.ID, &application.JobID, &application.Name, &application.Status, &application.AppliedOn, &application.FollowUpOn, &application.PostingURL, &application.Notes, &application.CreatedAt, &application.UpdatedAt); err != nil {
 			_ = rows.Close()
 			return nil, fmt.Errorf("scan application: %w", err)
 		}
@@ -59,9 +59,30 @@ func (s *Store) UpdateApplicationStatus(ctx context.Context, input domain.Update
 		return domain.Application{}, fmt.Errorf("application ID is not valid")
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	result, err := s.db.ExecContext(ctx, `UPDATE applications SET status = ?, updated_at = ? WHERE id = ?`, validated.Status, now, validated.ApplicationID)
+	// Marking an application submitted fills in today's date if none was set.
+	today := time.Now().Format(time.DateOnly)
+	result, err := s.db.ExecContext(ctx, `UPDATE applications SET status = ?, applied_on = CASE WHEN ? = 'submitted' AND applied_on = '' THEN ? ELSE applied_on END, updated_at = ? WHERE id = ?`, validated.Status, validated.Status, today, now, validated.ApplicationID)
 	if err != nil {
 		return domain.Application{}, fmt.Errorf("update application status: %w", err)
+	}
+	if count, err := result.RowsAffected(); err != nil || count != 1 {
+		return domain.Application{}, fmt.Errorf("application was not found")
+	}
+	return s.getApplication(ctx, validated.ApplicationID)
+}
+
+func (s *Store) UpdateApplicationDetails(ctx context.Context, input domain.UpdateApplicationDetailsInput) (domain.Application, error) {
+	validated, err := input.Validate()
+	if err != nil {
+		return domain.Application{}, err
+	}
+	if _, err := uuid.Parse(validated.ApplicationID); err != nil {
+		return domain.Application{}, fmt.Errorf("application ID is not valid")
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	result, err := s.db.ExecContext(ctx, `UPDATE applications SET applied_on = ?, follow_up_on = ?, posting_url = ?, notes = ?, updated_at = ? WHERE id = ?`, validated.AppliedOn, validated.FollowUpOn, validated.PostingURL, validated.Notes, now, validated.ApplicationID)
+	if err != nil {
+		return domain.Application{}, fmt.Errorf("update application details: %w", err)
 	}
 	if count, err := result.RowsAffected(); err != nil || count != 1 {
 		return domain.Application{}, fmt.Errorf("application was not found")

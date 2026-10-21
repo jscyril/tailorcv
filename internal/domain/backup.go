@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const ProfileBackupSchemaVersion = 7
+const ProfileBackupSchemaVersion = 8
 
 type ProfileBackup struct {
 	SchemaVersion      int              `json:"schemaVersion"`
@@ -284,7 +284,11 @@ func (backup ProfileBackup) Validate() (ProfileBackup, error) {
 				return ProfileBackup{}, fmt.Errorf("application %d: %w", index+1, err)
 			}
 		}
-		application := Application{ID: source.ID, JobID: selection.JobID, Name: name, Status: source.Status, SelectedFactIDs: selection.SelectedFactIDs, Versions: make([]ResumeVersion, 0, len(source.Versions)), CreatedAt: source.CreatedAt, UpdatedAt: source.UpdatedAt}
+		details, err := (UpdateApplicationDetailsInput{ApplicationID: source.ID, AppliedOn: source.AppliedOn, FollowUpOn: source.FollowUpOn, PostingURL: source.PostingURL, Notes: source.Notes}).Validate()
+		if err != nil {
+			return ProfileBackup{}, fmt.Errorf("application %d: %w", index+1, err)
+		}
+		application := Application{ID: source.ID, JobID: selection.JobID, Name: name, Status: source.Status, AppliedOn: details.AppliedOn, FollowUpOn: details.FollowUpOn, PostingURL: details.PostingURL, Notes: details.Notes, SelectedFactIDs: selection.SelectedFactIDs, Versions: make([]ResumeVersion, 0, len(source.Versions)), CreatedAt: source.CreatedAt, UpdatedAt: source.UpdatedAt}
 		versionNumbers := make(map[int]struct{}, len(source.Versions))
 		for versionIndex, version := range source.Versions {
 			if version.ApplicationID != source.ID {

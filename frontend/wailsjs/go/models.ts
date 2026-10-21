@@ -309,6 +309,10 @@ export namespace domain {
 	    jobId: string;
 	    name: string;
 	    status: string;
+	    appliedOn?: string;
+	    followUpOn?: string;
+	    postingUrl?: string;
+	    notes?: string;
 	    selectedFactIds: string[];
 	    versions: ResumeVersion[];
 	    createdAt: string;
@@ -324,6 +328,10 @@ export namespace domain {
 	        this.jobId = source["jobId"];
 	        this.name = source["name"];
 	        this.status = source["status"];
+	        this.appliedOn = source["appliedOn"];
+	        this.followUpOn = source["followUpOn"];
+	        this.postingUrl = source["postingUrl"];
+	        this.notes = source["notes"];
 	        this.selectedFactIds = source["selectedFactIds"];
 	        this.versions = this.convertValues(source["versions"], ResumeVersion);
 	        this.createdAt = source["createdAt"];
@@ -996,6 +1004,52 @@ export namespace domain {
 	        this.description = source["description"];
 	    }
 	}
+	export class SkillCoverage {
+	    skill: string;
+	    present: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SkillCoverage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.skill = source["skill"];
+	        this.present = source["present"];
+	    }
+	}
+	export class KeywordCoverage {
+	    required: SkillCoverage[];
+	    preferred: SkillCoverage[];
+	
+	    static createFrom(source: any = {}) {
+	        return new KeywordCoverage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.required = this.convertValues(source["required"], SkillCoverage);
+	        this.preferred = this.convertValues(source["preferred"], SkillCoverage);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class LatexDraft {
 	    source: string;
 	    versionId: string;
@@ -1382,6 +1436,27 @@ export namespace domain {
 	        this.applicationId = source["applicationId"];
 	        this.baseVersionId = source["baseVersionId"];
 	        this.latexSource = source["latexSource"];
+	    }
+	}
+	
+	export class UpdateApplicationDetailsInput {
+	    applicationId: string;
+	    appliedOn: string;
+	    followUpOn: string;
+	    postingUrl: string;
+	    notes: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdateApplicationDetailsInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.applicationId = source["applicationId"];
+	        this.appliedOn = source["appliedOn"];
+	        this.followUpOn = source["followUpOn"];
+	        this.postingUrl = source["postingUrl"];
+	        this.notes = source["notes"];
 	    }
 	}
 	export class UpdateApplicationStatusInput {

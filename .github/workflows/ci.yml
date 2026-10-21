@@ -120,7 +120,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ matrix.runtime_dir }}
-          key: tectonic-${{ matrix.target_os }}-${{ matrix.target_arch }}-${{ hashFiles('cmd/packagetectonic/**') }}
+          key: tectonic-${{ matrix.target_os }}-${{ matrix.target_arch }}-${{ hashFiles('cmd/packagetectonic/**', 'build/tectonic/fixtures/**') }}
 
       - name: Package pinned offline Tectonic runtime
         if: steps.tectonic-cache.outputs.cache-hit != 'true'

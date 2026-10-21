@@ -138,6 +138,10 @@ export function ImportResumeTemplate() {
   return window['go']['main']['App']['ImportResumeTemplate']();
 }
 
+export function KeywordCoverage(arg1, arg2) {
+  return window['go']['main']['App']['KeywordCoverage'](arg1, arg2);
+}
+
 export function ListAIRuns() {
   return window['go']['main']['App']['ListAIRuns']();
 }
@@ -240,6 +244,10 @@ export function SaveResumeVersionEdit(arg1) {
 
 export function SelectResumeTemplate(arg1) {
   return window['go']['main']['App']['SelectResumeTemplate'](arg1);
+}
+
+export function UpdateApplicationDetails(arg1) {
+  return window['go']['main']['App']['UpdateApplicationDetails'](arg1);
 }
 
 export function UpdateApplicationStatus(arg1) {

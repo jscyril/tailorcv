@@ -51,6 +51,9 @@ const classicSource = `% Classic ATS template for TailorCV
 \usepackage{enumitem}
 \setlength{\parindent}{0pt}
 \setlist[itemize]{leftmargin=0.2in,itemsep=1pt,topsep=2pt}
+% Resumes need neither section numbers nor a page number.
+\setcounter{secnumdepth}{0}
+\pagestyle{empty}
 \begin{document}
 \begin{center}
   {\LARGE\textbf{{{TAILORCV_NAME}}}}\\[2pt]
