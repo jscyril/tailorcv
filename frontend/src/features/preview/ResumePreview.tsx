@@ -84,7 +84,10 @@ export function PDFPreview({ data }: { data: string }) {
         setPageCount(document.numPages);
         const page = await document.getPage(1);
         if (cancelled || !canvasRef.current) return;
-        const viewport = page.getViewport({ scale: zoom * 1.35 });
+        // 100% fits the page to the panel width (capped at the old fixed scale).
+        const available = (canvasRef.current.parentElement?.clientWidth ?? 0) - 36;
+        const fit = available > 0 ? available / page.getViewport({ scale: 1 }).width : 1.35;
+        const viewport = page.getViewport({ scale: zoom * Math.min(1.35, fit) });
         const pixelRatio = window.devicePixelRatio || 1;
         const canvas = canvasRef.current;
         canvas.width = Math.floor(viewport.width * pixelRatio);

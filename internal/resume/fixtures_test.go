@@ -22,8 +22,8 @@ var fixtureData = Data{
 		{Text: "Cut release time by 40% for 30 teams with a deterministic deploy service"},
 		{Text: "Moved R&D workloads to Kubernetes; costs fell $12k/yr (ticket #42, ~3 weeks)"},
 	}}},
-	Projects: []domain.Project{{Name: "fixture_project", Description: "An offline fixture", Skills: []string{"Go", "TypeScript"}, Bullets: []domain.EvidenceBullet{{Text: "Kept every build {reproducible}"}}}},
-	Educations: []domain.Education{{Institution: "Example University", Degree: "BSc", FieldOfStudy: "Mathematics", Location: "Remote", StartDate: "2018-09", EndDate: "2021-06", Details: "First-class honours"}},
+	Projects:       []domain.Project{{Name: "fixture_project", Description: "An offline fixture", Skills: []string{"Go", "TypeScript"}, Bullets: []domain.EvidenceBullet{{Text: "Kept every build {reproducible}"}}}},
+	Educations:     []domain.Education{{Institution: "Example University", Degree: "BSc", FieldOfStudy: "Mathematics", Location: "Remote", StartDate: "2018-09", EndDate: "2021-06", Details: "First-class honours"}},
 	Certifications: []domain.Certification{{Name: "Cloud Professional", Issuer: "Example Institute", IssueDate: "2024-05", Description: "Fictional certification"}},
 	Achievements:   []domain.Achievement{{Title: "Engineering Award", Description: "Recognized for a fictional release system", Date: "2025-02"}},
 }

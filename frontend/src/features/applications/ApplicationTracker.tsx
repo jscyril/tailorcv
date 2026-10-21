@@ -20,12 +20,15 @@ export function ApplicationTracker({ application, title, busy, onStatusChange, o
   onSave: (details: ApplicationDetails) => Promise<boolean>;
 }) {
   const saved: ApplicationDetails = { appliedOn: application.appliedOn ?? "", followUpOn: application.followUpOn ?? "", postingUrl: application.postingUrl ?? "", notes: application.notes ?? "" };
-  const [draft, setDraft] = useState(saved);
+  // Only fields the user edited are kept here, so values the app changes
+  // (like the applied date set on submit) still show through.
+  const [edits, setEdits] = useState<Partial<ApplicationDetails>>({});
+  const draft = { ...saved, ...edits };
   const dirty = (Object.keys(saved) as Array<keyof ApplicationDetails>).some((key) => draft[key] !== saved[key]);
-  const field = (key: keyof ApplicationDetails) => ({ value: draft[key], onChange: (event: { target: { value: string } }) => setDraft({ ...draft, [key]: event.target.value }) });
+  const field = (key: keyof ApplicationDetails) => ({ value: draft[key], onChange: (event: { target: { value: string } }) => setEdits({ ...edits, [key]: event.target.value }) });
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    await onSave(draft);
+    if (await onSave(draft)) setEdits({});
   };
   const id = application.id;
   return <form className="application-tracker" aria-label={`Tracking for ${title}`} onSubmit={submit}>
@@ -38,6 +41,6 @@ export function ApplicationTracker({ application, title, busy, onStatusChange, o
       </label>
       <label htmlFor={`notes-${id}`} className="wide">Notes<textarea id={`notes-${id}`} rows={3} maxLength={10000} placeholder="Recruiter, interview dates, salary range…" {...field("notes")} /></label>
     </div>
-    <footer><button className="primary-button" type="submit" disabled={busy || !dirty}>Save tracking</button>{dirty && <button className="text-button" type="button" onClick={() => setDraft(saved)}>Undo changes</button>}</footer>
+    <footer><button className="primary-button" type="submit" disabled={busy || !dirty}>Save tracking</button>{dirty && <button className="text-button" type="button" onClick={() => setEdits({})}>Undo changes</button>}</footer>
   </form>;
 }

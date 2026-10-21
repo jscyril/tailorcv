@@ -262,7 +262,8 @@ describe("App Wails workflow integration", () => {
     const general = { id: "application-2", jobId: "", name: "General resume", status: "draft", selectedFactIds: [], versions: [{ ...version, id: "version-g1", applicationId: "application-2" }], createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" };
     bindings.ListJobs.mockResolvedValue([job]);
     bindings.ListApplications.mockResolvedValue([tailored, general]);
-    bindings.UpdateApplicationStatus.mockImplementation(async ({ status }) => ({ ...tailored, status }));
+    // The backend fills in the applied date; saving details afterwards must keep it.
+    bindings.UpdateApplicationStatus.mockImplementation(async ({ status }) => ({ ...tailored, status, appliedOn: "2026-10-21" }));
     bindings.UpdateApplicationDetails.mockImplementation(async (input) => ({ ...tailored, ...input }));
 
     const user = userEvent.setup();
@@ -290,7 +291,7 @@ describe("App Wails workflow integration", () => {
     await user.type(within(tracker).getByLabelText("Job posting link"), "https://jobs.example.com/1");
     await user.type(within(tracker).getByLabelText("Notes"), "Recruiter: Sam");
     await user.click(save);
-    await waitFor(() => expect(bindings.UpdateApplicationDetails).toHaveBeenCalledWith({ applicationId: tailored.id, appliedOn: "", followUpOn: "2020-01-01", postingUrl: "https://jobs.example.com/1", notes: "Recruiter: Sam" }));
+    await waitFor(() => expect(bindings.UpdateApplicationDetails).toHaveBeenCalledWith({ applicationId: tailored.id, appliedOn: "2026-10-21", followUpOn: "2020-01-01", postingUrl: "https://jobs.example.com/1", notes: "Recruiter: Sam" }));
     expect(await screen.findByText("Application tracking saved.")).toBeTruthy();
   });
 
