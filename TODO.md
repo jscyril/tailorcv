@@ -109,6 +109,35 @@ These are already named or implied by `PLAN.md`, but are not implemented in the 
 - [ ] Select a license and contribution policy before the first public source release.
 - [ ] Add signed release artifacts and updater support only after manual installation is stable.
 
+## Daily-use roadmap
+
+In priority order. Reliability comes first because losing data in a daily tool is the worst failure.
+
+### Reliability
+
+- [ ] Automatic local backups: daily, keep the last few, restorable from Backup & restore. Today a backup happens only when exported by hand.
+- [ ] Unsaved-changes protection: warn before leaving the LaTeX editor with unsaved edits, and keep a draft so a crash does not lose work.
+- [ ] Host the curated Tectonic resource bundle ourselves so CI does not depend on the rate-limited TeX server (GitHub drops unused caches after 7 days).
+
+### Applying
+
+- [ ] Application tracker: applied date, job posting link, notes, follow-up date, and more statuses (interviewing, offer, rejected) beyond draft/submitted/archived.
+- [ ] Search and filters on Home by company, role, and status.
+- [ ] Keyword coverage: show which job-description skills appear in the final resume and which are missing, reusing the existing requirement extraction.
+- [ ] One-page warning when the compiled PDF runs past one page.
+- [ ] Copy a resume as plain text for job sites that require pasting.
+
+### Writing help
+
+- [ ] Cover letters per job, drafted from the selected evidence with the same citation and validation guarantees, exported beside the resume.
+- [ ] Form-based editing of a single saved resume (reword, hide, reorder sections) without LaTeX. Requires storing resume content as structured data.
+- [ ] Saved answers to common application questions, reusable and adaptable per job.
+
+### Later
+
+- [ ] Insights: applications per week, response rate, and which resume versions led to interviews.
+- [ ] Best-effort job description import from a URL (many job sites, including LinkedIn, block this).
+
 ## Definition of done for each checked item
 
 - Implementation is complete at the Go/domain/storage/frontend layers that the item affects.
