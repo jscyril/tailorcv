@@ -527,7 +527,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .application-history-heading .saved-jobs-heading { flex: 1; margin: 0; }
 .application-status-control { display: flex; align-items: center; gap: 8px; }
 .application-status-control > span { color: var(--muted); font-size: var(--text-xs); }
-.application-status-control > div { display: flex; padding: 2px; border: 1px solid var(--line); border-radius: 7px; background: #090b0a; }
+.application-status-control > div { display: flex; flex-wrap: wrap; padding: 2px; border: 1px solid var(--line); border-radius: 7px; background: #090b0a; }
 .application-status-control button { padding: 5px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font-size: var(--text-xs); }
 .application-status-control button.active { background: var(--hover); color: var(--accent); }
 .application-status-control button:disabled:not(.active) { opacity: .55; }
@@ -750,6 +750,23 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .status-pill { padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--secondary); font-size: 10px; font-weight: 700; text-transform: capitalize; }
 .status-pill.submitted { border-color: var(--accent); color: var(--accent); }
 .status-pill.archived { opacity: .6; }
+.status-pill.interviewing, .status-pill.offer { border-color: var(--accent); background: #c8e86b18; color: var(--accent); }
+.status-pill.rejected { border-color: #e16b6166; color: var(--danger); }
+.status-pill.follow-up { border-color: #e0b85a88; color: #e0b85a; text-transform: none; }
+.resume-library-badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.resume-library-filters { display: flex; gap: 8px; padding: 12px 16px 0; }
+.resume-library-filters input, .resume-library-filters select, .application-tracker input, .application-tracker textarea { min-height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 7px; background: #0d100e; color: var(--text); font-size: 12px; color-scheme: dark; }
+.resume-library-filters input { flex: 1; min-width: 0; }
+.resume-library-filters select option { background: #0d100e; }
+.resume-library-no-match { margin: 0; padding: 14px 16px; color: var(--muted); font-size: 12px; }
+.application-tracker { display: grid; gap: 12px; margin-top: 8px; padding: 12px; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--panel); }
+.application-tracker-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.application-tracker-grid label { display: grid; gap: 5px; color: var(--secondary); font-size: 11px; }
+.application-tracker-grid .wide { grid-column: 1 / -1; }
+.application-tracker textarea { padding: 8px 10px; resize: vertical; font: inherit; font-size: 12px; }
+.application-tracker-link { display: flex; align-items: center; gap: 8px; }
+.application-tracker-link input { flex: 1; min-width: 0; }
+.application-tracker footer { display: flex; align-items: center; gap: 10px; }
 @media (max-width: 860px) { .resume-library-row { grid-template-columns: 1fr; } .resume-library-actions { justify-content: flex-start; } }
 /* Bottom-right so it never covers the regular status notice. */
 .notice.draft-recovery { top: auto; bottom: 18px; flex-wrap: wrap; border-color: var(--accent); }

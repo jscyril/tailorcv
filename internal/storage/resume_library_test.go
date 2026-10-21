@@ -105,7 +105,7 @@ func TestResumeLibraryMigrationKeepsExistingResumes(t *testing.T) {
 		}
 	}
 	store := &Store{db: db}
-	if err := store.applyMigrationSet(ctx, migrations[:len(migrations)-1]); err != nil {
+	if err := store.applyMigrationSet(ctx, migrations[:len(migrations)-2]); err != nil {
 		t.Fatalf("apply previous migrations: %v", err)
 	}
 	jobID, applicationID, versionID := uuid.NewString(), uuid.NewString(), uuid.NewString()
@@ -150,6 +150,13 @@ func TestBackupRoundTripKeepsGeneralResumes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateResume() error = %v", err)
 	}
+	details := domain.UpdateApplicationDetailsInput{ApplicationID: created.Application.ID, AppliedOn: "2026-10-01", FollowUpOn: "2026-10-08", PostingURL: "https://jobs.example.com/42", Notes: "Recruiter: Sam"}
+	if _, err := source.UpdateApplicationDetails(ctx, details); err != nil {
+		t.Fatalf("UpdateApplicationDetails() error = %v", err)
+	}
+	if _, err := source.UpdateApplicationStatus(ctx, domain.UpdateApplicationStatusInput{ApplicationID: created.Application.ID, Status: domain.ApplicationStatusInterviewing}); err != nil {
+		t.Fatalf("UpdateApplicationStatus() error = %v", err)
+	}
 	backup, err := source.CreateProfileBackup(ctx)
 	if err != nil {
 		t.Fatalf("CreateProfileBackup() error = %v", err)
@@ -173,5 +180,54 @@ func TestBackupRoundTripKeepsGeneralResumes(t *testing.T) {
 	applications, err := target.ListApplications(ctx)
 	if err != nil || len(applications) != 1 || applications[0].ID != created.Application.ID || applications[0].Name != "General" || applications[0].JobID != "" || applications[0].Versions[0].LatexSource != "general source" {
 		t.Fatalf("restored resumes = %#v, %v", applications, err)
+	}
+	restored := applications[0]
+	if restored.Status != domain.ApplicationStatusInterviewing || restored.AppliedOn != details.AppliedOn || restored.FollowUpOn != details.FollowUpOn || restored.PostingURL != details.PostingURL || restored.Notes != details.Notes {
+		t.Fatalf("restored tracking details = %#v", restored)
+	}
+}
+
+func TestApplicationTrackingDetails(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(filepath.Join(t.TempDir(), "tailorcv.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	created, err := store.CreateResume(ctx, domain.CreateResumeInput{Name: "Acme", TemplateID: "builtin-jake-style", LatexSource: "source"})
+	if err != nil {
+		t.Fatalf("CreateResume() error = %v", err)
+	}
+	id := created.Application.ID
+
+	// Submitting fills in the applied date once; a later status keeps it.
+	submitted, err := store.UpdateApplicationStatus(ctx, domain.UpdateApplicationStatusInput{ApplicationID: id, Status: domain.ApplicationStatusSubmitted})
+	if err != nil || submitted.AppliedOn == "" {
+		t.Fatalf("submitted application = %#v, %v", submitted, err)
+	}
+	if _, err := store.UpdateApplicationDetails(ctx, domain.UpdateApplicationDetailsInput{ApplicationID: id, AppliedOn: "2026-09-30"}); err != nil {
+		t.Fatalf("UpdateApplicationDetails() error = %v", err)
+	}
+	resubmitted, err := store.UpdateApplicationStatus(ctx, domain.UpdateApplicationStatusInput{ApplicationID: id, Status: domain.ApplicationStatusSubmitted})
+	if err != nil || resubmitted.AppliedOn != "2026-09-30" {
+		t.Fatalf("resubmitting should keep the chosen applied date: %#v, %v", resubmitted, err)
+	}
+	for _, status := range []domain.ApplicationStatus{domain.ApplicationStatusOffer, domain.ApplicationStatusRejected} {
+		if _, err := store.UpdateApplicationStatus(ctx, domain.UpdateApplicationStatusInput{ApplicationID: id, Status: status}); err != nil {
+			t.Fatalf("UpdateApplicationStatus(%s) error = %v", status, err)
+		}
+	}
+
+	for _, input := range []domain.UpdateApplicationDetailsInput{
+		{ApplicationID: id, AppliedOn: "2026-13-01"},
+		{ApplicationID: id, FollowUpOn: "next week"},
+		{ApplicationID: id, PostingURL: "javascript:alert(1)"},
+		{ApplicationID: id, Notes: strings.Repeat("x", 10001)},
+		{ApplicationID: "not-a-uuid"},
+		{ApplicationID: uuid.NewString()},
+	} {
+		if _, err := store.UpdateApplicationDetails(ctx, input); err == nil {
+			t.Errorf("UpdateApplicationDetails(%+v) expected an error", input)
+		}
 	}
 }

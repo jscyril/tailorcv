@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"strings"
+	"time"
 )
 
 const maxSelectedFacts = 50
@@ -12,15 +13,30 @@ type ApplicationStatus string
 
 const (
 	ApplicationStatusDraft     ApplicationStatus = "draft"
-	ApplicationStatusSubmitted ApplicationStatus = "submitted"
-	ApplicationStatusArchived  ApplicationStatus = "archived"
+	ApplicationStatusSubmitted    ApplicationStatus = "submitted"
+	ApplicationStatusInterviewing ApplicationStatus = "interviewing"
+	ApplicationStatusOffer        ApplicationStatus = "offer"
+	ApplicationStatusRejected     ApplicationStatus = "rejected"
+	ApplicationStatusArchived     ApplicationStatus = "archived"
 )
+
+func (status ApplicationStatus) valid() bool {
+	switch status {
+	case ApplicationStatusDraft, ApplicationStatusSubmitted, ApplicationStatusInterviewing, ApplicationStatusOffer, ApplicationStatusRejected, ApplicationStatusArchived:
+		return true
+	}
+	return false
+}
 
 type Application struct {
 	ID              string            `json:"id"`
 	JobID           string            `json:"jobId"`
 	Name            string            `json:"name"`
 	Status          ApplicationStatus `json:"status"`
+	AppliedOn       string            `json:"appliedOn,omitempty"`
+	FollowUpOn      string            `json:"followUpOn,omitempty"`
+	PostingURL      string            `json:"postingUrl,omitempty"`
+	Notes           string            `json:"notes,omitempty"`
 	SelectedFactIDs []string          `json:"selectedFactIds"`
 	Versions        []ResumeVersion   `json:"versions"`
 	CreatedAt       string            `json:"createdAt"`
@@ -90,12 +106,48 @@ func (input UpdateApplicationStatusInput) Validate() (UpdateApplicationStatusInp
 	if input.ApplicationID == "" {
 		return UpdateApplicationStatusInput{}, fmt.Errorf("application ID is required")
 	}
-	switch input.Status {
-	case ApplicationStatusDraft, ApplicationStatusSubmitted, ApplicationStatusArchived:
-		return input, nil
-	default:
+	if !input.Status.valid() {
 		return UpdateApplicationStatusInput{}, fmt.Errorf("application status is not valid")
 	}
+	return input, nil
+}
+
+const maxApplicationNotesLength = 10000
+
+// UpdateApplicationDetailsInput holds the tracking fields of an application.
+// Dates use YYYY-MM-DD and may be empty.
+type UpdateApplicationDetailsInput struct {
+	ApplicationID string `json:"applicationId"`
+	AppliedOn     string `json:"appliedOn"`
+	FollowUpOn    string `json:"followUpOn"`
+	PostingURL    string `json:"postingUrl"`
+	Notes         string `json:"notes"`
+}
+
+func (input UpdateApplicationDetailsInput) Validate() (UpdateApplicationDetailsInput, error) {
+	input.ApplicationID = strings.TrimSpace(input.ApplicationID)
+	input.AppliedOn = strings.TrimSpace(input.AppliedOn)
+	input.FollowUpOn = strings.TrimSpace(input.FollowUpOn)
+	input.PostingURL = strings.TrimSpace(input.PostingURL)
+	input.Notes = strings.TrimSpace(input.Notes)
+	if input.ApplicationID == "" {
+		return UpdateApplicationDetailsInput{}, fmt.Errorf("application ID is required")
+	}
+	for field, value := range map[string]string{"applied date": input.AppliedOn, "follow-up date": input.FollowUpOn} {
+		if value == "" {
+			continue
+		}
+		if _, err := time.Parse(time.DateOnly, value); err != nil {
+			return UpdateApplicationDetailsInput{}, fmt.Errorf("%s must use YYYY-MM-DD format", field)
+		}
+	}
+	if err := validateHTTPURL("job posting link", input.PostingURL); err != nil {
+		return UpdateApplicationDetailsInput{}, err
+	}
+	if len(input.Notes) > maxApplicationNotesLength || strings.IndexByte(input.Notes, 0) >= 0 {
+		return UpdateApplicationDetailsInput{}, fmt.Errorf("notes must be %d characters or fewer", maxApplicationNotesLength)
+	}
+	return input, nil
 }
 
 type ResumeVersion struct {

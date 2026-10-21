@@ -309,6 +309,10 @@ export namespace domain {
 	    jobId: string;
 	    name: string;
 	    status: string;
+	    appliedOn?: string;
+	    followUpOn?: string;
+	    postingUrl?: string;
+	    notes?: string;
 	    selectedFactIds: string[];
 	    versions: ResumeVersion[];
 	    createdAt: string;
@@ -324,6 +328,10 @@ export namespace domain {
 	        this.jobId = source["jobId"];
 	        this.name = source["name"];
 	        this.status = source["status"];
+	        this.appliedOn = source["appliedOn"];
+	        this.followUpOn = source["followUpOn"];
+	        this.postingUrl = source["postingUrl"];
+	        this.notes = source["notes"];
 	        this.selectedFactIds = source["selectedFactIds"];
 	        this.versions = this.convertValues(source["versions"], ResumeVersion);
 	        this.createdAt = source["createdAt"];
@@ -1382,6 +1390,26 @@ export namespace domain {
 	        this.applicationId = source["applicationId"];
 	        this.baseVersionId = source["baseVersionId"];
 	        this.latexSource = source["latexSource"];
+	    }
+	}
+	export class UpdateApplicationDetailsInput {
+	    applicationId: string;
+	    appliedOn: string;
+	    followUpOn: string;
+	    postingUrl: string;
+	    notes: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdateApplicationDetailsInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.applicationId = source["applicationId"];
+	        this.appliedOn = source["appliedOn"];
+	        this.followUpOn = source["followUpOn"];
+	        this.postingUrl = source["postingUrl"];
+	        this.notes = source["notes"];
 	    }
 	}
 	export class UpdateApplicationStatusInput {

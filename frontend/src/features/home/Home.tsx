@@ -6,6 +6,8 @@ import { type Application, type ResumeVersion, type View } from "../../lib/resum
 import { PanelHeader } from "../../components/ui";
 import { type Job } from "../ai/AIWorkspace";
 import { VersionCompare } from "./VersionCompare";
+import { ApplicationTracker, followUpDue, type ApplicationDetails } from "../applications/ApplicationTracker";
+import { STATUS_OPTIONS, type ApplicationStatus } from "../applications/ApplicationStatusControl";
 
 export function resumeTitle(application: Application, jobs: Job[]): string {
   if (application.name) return application.name;
@@ -13,15 +15,31 @@ export function resumeTitle(application: Application, jobs: Job[]): string {
   return [job?.role, job?.company].filter(Boolean).join(" at ") || "Untitled resume";
 }
 
-export function WorkspaceOverview({ profile, completion, experiences, projects, applications, jobs, busy, onOpen, onNewResume, onNewGeneralResume, onOpenJob, onOpenVersion, onRename, onDuplicate, onDelete }: { profile: Profile; completion: number; experiences: ExperienceDraft[]; projects: ProjectDraft[]; applications: Application[]; jobs: Job[]; busy: boolean; onOpen: (view: View) => void; onNewResume: () => void; onNewGeneralResume: () => void; onOpenJob: (job: Job) => void; onOpenVersion: (version: ResumeVersion) => void; onRename: (application: Application, name: string) => Promise<boolean>; onDuplicate: (application: Application) => void; onDelete: (application: Application, title: string) => void }) {
+export function WorkspaceOverview({ profile, completion, experiences, projects, applications, jobs, busy, onOpen, onNewResume, onNewGeneralResume, onOpenJob, onOpenVersion, onRename, onDuplicate, onDelete, statusBusy, onStatusChange, onSaveDetails }: { profile: Profile; completion: number; experiences: ExperienceDraft[]; projects: ProjectDraft[]; applications: Application[]; jobs: Job[]; busy: boolean; onOpen: (view: View) => void; onNewResume: () => void; onNewGeneralResume: () => void; onOpenJob: (job: Job) => void; onOpenVersion: (version: ResumeVersion) => void; onRename: (application: Application, name: string) => Promise<boolean>; onDuplicate: (application: Application) => void; onDelete: (application: Application, title: string) => void; statusBusy: boolean; onStatusChange: (status: ApplicationStatus, application: Application) => void; onSaveDetails: (application: Application, details: ApplicationDetails) => Promise<boolean> }) {
   const versionCount = applications.reduce((sum, application) => sum + application.versions.length, 0);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const [comparing, setComparing] = useState<string | null>(null);
-  const resumes = [...applications].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<ApplicationStatus | "">("");
+  const query = search.trim().toLowerCase();
+  const resumes = [...applications].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).filter((application) => {
+    if (statusFilter && application.status !== statusFilter) return false;
+    if (!query) return true;
+    const job = jobs.find((item) => item.id === application.jobId);
+    return [resumeTitle(application, jobs), job?.role, job?.company, application.notes].some((text) => text?.toLowerCase().includes(query));
+  });
   return <section className="workspace-panel scroll-panel">
     <PanelHeader eyebrow="Your workspace" title={profile.name ? `Welcome back, ${profile.name.split(" ")[0]}.` : "Build your source of truth."} description="Keep one reliable career profile, then create general or job-tailored resumes from it." action={<div className="panel-actions"><button className="secondary-button" disabled={busy} onClick={onNewGeneralResume}>New general resume</button><button className="primary-button" onClick={onNewResume}>New tailored resume</button></div>} />
     <section className="resume-library" aria-labelledby="resume-library-title">
-      <header><h2 id="resume-library-title">Your resumes</h2><span>{resumes.length} resume{resumes.length === 1 ? "" : "s"} · {versionCount} version{versionCount === 1 ? "" : "s"}</span></header>
+      <header><h2 id="resume-library-title">Your resumes</h2><span>{applications.length} resume{applications.length === 1 ? "" : "s"} · {versionCount} version{versionCount === 1 ? "" : "s"}</span></header>
+      {applications.length > 0 && <div className="resume-library-filters">
+        <input type="search" aria-label="Search resumes" placeholder="Search by name, company, role, or notes" value={search} onChange={(event) => setSearch(event.target.value)} />
+        <select aria-label="Filter by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as ApplicationStatus | "")}>
+          <option value="">All statuses</option>
+          {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label} ({applications.filter((application) => application.status === option.value).length})</option>)}
+        </select>
+      </div>}
+      {applications.length > 0 && resumes.length === 0 && <p className="resume-library-no-match">No resumes match. <button className="text-button" onClick={() => { setSearch(""); setStatusFilter(""); }}>Clear filters</button></p>}
       {resumes.length ? <ul>{resumes.map((application) => {
         const title = resumeTitle(application, jobs);
         const job = jobs.find((item) => item.id === application.jobId);
@@ -36,9 +54,9 @@ export function WorkspaceOverview({ profile, completion, experiences, projects, 
                 <button className="primary-button" type="submit" disabled={!renaming.name.trim()}>Save</button>
                 <button className="text-button" type="button" onClick={() => setRenaming(null)}>Cancel</button>
               </form> : <strong>{title}</strong>}
-              <small>{job ? `Tailored to ${[job.role, job.company].filter(Boolean).join(" at ") || "a saved job"}` : "General resume"}{latest ? ` · version ${latest.versionNumber} · ${new Date(latest.createdAt).toLocaleDateString()}${latest.pdfAvailable ? " · PDF ready" : ""}` : ""}</small>
+              <small>{job ? `Tailored to ${[job.role, job.company].filter(Boolean).join(" at ") || "a saved job"}` : "General resume"}{latest ? ` · version ${latest.versionNumber} · ${new Date(latest.createdAt).toLocaleDateString()}${latest.pdfAvailable ? " · PDF ready" : ""}` : ""}{application.appliedOn ? ` · applied ${application.appliedOn}` : ""}</small>
             </div>
-            <span className={`status-pill ${application.status}`}>{application.status}</span>
+            <span className="resume-library-badges">{followUpDue(application) && <span className="status-pill follow-up">Follow-up due</span>}<span className={`status-pill ${application.status}`}>{application.status}</span></span>
             <div className="resume-library-actions">
               {latest && <button className="primary-button" aria-label={`Open latest version of ${title}`} onClick={() => onOpenVersion(latest)}>Open</button>}
               {job && <button className="secondary-button" aria-label={`Tailor ${title}`} onClick={() => onOpenJob(job)}>Tailor</button>}
@@ -47,6 +65,10 @@ export function WorkspaceOverview({ profile, completion, experiences, projects, 
               <button className="secondary-button danger" aria-label={`Delete ${title}`} onClick={() => onDelete(application, title)}>Delete</button>
             </div>
           </div>
+          <details className="resume-versions">
+            <summary>Track application</summary>
+            <ApplicationTracker application={application} title={title} busy={statusBusy} onStatusChange={(status) => onStatusChange(status, application)} onSave={(details) => onSaveDetails(application, details)} />
+          </details>
           {application.versions.length > 0 && <details className="resume-versions">
             <summary>{application.versions.length} version{application.versions.length === 1 ? "" : "s"}</summary>
             <ol>{application.versions.map((version) => <li key={version.id}>
@@ -59,7 +81,7 @@ export function WorkspaceOverview({ profile, completion, experiences, projects, 
               : <button className="secondary-button" aria-label={`Compare versions of ${title}`} onClick={() => setComparing(application.id)}>Compare versions</button>)}
           </details>}
         </li>;
-      })}</ul> : <div className="resume-library-empty"><p>No resumes yet. Create a general resume from your profile and the selected template, or paste a job description to build a tailored one.</p><div className="panel-actions"><button className="secondary-button" disabled={busy} onClick={onNewGeneralResume}>New general resume</button><button className="primary-button" onClick={onNewResume}>New tailored resume</button></div></div>}
+      })}</ul> : applications.length > 0 ? null : <div className="resume-library-empty"><p>No resumes yet. Create a general resume from your profile and the selected template, or paste a job description to build a tailored one.</p><div className="panel-actions"><button className="secondary-button" disabled={busy} onClick={onNewGeneralResume}>New general resume</button><button className="primary-button" onClick={onNewResume}>New tailored resume</button></div></div>}
     </section>
     <div className="metric-grid">
       <article className="metric-card accent"><span>Profile readiness</span><strong>{completion}%</strong><div className="progress"><i style={{ width: `${completion}%` }} /></div><button onClick={() => onOpen("profile")}>Complete profile →</button></article>

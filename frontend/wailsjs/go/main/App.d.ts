@@ -122,4 +122,6 @@ export function SaveResumeVersionEdit(arg1:domain.SaveResumeVersionEditInput):Pr
 
 export function SelectResumeTemplate(arg1:string):Promise<domain.ResumeTemplate>;
 
+export function UpdateApplicationDetails(arg1:domain.UpdateApplicationDetailsInput):Promise<domain.Application>;
+
 export function UpdateApplicationStatus(arg1:domain.UpdateApplicationStatusInput):Promise<domain.Application>;

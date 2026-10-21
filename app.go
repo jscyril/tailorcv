@@ -542,6 +542,15 @@ func (a *App) UpdateApplicationStatus(input domain.UpdateApplicationStatusInput)
 	return a.store.UpdateApplicationStatus(a.appContext(), input)
 }
 
+// UpdateApplicationDetails saves the applied date, follow-up date, job
+// posting link, and notes of an application.
+func (a *App) UpdateApplicationDetails(input domain.UpdateApplicationDetailsInput) (domain.Application, error) {
+	if err := a.ready(); err != nil {
+		return domain.Application{}, err
+	}
+	return a.store.UpdateApplicationDetails(a.appContext(), input)
+}
+
 // CreateResumeVersion renders only explicitly selected evidence and appends an
 // immutable source snapshot to the application associated with the saved job.
 func (a *App) CreateResumeVersion(input domain.CreateResumeVersionInput) (domain.ApplicationResumeResult, error) {

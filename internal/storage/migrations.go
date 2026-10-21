@@ -302,6 +302,31 @@ var migrations = []migration{
 			`CREATE INDEX applications_updated_at_idx ON applications(updated_at DESC)`,
 		},
 	},
+	{
+		// Application tracking: more statuses, applied and follow-up dates,
+		// the job posting link, and free-form notes.
+		version:        16,
+		rebuildsTables: true,
+		statements: []string{
+			`CREATE TABLE applications_new (
+				id TEXT PRIMARY KEY,
+				job_id TEXT REFERENCES jobs(id) ON DELETE CASCADE,
+				name TEXT NOT NULL DEFAULT '',
+				status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted', 'interviewing', 'offer', 'rejected', 'archived')),
+				applied_on TEXT NOT NULL DEFAULT '',
+				follow_up_on TEXT NOT NULL DEFAULT '',
+				posting_url TEXT NOT NULL DEFAULT '',
+				notes TEXT NOT NULL DEFAULT '',
+				created_at TEXT NOT NULL,
+				updated_at TEXT NOT NULL
+			)`,
+			`INSERT INTO applications_new(id, job_id, name, status, created_at, updated_at) SELECT id, job_id, name, status, created_at, updated_at FROM applications`,
+			`DROP TABLE applications`,
+			`ALTER TABLE applications_new RENAME TO applications`,
+			`CREATE UNIQUE INDEX applications_job_idx ON applications(job_id) WHERE job_id IS NOT NULL`,
+			`CREATE INDEX applications_updated_at_idx ON applications(updated_at DESC)`,
+		},
+	},
 }
 
 func (s *Store) applyMigrations(ctx context.Context) error {

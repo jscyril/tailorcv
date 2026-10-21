@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
@@ -14,7 +14,7 @@ const bindings = vi.hoisted(() => ({
   ImportResumeTemplate: vi.fn(), ListAchievements: vi.fn(), ListAIRuns: vi.fn(), ListApplications: vi.fn(), ListCertifications: vi.fn(), ListEducations: vi.fn(),
   ListExperiences: vi.fn(), ListJobs: vi.fn(), ListProjects: vi.fn(), ListResumeTemplates: vi.fn(), OpenResumeVersion: vi.fn(), RenderResumeTemplate: vi.fn(), SaveAchievement: vi.fn(),
   SaveAISettings: vi.fn(), SaveCertification: vi.fn(), SaveEducation: vi.fn(), SaveExperience: vi.fn(), SaveGeminiAPIKey: vi.fn(), SaveProfile: vi.fn(),
-  SaveProject: vi.fn(), SaveResumeTemplate: vi.fn(), SaveResumeVersionEdit: vi.fn(), SelectResumeTemplate: vi.fn(), UpdateApplicationStatus: vi.fn(),
+  SaveProject: vi.fn(), SaveResumeTemplate: vi.fn(), SaveResumeVersionEdit: vi.fn(), SelectResumeTemplate: vi.fn(), UpdateApplicationStatus: vi.fn(), UpdateApplicationDetails: vi.fn(),
   ListAutomaticBackups: vi.fn(), RestoreAutomaticBackup: vi.fn(), GetLatexDraft: vi.fn(), SaveLatexDraft: vi.fn(), ClearLatexDraft: vi.fn(),
 }));
 
@@ -254,6 +254,43 @@ describe("App Wails workflow integration", () => {
     expect(screen.getByRole("button", { name: /^Job match/ }).getAttribute("aria-current")).toBe("page");
     expect((screen.getByLabelText("Job description") as HTMLTextAreaElement).value).toBe("");
     confirm.mockRestore();
+  });
+
+  it("tracks applications on Home and filters them by search and status", async () => {
+    const tailored = { id: "application-1", jobId: job.id, name: "", status: "submitted", followUpOn: "2020-01-01", selectedFactIds: [fact.id], versions: [version], createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-02T00:00:00Z" };
+    const general = { id: "application-2", jobId: "", name: "General resume", status: "draft", selectedFactIds: [], versions: [{ ...version, id: "version-g1", applicationId: "application-2" }], createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" };
+    bindings.ListJobs.mockResolvedValue([job]);
+    bindings.ListApplications.mockResolvedValue([tailored, general]);
+    bindings.UpdateApplicationStatus.mockImplementation(async ({ status }) => ({ ...tailored, status }));
+    bindings.UpdateApplicationDetails.mockImplementation(async (input) => ({ ...tailored, ...input }));
+
+    const user = userEvent.setup();
+    render(<App />);
+    const title = "Senior Platform Engineer at Fictional Cloud";
+    expect(await screen.findByText(title)).toBeTruthy();
+    // A past follow-up date on an open application is flagged.
+    expect(screen.getByText("Follow-up due")).toBeTruthy();
+
+    // Search matches company names; the status filter narrows further.
+    await user.type(screen.getByLabelText("Search resumes"), "fictional");
+    expect(screen.queryByText("General resume")).toBeNull();
+    await user.selectOptions(screen.getByLabelText("Filter by status"), "draft");
+    expect(screen.getByText("No resumes match.", { exact: false })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(screen.getByText("General resume")).toBeTruthy();
+
+    // Move the application forward and save its tracking details.
+    const tracker = screen.getByRole("form", { name: `Tracking for ${title}` });
+    await user.click(screen.getAllByText("Track application")[0]);
+    await user.click(within(tracker).getByRole("button", { name: "Interviewing" }));
+    await waitFor(() => expect(bindings.UpdateApplicationStatus).toHaveBeenCalledWith({ applicationId: tailored.id, status: "interviewing" }));
+    const save = within(tracker).getByRole("button", { name: "Save tracking" }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    await user.type(within(tracker).getByLabelText("Job posting link"), "https://jobs.example.com/1");
+    await user.type(within(tracker).getByLabelText("Notes"), "Recruiter: Sam");
+    await user.click(save);
+    await waitFor(() => expect(bindings.UpdateApplicationDetails).toHaveBeenCalledWith({ applicationId: tailored.id, appliedOn: "", followUpOn: "2020-01-01", postingUrl: "https://jobs.example.com/1", notes: "Recruiter: Sam" }));
+    expect(await screen.findByText("Application tracking saved.")).toBeTruthy();
   });
 
   it("compares two saved versions of a resume on Home", async () => {

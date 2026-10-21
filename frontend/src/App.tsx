@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { AcceptAITailoring, AnalyzeJobDescription, CancelAITailoring, CheckGemini, CheckOllama, ClearLatexDraft, CompileLatex, CompileResumeVersion, CreateResume, CreateResumeVersion, DeleteAchievement, DeleteCertification, DeleteEducation, DeleteExperience, DeleteGeminiAPIKey, DeleteJob, DeleteProject, DeleteResume, DeleteResumeTemplate, DuplicateResume, ExportCompiledPDF, ExportLatexSource, ExportProfileBackup, GenerateAITailoring, GenerateProjectReadmeBullets, GetAISettings, GetGeminiCredentialStatus, GetLatexDraft, GetProfile, GetSelectedResumeTemplateID, ImportGitHubProject, ImportGitHubProjects, ImportProfileBackup, ImportResumeTemplate, ListAIRuns, ListAchievements, ListApplications, ListCertifications, ListEducations, ListExperiences, ListJobs, ListProjects, ListResumeTemplates, OpenResumeVersion, RenameResume, RenderResumeTemplate, RestoreAutomaticBackup, SaveAISettings, SaveAchievement, SaveCertification, SaveEducation, SaveExperience, SaveGeminiAPIKey, SaveLatexDraft, SaveProfile, SaveProject, SaveResumeTemplate, SaveResumeVersionEdit, SelectResumeTemplate, UpdateApplicationStatus } from "../wailsjs/go/main/App";
+import { AcceptAITailoring, AnalyzeJobDescription, CancelAITailoring, CheckGemini, CheckOllama, ClearLatexDraft, CompileLatex, CompileResumeVersion, CreateResume, CreateResumeVersion, DeleteAchievement, DeleteCertification, DeleteEducation, DeleteExperience, DeleteGeminiAPIKey, DeleteJob, DeleteProject, DeleteResume, DeleteResumeTemplate, DuplicateResume, ExportCompiledPDF, ExportLatexSource, ExportProfileBackup, GenerateAITailoring, GenerateProjectReadmeBullets, GetAISettings, GetGeminiCredentialStatus, GetLatexDraft, GetProfile, GetSelectedResumeTemplateID, ImportGitHubProject, ImportGitHubProjects, ImportProfileBackup, ImportResumeTemplate, ListAIRuns, ListAchievements, ListApplications, ListCertifications, ListEducations, ListExperiences, ListJobs, ListProjects, ListResumeTemplates, OpenResumeVersion, RenameResume, RenderResumeTemplate, RestoreAutomaticBackup, SaveAISettings, SaveAchievement, SaveCertification, SaveEducation, SaveExperience, SaveGeminiAPIKey, SaveLatexDraft, SaveProfile, SaveProject, SaveResumeTemplate, SaveResumeVersionEdit, SelectResumeTemplate, UpdateApplicationDetails, UpdateApplicationStatus } from "../wailsjs/go/main/App";
 import { domain } from "../wailsjs/go/models";
 import { Achievement, AchievementDraft, Certification, CertificationDraft, achievementToDraft, certificationToDraft, toAchievementInput, toCertificationInput } from "./lib/credentials";
 import { Education, EducationDraft, educationToDraft, newEducationDraft, toEducationInput } from "./lib/education";
@@ -15,6 +15,7 @@ import { DataWorkspace } from "./features/data/DataWorkspace";
 import { LatexWorkspace } from "./features/editor/LatexWorkspace";
 import { ExperienceSection } from "./features/experience/ExperienceSection";
 import { WorkspaceOverview } from "./features/home/Home";
+import { type ApplicationDetails } from "./features/applications/ApplicationTracker";
 import { JobTailor } from "./features/jobs/JobTailor";
 import { Onboarding } from "./features/onboarding/Onboarding";
 import { ResumePreview } from "./features/preview/ResumePreview";
@@ -270,17 +271,34 @@ export default function App() {
     }
   };
 
-  const updateApplicationStatus = async (status: ApplicationStatus) => {
-    if (!currentApplication || currentApplication.status === status) return;
+  const updateApplicationStatus = async (status: ApplicationStatus, target = currentApplication) => {
+    if (!target || target.status === status) return;
     setApplicationStatusBusy(true);
     setError("");
     setMessage("");
     try {
-      const updated = await UpdateApplicationStatus({ applicationId: currentApplication.id, status });
-      setApplications((current) => current.map((application) => application.id === currentApplication.id ? updated as unknown as Application : application));
+      const updated = await UpdateApplicationStatus({ applicationId: target.id, status });
+      setApplications((current) => current.map((application) => application.id === target.id ? updated as unknown as Application : application));
       setMessage(`Application marked ${status}.`);
     } catch (reason) {
       setError(errorMessage(reason));
+    } finally {
+      setApplicationStatusBusy(false);
+    }
+  };
+
+  const saveApplicationDetails = async (target: Application, details: ApplicationDetails) => {
+    setApplicationStatusBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const updated = await UpdateApplicationDetails({ applicationId: target.id, ...details });
+      setApplications((current) => current.map((application) => application.id === target.id ? updated as unknown as Application : application));
+      setMessage("Application tracking saved.");
+      return true;
+    } catch (reason) {
+      setError(errorMessage(reason));
+      return false;
     } finally {
       setApplicationStatusBusy(false);
     }
@@ -1103,7 +1121,7 @@ export default function App() {
           {message && <div className="notice success" role="status">{message}<button aria-label="Dismiss message" onClick={() => setMessage("")}>×</button></div>}
 
           <div className="editor-pane">
-            {view === "overview" && <WorkspaceOverview profile={profile} completion={completion} experiences={experiences} projects={projects} applications={applications} jobs={jobs} busy={versionBusy} onOpen={setView} onNewResume={() => { newJob(); setView("job"); }} onNewGeneralResume={createGeneralResume} onOpenJob={(job) => { openJob(job); setView("job"); }} onOpenVersion={openResumeVersion} onRename={renameResume} onDuplicate={duplicateResume} onDelete={deleteResume} />}
+            {view === "overview" && <WorkspaceOverview profile={profile} completion={completion} experiences={experiences} projects={projects} applications={applications} jobs={jobs} busy={versionBusy} onOpen={setView} onNewResume={() => { newJob(); setView("job"); }} onNewGeneralResume={createGeneralResume} onOpenJob={(job) => { openJob(job); setView("job"); }} onOpenVersion={openResumeVersion} onRename={renameResume} onDuplicate={duplicateResume} onDelete={deleteResume} statusBusy={applicationStatusBusy} onStatusChange={updateApplicationStatus} onSaveDetails={saveApplicationDetails} />}
             {view === "profile" && <ProfileWorkspace profile={profile} busy={busy} message={message} onChange={updateProfile} onSubmit={saveProfile} />}
             {view === "experience" && <section className="workspace-panel scroll-panel"><PanelHeader eyebrow="Career evidence" title="Experience" description="Keep every claim factual, ordered, and reviewable." action={<button className="secondary-button" onClick={addExperience}>Add role</button>} /><ExperienceSection experiences={experiences} busyKey={experienceBusyKey} onAdd={addExperience} onUpdate={updateExperience} onSave={saveExperience} onDelete={deleteExperience} /></section>}
             {view === "projects" && <ProjectWorkspace projects={projects} selectedKeys={selectedProjectKeys} busyKey={projectBusyKey} readmeBusyKey={projectReadmeBusyKey} aiReady={Boolean(aiProviderStatus?.available && (aiProvider === "ollama" ? ollamaModel : geminiModel))} githubUsername={profile.githubUsername} githubBusy={githubBusy} onToggle={toggleProject} onAdd={addProject} onUpdate={updateProject} onSave={saveProject} onDelete={deleteProject} onGenerateReadmeBullets={generateProjectReadmeBullets} onImportGitHubProject={importGitHubProject} onSyncGitHub={syncGitHubProjects} onOpenProfile={() => setView("profile")} />}

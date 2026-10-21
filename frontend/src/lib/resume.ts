@@ -28,6 +28,10 @@ export type Application = {
   jobId: string;
   name: string;
   status: ApplicationStatus;
+  appliedOn?: string;
+  followUpOn?: string;
+  postingUrl?: string;
+  notes?: string;
   selectedFactIds: string[];
   versions: ResumeVersion[];
   createdAt: string;
