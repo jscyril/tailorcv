@@ -109,6 +109,36 @@ These are already named or implied by `PLAN.md`, but are not implemented in the 
 - [ ] Select a license and contribution policy before the first public source release.
 - [ ] Add signed release artifacts and updater support only after manual installation is stable.
 
+## Daily-use roadmap
+
+In priority order. Reliability comes first because losing data in a daily tool is the worst failure.
+
+### Reliability
+
+- [x] Automatic local backups: daily, keep the last few, restorable from Backup & restore. Today a backup happens only when exported by hand.
+- [x] Unsaved-changes protection: warn before leaving the LaTeX editor with unsaved edits, and keep a draft so a crash does not lose work.
+- [x] Keep CI off the rate-limited TeX server: a weekly scheduled run on `main` keeps the Tectonic resource cache alive (GitHub drops caches unused for 7 days); packaging still retries on HTTP 429.
+- [ ] If cache misses still cause failures, host the curated Tectonic resource bundle as a release asset instead.
+
+### Applying
+
+- [ ] Application tracker: applied date, job posting link, notes, follow-up date, and more statuses (interviewing, offer, rejected) beyond draft/submitted/archived.
+- [ ] Search and filters on Home by company, role, and status.
+- [ ] Keyword coverage: show which job-description skills appear in the final resume and which are missing, reusing the existing requirement extraction.
+- [ ] One-page warning when the compiled PDF runs past one page.
+- [ ] Copy a resume as plain text for job sites that require pasting.
+
+### Writing help
+
+- [ ] Cover letters per job, drafted from the selected evidence with the same citation and validation guarantees, exported beside the resume.
+- [ ] Form-based editing of a single saved resume (reword, hide, reorder sections) without LaTeX. Requires storing resume content as structured data.
+- [ ] Saved answers to common application questions, reusable and adaptable per job.
+
+### Later
+
+- [ ] Insights: applications per week, response rate, and which resume versions led to interviews.
+- [ ] Best-effort job description import from a URL (many job sites, including LinkedIn, block this).
+
 ## Definition of done for each checked item
 
 - Implementation is complete at the Go/domain/storage/frontend layers that the item affects.

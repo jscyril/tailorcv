@@ -12,6 +12,8 @@ export function CheckGemini():Promise<domain.AIProviderStatus>;
 
 export function CheckOllama(arg1:string):Promise<domain.AIProviderStatus>;
 
+export function ClearLatexDraft():Promise<void>;
+
 export function CompileLatex(arg1:string):Promise<domain.CompileResult>;
 
 export function CompileResumeVersion(arg1:string):Promise<domain.CompileResult>;
@@ -54,6 +56,8 @@ export function GetAISettings():Promise<domain.AISettings>;
 
 export function GetGeminiCredentialStatus():Promise<domain.CredentialStatus>;
 
+export function GetLatexDraft():Promise<domain.LatexDraft>;
+
 export function GetProfile():Promise<domain.Profile>;
 
 export function GetSelectedResumeTemplateID():Promise<string>;
@@ -71,6 +75,8 @@ export function ListAIRuns():Promise<Array<domain.AIRun>>;
 export function ListAchievements():Promise<Array<domain.Achievement>>;
 
 export function ListApplications():Promise<Array<domain.Application>>;
+
+export function ListAutomaticBackups():Promise<Array<domain.AutomaticBackup>>;
 
 export function ListCertifications():Promise<Array<domain.Certification>>;
 
@@ -90,6 +96,8 @@ export function RenameResume(arg1:domain.RenameResumeInput):Promise<domain.Appli
 
 export function RenderResumeTemplate(arg1:string,arg2:Array<string>):Promise<string>;
 
+export function RestoreAutomaticBackup(arg1:string):Promise<domain.BackupResult>;
+
 export function SaveAISettings(arg1:domain.AISettings):Promise<domain.AISettings>;
 
 export function SaveAchievement(arg1:domain.AchievementInput):Promise<domain.Achievement>;
@@ -101,6 +109,8 @@ export function SaveEducation(arg1:domain.EducationInput):Promise<domain.Educati
 export function SaveExperience(arg1:domain.ExperienceInput):Promise<domain.Experience>;
 
 export function SaveGeminiAPIKey(arg1:string):Promise<domain.CredentialStatus>;
+
+export function SaveLatexDraft(arg1:string,arg2:string):Promise<void>;
 
 export function SaveProfile(arg1:domain.ProfileInput):Promise<domain.Profile>;
 

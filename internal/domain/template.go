@@ -83,3 +83,11 @@ type FileResult struct {
 	Path      string `json:"path"`
 	Cancelled bool   `json:"cancelled"`
 }
+
+// LatexDraft is unsaved editor text kept so a crash or close does not lose it.
+// VersionID names the saved version it was edited from, if any.
+type LatexDraft struct {
+	Source    string `json:"source"`
+	VersionID string `json:"versionId"`
+	SavedAt   string `json:"savedAt"`
+}

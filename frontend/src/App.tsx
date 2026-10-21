@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { AcceptAITailoring, AnalyzeJobDescription, CancelAITailoring, CheckGemini, CheckOllama, CompileLatex, CompileResumeVersion, CreateResume, CreateResumeVersion, DeleteAchievement, DeleteCertification, DeleteEducation, DeleteExperience, DeleteGeminiAPIKey, DeleteJob, DeleteProject, DeleteResume, DeleteResumeTemplate, DuplicateResume, ExportCompiledPDF, ExportLatexSource, ExportProfileBackup, GenerateAITailoring, GenerateProjectReadmeBullets, GetAISettings, GetGeminiCredentialStatus, GetProfile, GetSelectedResumeTemplateID, ImportGitHubProject, ImportGitHubProjects, ImportProfileBackup, ImportResumeTemplate, ListAIRuns, ListAchievements, ListApplications, ListCertifications, ListEducations, ListExperiences, ListJobs, ListProjects, ListResumeTemplates, OpenResumeVersion, RenameResume, RenderResumeTemplate, SaveAISettings, SaveAchievement, SaveCertification, SaveEducation, SaveExperience, SaveGeminiAPIKey, SaveProfile, SaveProject, SaveResumeTemplate, SaveResumeVersionEdit, SelectResumeTemplate, UpdateApplicationStatus } from "../wailsjs/go/main/App";
+import { AcceptAITailoring, AnalyzeJobDescription, CancelAITailoring, CheckGemini, CheckOllama, ClearLatexDraft, CompileLatex, CompileResumeVersion, CreateResume, CreateResumeVersion, DeleteAchievement, DeleteCertification, DeleteEducation, DeleteExperience, DeleteGeminiAPIKey, DeleteJob, DeleteProject, DeleteResume, DeleteResumeTemplate, DuplicateResume, ExportCompiledPDF, ExportLatexSource, ExportProfileBackup, GenerateAITailoring, GenerateProjectReadmeBullets, GetAISettings, GetGeminiCredentialStatus, GetLatexDraft, GetProfile, GetSelectedResumeTemplateID, ImportGitHubProject, ImportGitHubProjects, ImportProfileBackup, ImportResumeTemplate, ListAIRuns, ListAchievements, ListApplications, ListCertifications, ListEducations, ListExperiences, ListJobs, ListProjects, ListResumeTemplates, OpenResumeVersion, RenameResume, RenderResumeTemplate, RestoreAutomaticBackup, SaveAISettings, SaveAchievement, SaveCertification, SaveEducation, SaveExperience, SaveGeminiAPIKey, SaveLatexDraft, SaveProfile, SaveProject, SaveResumeTemplate, SaveResumeVersionEdit, SelectResumeTemplate, UpdateApplicationStatus } from "../wailsjs/go/main/App";
 import { domain } from "../wailsjs/go/models";
 import { Achievement, AchievementDraft, Certification, CertificationDraft, achievementToDraft, certificationToDraft, toAchievementInput, toCertificationInput } from "./lib/credentials";
 import { Education, EducationDraft, educationToDraft, newEducationDraft, toEducationInput } from "./lib/education";
@@ -87,7 +87,9 @@ export default function App() {
   const [compileBusy, setCompileBusy] = useState(false);
   const [versionBusy, setVersionBusy] = useState(false);
   const [openVersionID, setOpenVersionID] = useState("");
-  const [savedVersionSource, setSavedVersionSource] = useState("");
+  // The editor text as last loaded or saved; anything else is unsaved.
+  const [latexBaseline, setLatexBaseline] = useState("");
+  const [recoveredDraft, setRecoveredDraft] = useState<domain.LatexDraft | null>(null);
   const [compileResult, setCompileResult] = useState<domain.CompileResult | null>(null);
   const compileRequestRef = useRef(0);
   const compileTimerRef = useRef<number | undefined>(undefined);
@@ -137,9 +139,26 @@ export default function App() {
     const rendered = await RenderResumeTemplate(savedTemplateID, selectedKeys.filter((key) => !key.startsWith("new-project-")));
     setLatexSource(rendered);
     setOpenVersionID("");
-    setSavedVersionSource("");
+    setLatexBaseline(rendered);
     setCompileResult(null);
   };
+
+  const latexDirty = latexSource !== latexBaseline;
+  const confirmDiscardLatex = () => !latexDirty || window.confirm("You have unsaved LaTeX changes. Discard them?");
+
+  useEffect(() => {
+    GetLatexDraft().then((draft) => { if (draft.source) setRecoveredDraft(draft); }).catch((reason) => setError(errorMessage(reason)));
+  }, []);
+
+  // Keep unsaved edits in the database so a crash or close does not lose them.
+  // Waits for startup and for the user's decision on a recovered draft.
+  useEffect(() => {
+    if (busy || recoveredDraft) return;
+    const timer = window.setTimeout(() => {
+      (latexDirty ? SaveLatexDraft(latexSource, openVersionID) : ClearLatexDraft()).catch((reason) => console.error("LaTeX draft:", reason));
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [busy, recoveredDraft, latexDirty, latexSource, openVersionID]);
 
   useEffect(() => {
     loadWorkspaceData().catch((reason) => setError(errorMessage(reason))).finally(() => setBusy(false));
@@ -231,6 +250,7 @@ export default function App() {
   };
 
   const createResumeVersion = async () => {
+    if (!confirmDiscardLatex()) return;
     setVersionBusy(true);
     setError("");
     setMessage("");
@@ -240,7 +260,7 @@ export default function App() {
       setApplications((await ListApplications()) as unknown as Application[]);
       setLatexSource(version.latexSource);
       setOpenVersionID(version.id);
-      setSavedVersionSource(version.latexSource);
+      setLatexBaseline(version.latexSource);
       setCompileResult(null);
       setMessage(`Resume version ${version.versionNumber} saved from ${selectedFactIDs.length} selected facts.`);
     } catch (reason) {
@@ -266,7 +286,9 @@ export default function App() {
     }
   };
 
-  const openResumeVersion = async (version: ResumeVersion) => {
+  // checkUnsaved is false when the caller just saved the editor text itself.
+  const openResumeVersion = async (version: ResumeVersion, checkUnsaved = true) => {
+    if (checkUnsaved && !confirmDiscardLatex()) return;
     setError("");
     setCompileResult(null);
     try {
@@ -274,7 +296,7 @@ export default function App() {
       const opened = workspace.version as unknown as ResumeVersion;
       setLatexSource(opened.latexSource);
       setOpenVersionID(opened.id);
-      setSavedVersionSource(opened.latexSource);
+      setLatexBaseline(opened.latexSource);
       setCompileResult(opened.compiledAt && (!opened.compileSuccess || opened.pdfAvailable) ? workspace.compileResult : null);
       skipNextAutomaticCompileRef.current = true;
       setView("latex");
@@ -298,7 +320,7 @@ export default function App() {
       const saved = await SaveResumeVersionEdit({ applicationId: application.id, baseVersionId: openVersionID, latexSource });
       const version = saved as unknown as ResumeVersion;
       setOpenVersionID(version.id);
-      setSavedVersionSource(version.latexSource);
+      setLatexBaseline(version.latexSource);
       setApplications((await ListApplications()) as unknown as Application[]);
       setMessage(`Saved edited source as immutable version ${version.versionNumber}.`);
     } catch (reason) {
@@ -316,7 +338,7 @@ export default function App() {
     try {
       const result = await CreateResume({ name, templateId: selectedTemplateID, latexSource: source });
       await refreshApplications();
-      await openResumeVersion(result.version as unknown as ResumeVersion);
+      await openResumeVersion(result.version as unknown as ResumeVersion, false);
       setMessage(`Saved "${result.application.name}" as version 1.`);
     } catch (reason) {
       setError(errorMessage(reason));
@@ -326,6 +348,7 @@ export default function App() {
   };
 
   const createGeneralResume = async () => {
+    if (!confirmDiscardLatex()) return;
     setError("");
     try {
       const rendered = await RenderResumeTemplate(selectedTemplateID, selectedSavedProjectIDs());
@@ -367,7 +390,7 @@ export default function App() {
       setApplications((current) => current.filter((item) => item.id !== application.id));
       if (application.versions.some((version) => version.id === openVersionID)) {
         setOpenVersionID("");
-        setSavedVersionSource("");
+        setLatexBaseline("");
       }
       setMessage(`Deleted "${title}".`);
     } catch (reason) {
@@ -689,7 +712,7 @@ export default function App() {
   };
 
   const acceptAITailoring = async () => {
-    if (!aiRun) return;
+    if (!aiRun || !confirmDiscardLatex()) return;
     setAIBusy("accept");
     setError("");
     setMessage("");
@@ -701,7 +724,7 @@ export default function App() {
       setAIRuns((await ListAIRuns()) as unknown as AIRun[]);
       setLatexSource(version.latexSource);
       setOpenVersionID(version.id);
-      setSavedVersionSource(version.latexSource);
+      setLatexBaseline(version.latexSource);
       setCompileResult(null);
       setAIRun({ ...aiRun, resumeVersionId: version.id, acceptedAt: new Date().toISOString() });
       setView("latex");
@@ -731,7 +754,7 @@ export default function App() {
   };
 
   const importBackup = async () => {
-    if (!window.confirm("Restore a TailorCV backup? Your current profile, experience, projects, and education will be replaced after the selected file passes validation.")) return;
+    if (!window.confirm("Restore a TailorCV backup? Your current data will be replaced after the selected file passes validation. A safety copy of it is saved first, so you can undo this.")) return;
     setBackupBusy("import");
     setError("");
     setMessage("");
@@ -742,6 +765,24 @@ export default function App() {
         setLastBackupResult(result);
         setMessage(`Backup restored from ${result.path}`);
       }
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setBackupBusy("");
+    }
+  };
+
+  const restoreAutomaticBackup = async (backup: domain.AutomaticBackup) => {
+    const when = new Date(backup.createdAt).toLocaleString();
+    if (!window.confirm(`Restore the backup from ${when}? Your current data will be replaced. A safety copy of it is saved first, so you can undo this.`)) return;
+    setBackupBusy("import");
+    setError("");
+    setMessage("");
+    try {
+      const result = await RestoreAutomaticBackup(backup.name);
+      await loadWorkspaceData();
+      setLastBackupResult(result);
+      setMessage(`Restored the backup from ${when}.`);
     } catch (reason) {
       setError(errorMessage(reason));
     } finally {
@@ -790,6 +831,7 @@ export default function App() {
     .filter(Boolean);
 
   const useResumeTemplate = async (templateID: string, openEditor = false) => {
+    if (!confirmDiscardLatex()) return;
     setTemplateBusyKey(templateID);
     setError("");
     setMessage("");
@@ -799,7 +841,7 @@ export default function App() {
       setSelectedTemplateID(templateID);
       setLatexSource(rendered);
       setOpenVersionID("");
-      setSavedVersionSource("");
+      setLatexBaseline(rendered);
       setCompileResult(null);
       setMessage(`${template.name} loaded with your saved resume data.`);
       if (openEditor) setView("latex");
@@ -811,6 +853,7 @@ export default function App() {
   };
 
   const importResumeTemplate = async () => {
+    if (!confirmDiscardLatex()) return;
     setTemplateBusyKey("import");
     setError("");
     setMessage("");
@@ -821,9 +864,10 @@ export default function App() {
       setTemplates(refreshed);
       await SelectResumeTemplate(imported.id);
       setSelectedTemplateID(imported.id);
-      setLatexSource(await RenderResumeTemplate(imported.id, selectedSavedProjectIDs()));
+      const rendered = await RenderResumeTemplate(imported.id, selectedSavedProjectIDs());
+      setLatexSource(rendered);
       setOpenVersionID("");
-      setSavedVersionSource("");
+      setLatexBaseline(rendered);
       setCompileResult(null);
       setMessage(`${imported.name} imported into your local template library.`);
     } catch (reason) {
@@ -868,6 +912,7 @@ export default function App() {
       }));
       await SelectResumeTemplate(saved.id);
       setSelectedTemplateID(saved.id);
+      setLatexBaseline(latexSource);
       setTemplates(await ListResumeTemplates());
       setMessage(active.builtIn ? `${saved.name} created and selected.` : `${saved.name} updated.`);
     } catch (reason) {
@@ -879,6 +924,7 @@ export default function App() {
 
   const deleteResumeTemplate = async (template: domain.ResumeTemplate) => {
     if (template.builtIn || !window.confirm(`Delete the template ${template.name}?`)) return;
+    if (template.id === selectedTemplateID && !confirmDiscardLatex()) return;
     setTemplateBusyKey(template.id);
     setError("");
     setMessage("");
@@ -889,7 +935,10 @@ export default function App() {
       if (selectedTemplateID === template.id) {
         const fallbackID = await GetSelectedResumeTemplateID();
         setSelectedTemplateID(fallbackID);
-        setLatexSource(await RenderResumeTemplate(fallbackID, selectedSavedProjectIDs()));
+        const rendered = await RenderResumeTemplate(fallbackID, selectedSavedProjectIDs());
+        setLatexSource(rendered);
+        setOpenVersionID("");
+        setLatexBaseline(rendered);
         setCompileResult(null);
       }
       setMessage(`${template.name} deleted.`);
@@ -898,6 +947,25 @@ export default function App() {
     } finally {
       setTemplateBusyKey("");
     }
+  };
+
+  const restoreLatexDraft = (draft: domain.LatexDraft) => {
+    const version = applications.flatMap((application) => application.versions).find((item) => item.id === draft.versionId);
+    // Keep the baseline as the version (or current template), so the draft shows as unsaved.
+    if (version) {
+      setOpenVersionID(version.id);
+      setLatexBaseline(version.latexSource);
+    }
+    setLatexSource(draft.source);
+    setCompileResult(null);
+    setRecoveredDraft(null);
+    setView("latex");
+    setMessage("Recovered your unsaved LaTeX edits. Save them to keep them.");
+  };
+
+  const discardLatexDraft = () => {
+    setRecoveredDraft(null);
+    ClearLatexDraft().catch((reason) => setError(errorMessage(reason)));
   };
 
   const updateLatexSource = (source: string) => {
@@ -915,7 +983,7 @@ export default function App() {
       setMessage("");
     }
     try {
-      const persistArtifact = !automatic && openVersionID !== "" && source === savedVersionSource;
+      const persistArtifact = !automatic && openVersionID !== "" && source === latexBaseline;
       const result = persistArtifact ? await CompileResumeVersion(openVersionID) : await CompileLatex(source);
       if (requestID !== compileRequestRef.current) return;
       setCompileResult(result);
@@ -1031,6 +1099,7 @@ export default function App() {
 
         <main className="studio-workspace">
           {error && <div className="notice error" role="alert">{error}<button aria-label="Dismiss error" onClick={() => setError("")}>×</button></div>}
+          {recoveredDraft && <div className="notice draft-recovery" role="alert">Unsaved LaTeX edits from {new Date(recoveredDraft.savedAt).toLocaleString()} were found.<span><button className="primary-button" onClick={() => restoreLatexDraft(recoveredDraft)}>Restore edits</button><button className="secondary-button" onClick={discardLatexDraft}>Discard</button></span></div>}
           {message && <div className="notice success" role="status">{message}<button aria-label="Dismiss message" onClick={() => setMessage("")}>×</button></div>}
 
           <div className="editor-pane">
@@ -1042,10 +1111,10 @@ export default function App() {
             {view === "credentials"&&<CredentialsWorkspace certifications={certifications} achievements={achievements} busyKey={credentialBusyKey} onCertifications={setCertifications} onAchievements={setAchievements} onSaveCertification={saveCertification} onDeleteCertification={deleteCertification} onSaveAchievement={saveAchievement} onDeleteAchievement={deleteAchievement}/>}
             {view === "skills" && <SkillsWorkspace skillsText={skillsText} busy={busy} message={message} onChange={setSkillsText} onSubmit={saveProfile} />}
             {view === "templates" && <TemplatesWorkspace templates={templates} selectedID={selectedTemplateID} busyKey={templateBusyKey} onImport={importResumeTemplate} onUse={(id) => useResumeTemplate(id)} onEdit={(id) => useResumeTemplate(id, true)} onDuplicate={duplicateResumeTemplate} onDelete={deleteResumeTemplate} />}
-            {view === "latex" && <LatexWorkspace source={latexSource} template={activeTemplate} result={compileResult} busy={templateBusyKey !== ""} compiling={compileBusy} versionBusy={versionBusy} hasOpenVersion={openVersionID !== ""} versionDirty={openVersionID !== "" && latexSource !== savedVersionSource} onChange={updateLatexSource} onSave={saveCurrentTemplate} onSaveVersion={saveResumeVersionEdit} onSaveAsResume={() => saveAsNewResume(`${activeTemplate?.name ?? "General"} resume`, latexSource)} onReload={() => useResumeTemplate(selectedTemplateID)} onCompile={compileLatex} onExport={exportLatexSource} />}
+            {view === "latex" && <LatexWorkspace source={latexSource} template={activeTemplate} result={compileResult} busy={templateBusyKey !== ""} compiling={compileBusy} versionBusy={versionBusy} hasOpenVersion={openVersionID !== ""} versionDirty={openVersionID !== "" && latexSource !== latexBaseline} onChange={updateLatexSource} onSave={saveCurrentTemplate} onSaveVersion={saveResumeVersionEdit} onSaveAsResume={() => saveAsNewResume(`${activeTemplate?.name ?? "General"} resume`, latexSource)} onReload={() => useResumeTemplate(selectedTemplateID)} onCompile={compileLatex} onExport={exportLatexSource} />}
             {view === "job" && <JobTailor job={jobDraft} jobs={jobs} application={currentApplication} analysis={analysis} selectedFactIDs={selectedFactIDs} busy={busy} versionBusy={versionBusy} statusBusy={applicationStatusBusy} hasEvidence={hasCareerEvidence} templateName={activeTemplate?.name ?? "Selected template"} onChange={updateJobDraft} onNew={newJob} onOpen={openJob} onDelete={deleteJob} onToggleEvidence={toggleEvidenceFact} onCreateVersion={createResumeVersion} onOpenVersion={openResumeVersion} onStatusChange={updateApplicationStatus} onSubmit={analyzeJob} onProfile={() => setView("skills")} />}
             {view === "ai" && <AIWorkspace provider={aiProvider} endpoint={ollamaEndpoint} status={aiProviderStatus} model={aiProvider === "ollama" ? ollamaModel : geminiModel} credential={geminiCredential} apiKey={geminiAPIKey} run={aiRun} runs={aiRuns} proposals={reviewedProposals} acceptedProposalIDs={acceptedProposalIDs} job={jobDraft} analysis={analysis} selectedFactIDs={selectedFactIDs} templateName={activeTemplate?.name ?? "Selected template"} busy={aiBusy} onProviderChange={changeAIProvider} onEndpointChange={(value) => { setOllamaEndpoint(value); setAIProviderStatus(null); }} onModelChange={changeAIModel} onAPIKeyChange={setGeminiAPIKey} onSaveCredential={saveGeminiCredential} onDeleteCredential={deleteGeminiCredential} onCheck={checkAIProvider} onGenerate={generateAITailoring} onCancel={cancelAITailoring} onProposalChange={updateReviewedProposal} onToggleProposal={toggleAcceptedProposal} onAccept={acceptAITailoring} onOpenJob={() => setView("job")} />}
-            {view === "data" && <DataWorkspace profile={profile} experiences={experiences} projects={projects} educations={educations} jobs={jobs} applications={applications} busy={backupBusy} lastResult={lastBackupResult} onExport={exportBackup} onImport={importBackup} />}
+            {view === "data" && <DataWorkspace profile={profile} experiences={experiences} projects={projects} educations={educations} jobs={jobs} applications={applications} busy={backupBusy} lastResult={lastBackupResult} onExport={exportBackup} onImport={importBackup} onRestoreAutomatic={restoreAutomaticBackup} />}
           </div>
 
           <ResumePreview profile={profile} experiences={experiences} projects={selectedProjects} educations={educations} certifications={certifications} achievements={achievements} compileResult={compileResult} />

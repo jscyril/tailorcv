@@ -35,6 +35,7 @@ func verifyPackagedWorkflow() error {
 	app.ctx = ctx
 	app.store = store
 	app.artifactDirectory = filepath.Join(verificationRoot, "artifacts")
+	app.automaticBackupDirectory = filepath.Join(verificationRoot, "backups")
 	app.github = packagedVerificationGitHubClient{}
 
 	profile, err := app.SaveProfile(domain.ProfileInput{

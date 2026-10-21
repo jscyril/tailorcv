@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/jscyril/tailorcv/internal/ai"
 	"github.com/jscyril/tailorcv/internal/atomicfile"
@@ -47,14 +48,18 @@ type App struct {
 	saveFileDialog    saveFileDialog
 	openFileDialog    openFileDialog
 	artifactDirectory string
-	initErr           error
-	compileMu         sync.RWMutex
-	lastPDF           []byte
-	aiMu              sync.Mutex
-	aiCancel          context.CancelFunc
-	aiGeneration      uint64
-	aiProviderFactory func(string, string) (ai.Provider, error)
-	credentials       credentials.Store
+	// automaticBackupDirectory overrides the default backup folder in tests.
+	automaticBackupDirectory string
+	backupMu                 sync.Mutex
+	stopBackups              context.CancelFunc
+	initErr                  error
+	compileMu                sync.RWMutex
+	lastPDF                  []byte
+	aiMu                     sync.Mutex
+	aiCancel                 context.CancelFunc
+	aiGeneration             uint64
+	aiProviderFactory        func(string, string) (ai.Provider, error)
+	credentials              credentials.Store
 }
 
 func NewApp() *App {
@@ -69,10 +74,20 @@ func (a *App) startup(ctx context.Context) {
 	a.store, a.initErr = storage.OpenDefault()
 	if a.initErr != nil {
 		a.initErr = fmt.Errorf("open local profile store: %w", a.initErr)
+		return
 	}
+	backupCtx, cancel := context.WithCancel(ctx)
+	a.stopBackups = cancel
+	go a.runAutomaticBackups(backupCtx)
 }
 
 func (a *App) shutdown(_ context.Context) {
+	if a.stopBackups != nil {
+		a.stopBackups()
+	}
+	// Wait for a backup in progress before closing the database under it.
+	a.backupMu.Lock()
+	defer a.backupMu.Unlock()
 	if a.store != nil {
 		if err := a.store.Close(); err != nil {
 			fmt.Printf("close local profile store: %v\n", err)
@@ -293,14 +308,7 @@ func (a *App) ImportProfileBackup() (domain.BackupResult, error) {
 	if err != nil {
 		return domain.BackupResult{}, err
 	}
-	backup, err := domain.DecodeProfileBackup(data)
-	if err != nil {
-		return domain.BackupResult{}, err
-	}
-	if err := a.store.ReplaceProfileFromBackup(a.appContext(), backup); err != nil {
-		return domain.BackupResult{}, err
-	}
-	return backup.Result(path), nil
+	return a.restoreBackup(data, path)
 }
 
 // ImportGitHubProjects fetches public repositories owned by the configured
@@ -938,6 +946,32 @@ func (a *App) resumeArtifactPath(versionID string) (string, error) {
 		return "", fmt.Errorf("create resume artifact directory: %w", err)
 	}
 	return filepath.Join(directory, versionID+".pdf"), nil
+}
+
+// GetLatexDraft returns unsaved editor text from a previous session, if any.
+func (a *App) GetLatexDraft() (domain.LatexDraft, error) {
+	if err := a.ready(); err != nil {
+		return domain.LatexDraft{}, err
+	}
+	return a.store.LatexDraft(a.appContext())
+}
+
+// SaveLatexDraft keeps unsaved editor text so a crash or close does not lose it.
+func (a *App) SaveLatexDraft(source, versionID string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	if len(source) == 0 || len(source) > domain.MaxTemplateSourceBytes {
+		return fmt.Errorf("LaTeX draft is empty or exceeds the 1 MiB size limit")
+	}
+	return a.store.SaveLatexDraft(a.appContext(), domain.LatexDraft{Source: source, VersionID: versionID, SavedAt: time.Now().UTC().Format(time.RFC3339)})
+}
+
+func (a *App) ClearLatexDraft() error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return a.store.ClearLatexDraft(a.appContext())
 }
 
 // ExportCompiledPDF saves the last compiled PDF; name suggests the file name.

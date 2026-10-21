@@ -350,6 +350,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .backup-result strong { font-size: 9px; }
 .backup-result p { margin: 0; color: var(--secondary); font-size: 8px; }
 .backup-result small { overflow: hidden; color: var(--muted); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.automatic-backups { grid-column: 1 / -1; padding: 13px 15px; border: 1px solid var(--line-soft); border-radius: 8px; }
+.automatic-backups h2 { margin: 0; font-size: 11px; }
+.automatic-backups p { margin: 4px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.automatic-backups ul { margin: 10px 0 0; padding: 0; list-style: none; }
+.automatic-backups li { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 12px; padding: 7px 0; border-top: 1px solid var(--line-soft); font-size: 11px; }
+.automatic-backups li small { color: var(--muted); font-size: 10px; }
 .backup-safety { grid-column: 1 / -1; padding: 13px 15px; }
 .backup-safety strong { color: var(--secondary); font-size: 8px; }
 .backup-safety p { margin: 4px 0 0; color: var(--muted); font-size: 8px; line-height: 1.5; }
@@ -743,3 +749,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .status-pill.submitted { border-color: var(--accent); color: var(--accent); }
 .status-pill.archived { opacity: .6; }
 @media (max-width: 860px) { .resume-library-row { grid-template-columns: 1fr; } .resume-library-actions { justify-content: flex-start; } }
+/* Bottom-right so it never covers the regular status notice. */
+.notice.draft-recovery { top: auto; bottom: 18px; flex-wrap: wrap; border-color: var(--accent); }
+.notice.draft-recovery span { display: flex; gap: 8px; }
+.notice.draft-recovery .primary-button { border: 1px solid var(--accent); background: var(--accent); color: #11160c; font-size: 11px; }
+.notice.draft-recovery .secondary-button { border: 1px solid var(--line); background: var(--elevated); color: var(--text); font-size: 11px; }
