@@ -117,7 +117,8 @@ In priority order. Reliability comes first because losing data in a daily tool i
 
 - [x] Automatic local backups: daily, keep the last few, restorable from Backup & restore. Today a backup happens only when exported by hand.
 - [x] Unsaved-changes protection: warn before leaving the LaTeX editor with unsaved edits, and keep a draft so a crash does not lose work.
-- [ ] Host the curated Tectonic resource bundle ourselves so CI does not depend on the rate-limited TeX server (GitHub drops unused caches after 7 days).
+- [x] Keep CI off the rate-limited TeX server: a weekly scheduled run on `main` keeps the Tectonic resource cache alive (GitHub drops caches unused for 7 days); packaging still retries on HTTP 429.
+- [ ] If cache misses still cause failures, host the curated Tectonic resource bundle as a release asset instead.
 
 ### Applying
 

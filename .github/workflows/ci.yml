@@ -8,6 +8,10 @@ on:
     branches:
       - main
   workflow_dispatch:
+  # Weekly run keeps the Tectonic resource cache alive (GitHub drops caches
+  # unused for 7 days), so CI rarely hits the rate-limited TeX server.
+  schedule:
+    - cron: "0 6 * * 1"
 
 permissions:
   contents: read
