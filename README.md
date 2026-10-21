@@ -8,7 +8,7 @@ The application is built with Wails, Go, React, TypeScript, SQLite, and Tectonic
 
 TailorCV has a complete deterministic resume-building vertical slice, local compilation, and evidence-constrained Ollama and Gemini tailoring workflows. It currently provides:
 
-- A Wails desktop shell with a React interface.
+- A Wails desktop shell with a React interface whose Home screen lists every resume, general or job-tailored, with open, rename, duplicate, delete, numbered version history, and a line-by-line compare of any two versions.
 - A locally persisted career profile backed by SQLite.
 - Manual experience records with ordered, provenance-aware evidence bullets.
 - Reviewable projects with skills, source links, eligibility, and ordered evidence.
@@ -20,7 +20,7 @@ TailorCV has a complete deterministic resume-building vertical slice, local comp
 - New immutable versions for edited source, with compilation metadata and private per-version PDF artifacts.
 - A dark split workspace with project selection, a CodeMirror LaTeX editor, clickable compiler diagnostics, and a zoomable PDF.js preview.
 - Read-only Jake-style and Classic ATS templates, plus persistent user-imported `.tex` templates.
-- Debounced local Tectonic compilation with structured line diagnostics, isolated untrusted workspaces, resource limits, and native `.tex`/`.pdf` export.
+- Debounced local Tectonic compilation with structured line diagnostics, isolated untrusted workspaces, resource limits, an OS sandbox (Landlock on Linux, `sandbox-exec` on macOS) that keeps LaTeX inside its workspace, and native `.tex`/`.pdf` export with "Name - Company - Role" file names.
 - Versioned JSON backup and atomic restore for all currently supported profile data.
 - Public GitHub repository sync with stable repository identity, visibility, update timestamps, bounded README snapshots, complete language detection, user-controlled language selection, and an explicit review gate before resume eligibility.
 - Clear service boundaries for GitHub import, resume generation, templates, and PDF compilation.
