@@ -380,6 +380,24 @@ export namespace domain {
 		    return a;
 		}
 	}
+	export class AutomaticBackup {
+	    name: string;
+	    kind: string;
+	    createdAt: string;
+	    size: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AutomaticBackup(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.kind = source["kind"];
+	        this.createdAt = source["createdAt"];
+	        this.size = source["size"];
+	    }
+	}
 	export class BackupResult {
 	    path: string;
 	    cancelled: boolean;

@@ -72,6 +72,8 @@ export function ListAchievements():Promise<Array<domain.Achievement>>;
 
 export function ListApplications():Promise<Array<domain.Application>>;
 
+export function ListAutomaticBackups():Promise<Array<domain.AutomaticBackup>>;
+
 export function ListCertifications():Promise<Array<domain.Certification>>;
 
 export function ListEducations():Promise<Array<domain.Education>>;
@@ -89,6 +91,8 @@ export function OpenResumeVersion(arg1:string):Promise<domain.ResumeVersionWorks
 export function RenameResume(arg1:domain.RenameResumeInput):Promise<domain.Application>;
 
 export function RenderResumeTemplate(arg1:string,arg2:Array<string>):Promise<string>;
+
+export function RestoreAutomaticBackup(arg1:string):Promise<domain.BackupResult>;
 
 export function SaveAISettings(arg1:domain.AISettings):Promise<domain.AISettings>;
 

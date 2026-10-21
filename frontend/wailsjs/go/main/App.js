@@ -142,6 +142,10 @@ export function ListApplications() {
   return window['go']['main']['App']['ListApplications']();
 }
 
+export function ListAutomaticBackups() {
+  return window['go']['main']['App']['ListAutomaticBackups']();
+}
+
 export function ListCertifications() {
   return window['go']['main']['App']['ListCertifications']();
 }
@@ -176,6 +180,10 @@ export function RenameResume(arg1) {
 
 export function RenderResumeTemplate(arg1, arg2) {
   return window['go']['main']['App']['RenderResumeTemplate'](arg1, arg2);
+}
+
+export function RestoreAutomaticBackup(arg1) {
+  return window['go']['main']['App']['RestoreAutomaticBackup'](arg1);
 }
 
 export function SaveAISettings(arg1) {

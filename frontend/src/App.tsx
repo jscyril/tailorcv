@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { AcceptAITailoring, AnalyzeJobDescription, CancelAITailoring, CheckGemini, CheckOllama, CompileLatex, CompileResumeVersion, CreateResume, CreateResumeVersion, DeleteAchievement, DeleteCertification, DeleteEducation, DeleteExperience, DeleteGeminiAPIKey, DeleteJob, DeleteProject, DeleteResume, DeleteResumeTemplate, DuplicateResume, ExportCompiledPDF, ExportLatexSource, ExportProfileBackup, GenerateAITailoring, GenerateProjectReadmeBullets, GetAISettings, GetGeminiCredentialStatus, GetProfile, GetSelectedResumeTemplateID, ImportGitHubProject, ImportGitHubProjects, ImportProfileBackup, ImportResumeTemplate, ListAIRuns, ListAchievements, ListApplications, ListCertifications, ListEducations, ListExperiences, ListJobs, ListProjects, ListResumeTemplates, OpenResumeVersion, RenameResume, RenderResumeTemplate, SaveAISettings, SaveAchievement, SaveCertification, SaveEducation, SaveExperience, SaveGeminiAPIKey, SaveProfile, SaveProject, SaveResumeTemplate, SaveResumeVersionEdit, SelectResumeTemplate, UpdateApplicationStatus } from "../wailsjs/go/main/App";
+import { AcceptAITailoring, AnalyzeJobDescription, CancelAITailoring, CheckGemini, CheckOllama, CompileLatex, CompileResumeVersion, CreateResume, CreateResumeVersion, DeleteAchievement, DeleteCertification, DeleteEducation, DeleteExperience, DeleteGeminiAPIKey, DeleteJob, DeleteProject, DeleteResume, DeleteResumeTemplate, DuplicateResume, ExportCompiledPDF, ExportLatexSource, ExportProfileBackup, GenerateAITailoring, GenerateProjectReadmeBullets, GetAISettings, GetGeminiCredentialStatus, GetProfile, GetSelectedResumeTemplateID, ImportGitHubProject, ImportGitHubProjects, ImportProfileBackup, ImportResumeTemplate, ListAIRuns, ListAchievements, ListApplications, ListCertifications, ListEducations, ListExperiences, ListJobs, ListProjects, ListResumeTemplates, OpenResumeVersion, RenameResume, RenderResumeTemplate, RestoreAutomaticBackup, SaveAISettings, SaveAchievement, SaveCertification, SaveEducation, SaveExperience, SaveGeminiAPIKey, SaveProfile, SaveProject, SaveResumeTemplate, SaveResumeVersionEdit, SelectResumeTemplate, UpdateApplicationStatus } from "../wailsjs/go/main/App";
 import { domain } from "../wailsjs/go/models";
 import { Achievement, AchievementDraft, Certification, CertificationDraft, achievementToDraft, certificationToDraft, toAchievementInput, toCertificationInput } from "./lib/credentials";
 import { Education, EducationDraft, educationToDraft, newEducationDraft, toEducationInput } from "./lib/education";
@@ -731,7 +731,7 @@ export default function App() {
   };
 
   const importBackup = async () => {
-    if (!window.confirm("Restore a TailorCV backup? Your current profile, experience, projects, and education will be replaced after the selected file passes validation.")) return;
+    if (!window.confirm("Restore a TailorCV backup? Your current data will be replaced after the selected file passes validation. A safety copy of it is saved first, so you can undo this.")) return;
     setBackupBusy("import");
     setError("");
     setMessage("");
@@ -742,6 +742,24 @@ export default function App() {
         setLastBackupResult(result);
         setMessage(`Backup restored from ${result.path}`);
       }
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setBackupBusy("");
+    }
+  };
+
+  const restoreAutomaticBackup = async (backup: domain.AutomaticBackup) => {
+    const when = new Date(backup.createdAt).toLocaleString();
+    if (!window.confirm(`Restore the backup from ${when}? Your current data will be replaced. A safety copy of it is saved first, so you can undo this.`)) return;
+    setBackupBusy("import");
+    setError("");
+    setMessage("");
+    try {
+      const result = await RestoreAutomaticBackup(backup.name);
+      await loadWorkspaceData();
+      setLastBackupResult(result);
+      setMessage(`Restored the backup from ${when}.`);
     } catch (reason) {
       setError(errorMessage(reason));
     } finally {
@@ -1045,7 +1063,7 @@ export default function App() {
             {view === "latex" && <LatexWorkspace source={latexSource} template={activeTemplate} result={compileResult} busy={templateBusyKey !== ""} compiling={compileBusy} versionBusy={versionBusy} hasOpenVersion={openVersionID !== ""} versionDirty={openVersionID !== "" && latexSource !== savedVersionSource} onChange={updateLatexSource} onSave={saveCurrentTemplate} onSaveVersion={saveResumeVersionEdit} onSaveAsResume={() => saveAsNewResume(`${activeTemplate?.name ?? "General"} resume`, latexSource)} onReload={() => useResumeTemplate(selectedTemplateID)} onCompile={compileLatex} onExport={exportLatexSource} />}
             {view === "job" && <JobTailor job={jobDraft} jobs={jobs} application={currentApplication} analysis={analysis} selectedFactIDs={selectedFactIDs} busy={busy} versionBusy={versionBusy} statusBusy={applicationStatusBusy} hasEvidence={hasCareerEvidence} templateName={activeTemplate?.name ?? "Selected template"} onChange={updateJobDraft} onNew={newJob} onOpen={openJob} onDelete={deleteJob} onToggleEvidence={toggleEvidenceFact} onCreateVersion={createResumeVersion} onOpenVersion={openResumeVersion} onStatusChange={updateApplicationStatus} onSubmit={analyzeJob} onProfile={() => setView("skills")} />}
             {view === "ai" && <AIWorkspace provider={aiProvider} endpoint={ollamaEndpoint} status={aiProviderStatus} model={aiProvider === "ollama" ? ollamaModel : geminiModel} credential={geminiCredential} apiKey={geminiAPIKey} run={aiRun} runs={aiRuns} proposals={reviewedProposals} acceptedProposalIDs={acceptedProposalIDs} job={jobDraft} analysis={analysis} selectedFactIDs={selectedFactIDs} templateName={activeTemplate?.name ?? "Selected template"} busy={aiBusy} onProviderChange={changeAIProvider} onEndpointChange={(value) => { setOllamaEndpoint(value); setAIProviderStatus(null); }} onModelChange={changeAIModel} onAPIKeyChange={setGeminiAPIKey} onSaveCredential={saveGeminiCredential} onDeleteCredential={deleteGeminiCredential} onCheck={checkAIProvider} onGenerate={generateAITailoring} onCancel={cancelAITailoring} onProposalChange={updateReviewedProposal} onToggleProposal={toggleAcceptedProposal} onAccept={acceptAITailoring} onOpenJob={() => setView("job")} />}
-            {view === "data" && <DataWorkspace profile={profile} experiences={experiences} projects={projects} educations={educations} jobs={jobs} applications={applications} busy={backupBusy} lastResult={lastBackupResult} onExport={exportBackup} onImport={importBackup} />}
+            {view === "data" && <DataWorkspace profile={profile} experiences={experiences} projects={projects} educations={educations} jobs={jobs} applications={applications} busy={backupBusy} lastResult={lastBackupResult} onExport={exportBackup} onImport={importBackup} onRestoreAutomatic={restoreAutomaticBackup} />}
           </div>
 
           <ResumePreview profile={profile} experiences={experiences} projects={selectedProjects} educations={educations} certifications={certifications} achievements={achievements} compileResult={compileResult} />

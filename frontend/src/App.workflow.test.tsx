@@ -15,6 +15,7 @@ const bindings = vi.hoisted(() => ({
   ListExperiences: vi.fn(), ListJobs: vi.fn(), ListProjects: vi.fn(), ListResumeTemplates: vi.fn(), OpenResumeVersion: vi.fn(), RenderResumeTemplate: vi.fn(), SaveAchievement: vi.fn(),
   SaveAISettings: vi.fn(), SaveCertification: vi.fn(), SaveEducation: vi.fn(), SaveExperience: vi.fn(), SaveGeminiAPIKey: vi.fn(), SaveProfile: vi.fn(),
   SaveProject: vi.fn(), SaveResumeTemplate: vi.fn(), SaveResumeVersionEdit: vi.fn(), SelectResumeTemplate: vi.fn(), UpdateApplicationStatus: vi.fn(),
+  ListAutomaticBackups: vi.fn(), RestoreAutomaticBackup: vi.fn(),
 }));
 
 vi.mock("../wailsjs/go/main/App", () => bindings);
@@ -69,6 +70,7 @@ beforeEach(() => {
   bindings.ListJobs.mockResolvedValue([]);
   bindings.ListApplications.mockResolvedValue([]);
   bindings.ListAIRuns.mockResolvedValue([]);
+  bindings.ListAutomaticBackups.mockResolvedValue([]);
   bindings.GetAISettings.mockResolvedValue({ provider: "ollama", ollamaEndpoint: "http://127.0.0.1:11434", ollamaModel: "", geminiModel: "" });
   bindings.GetGeminiCredentialStatus.mockResolvedValue({ configured: false, message: "Gemini API key is not configured." });
   bindings.RenderResumeTemplate.mockResolvedValue("\\documentclass{article}\\begin{document}Preview\\end{document}");
@@ -314,6 +316,27 @@ describe("App Wails workflow integration", () => {
     await waitFor(() => expect(bindings.ImportProfileBackup).toHaveBeenCalledOnce());
     expect(await screen.findByText("Backup restored from /tmp/tailorcv-profile-backup.json")).toBeTruthy();
     expect(bindings.GetProfile).toHaveBeenCalledTimes(2);
+  });
+
+  it("lists automatic backups and restores one after confirmation", async () => {
+    const daily = { name: "tailorcv-daily-2026-10-20.json", kind: "daily", createdAt: "2026-10-20T09:00:00Z", size: 4096 };
+    bindings.ListAutomaticBackups.mockResolvedValue([daily]);
+    bindings.RestoreAutomaticBackup.mockResolvedValue({ path: "/backups/" + daily.name, cancelled: false, certificationCount: 0, achievementCount: 0, resumeVersionCount: 0 });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValue(true);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Backup & restore" }));
+    const restore = await screen.findByRole("button", { name: /^Restore Daily backup/ });
+    expect(screen.getByText("4 KB")).toBeTruthy();
+
+    await user.click(restore);
+    expect(bindings.RestoreAutomaticBackup).not.toHaveBeenCalled();
+    await user.click(restore);
+    await waitFor(() => expect(bindings.RestoreAutomaticBackup).toHaveBeenCalledWith(daily.name));
+    expect(await screen.findByText(/^Restored the backup from/)).toBeTruthy();
+    expect(confirm.mock.calls[1][0]).toContain("safety copy");
+    await waitFor(() => expect(bindings.ListAutomaticBackups).toHaveBeenCalledTimes(2));
   });
 
   it("creates the first local profile through onboarding", async () => {

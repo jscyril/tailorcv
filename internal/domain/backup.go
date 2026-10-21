@@ -429,3 +429,12 @@ func validateBackupSelection(jobID, templateID string, selected []string, genera
 	validated.JobID = ""
 	return validated, err
 }
+
+// AutomaticBackup is a backup TailorCV wrote on its own: a daily snapshot or
+// a safety copy taken just before a restore.
+type AutomaticBackup struct {
+	Name      string `json:"name"`
+	Kind      string `json:"kind"`
+	CreatedAt string `json:"createdAt"`
+	Size      int64  `json:"size"`
+}

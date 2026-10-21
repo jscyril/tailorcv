@@ -23,7 +23,7 @@ func newWorkflowTestApp(t *testing.T) *App {
 		t.Fatalf("Open() error = %v", err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	return &App{ctx: context.Background(), store: store}
+	return &App{ctx: context.Background(), store: store, automaticBackupDirectory: filepath.Join(t.TempDir(), "backups")}
 }
 
 func TestNoAIWorkflowAtAppBoundary(t *testing.T) {
