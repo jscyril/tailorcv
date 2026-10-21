@@ -12,7 +12,7 @@ const maxSelectedFacts = 50
 type ApplicationStatus string
 
 const (
-	ApplicationStatusDraft     ApplicationStatus = "draft"
+	ApplicationStatusDraft        ApplicationStatus = "draft"
 	ApplicationStatusSubmitted    ApplicationStatus = "submitted"
 	ApplicationStatusInterviewing ApplicationStatus = "interviewing"
 	ApplicationStatusOffer        ApplicationStatus = "offer"
