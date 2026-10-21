@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -57,5 +58,42 @@ func TestSelectResumeEvidenceFiltersFactsAndRejectsLockedProjects(t *testing.T) 
 	}
 	if _, _, err := selectResumeEvidence([]string{"missing"}, experiences, projects); err == nil {
 		t.Fatal("selectResumeEvidence() expected unknown evidence error")
+	}
+}
+
+func TestResumeLibraryAtAppBoundaryRemovesArtifacts(t *testing.T) {
+	app := newWorkflowTestApp(t)
+	app.artifactDirectory = t.TempDir()
+	app.compiler = recordedCompiler{result: domain.CompileResult{Success: true, Engine: "recorded"}, pdf: []byte("%PDF-1.7\n%%EOF\n")}
+
+	if _, err := app.CreateResume(domain.CreateResumeInput{Name: "General", TemplateID: "missing-template", LatexSource: "x"}); err == nil {
+		t.Fatal("CreateResume() expected unknown template error")
+	}
+	created, err := app.CreateResume(domain.CreateResumeInput{Name: "General", TemplateID: "builtin-jake-style", LatexSource: "\\documentclass{article}"})
+	if err != nil {
+		t.Fatalf("CreateResume() error = %v", err)
+	}
+	if _, err := app.CompileResumeVersion(created.Version.ID); err != nil {
+		t.Fatalf("CompileResumeVersion() error = %v", err)
+	}
+	artifact := filepath.Join(app.artifactDirectory, created.Version.ID+".pdf")
+	if _, err := os.Stat(artifact); err != nil {
+		t.Fatalf("artifact missing before delete: %v", err)
+	}
+	copied, err := app.DuplicateResume(created.Application.ID)
+	if err != nil || copied.Name != "Copy of General" {
+		t.Fatalf("DuplicateResume() = %#v, %v", copied, err)
+	}
+	if renamed, err := app.RenameResume(domain.RenameResumeInput{ApplicationID: copied.ID, Name: "Renamed"}); err != nil || renamed.Name != "Renamed" {
+		t.Fatalf("RenameResume() = %#v, %v", renamed, err)
+	}
+	if err := app.DeleteResume(created.Application.ID); err != nil {
+		t.Fatalf("DeleteResume() error = %v", err)
+	}
+	if _, err := os.Stat(artifact); !os.IsNotExist(err) {
+		t.Fatalf("artifact should be removed, stat err = %v", err)
+	}
+	if applications, err := app.ListApplications(); err != nil || len(applications) != 1 || applications[0].ID != copied.ID {
+		t.Fatalf("remaining resumes = %#v, %v", applications, err)
 	}
 }

@@ -8,6 +8,9 @@ import (
 type migration struct {
 	version    int
 	statements []string
+	// rebuildsTables turns foreign-key enforcement off while the migration runs
+	// so a parent table can be recreated without cascading deletes to children.
+	rebuildsTables bool
 }
 
 var migrations = []migration{
@@ -278,6 +281,27 @@ var migrations = []migration{
 			`ALTER TABLE project_bullets ADD COLUMN importance TEXT NOT NULL DEFAULT 'standard' CHECK (importance IN ('standard', 'important', 'essential'))`,
 		},
 	},
+	{
+		// Resumes get a user-visible name and no longer require a job, so
+		// general resumes and duplicates can exist beside job-tailored ones.
+		version:        15,
+		rebuildsTables: true,
+		statements: []string{
+			`CREATE TABLE applications_new (
+				id TEXT PRIMARY KEY,
+				job_id TEXT REFERENCES jobs(id) ON DELETE CASCADE,
+				name TEXT NOT NULL DEFAULT '',
+				status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted', 'archived')),
+				created_at TEXT NOT NULL,
+				updated_at TEXT NOT NULL
+			)`,
+			`INSERT INTO applications_new(id, job_id, status, created_at, updated_at) SELECT id, job_id, status, created_at, updated_at FROM applications`,
+			`DROP TABLE applications`,
+			`ALTER TABLE applications_new RENAME TO applications`,
+			`CREATE UNIQUE INDEX applications_job_idx ON applications(job_id) WHERE job_id IS NOT NULL`,
+			`CREATE INDEX applications_updated_at_idx ON applications(updated_at DESC)`,
+		},
+	},
 }
 
 func (s *Store) applyMigrations(ctx context.Context) error {
@@ -295,23 +319,53 @@ func (s *Store) applyMigrationSet(ctx context.Context, items []migration) error 
 			continue
 		}
 
-		tx, err := s.db.BeginTx(ctx, nil)
+		if err := s.applyMigration(ctx, item); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Store) applyMigration(ctx context.Context, item migration) error {
+	// One dedicated connection, because PRAGMA foreign_keys is per connection
+	// and cannot change inside a transaction.
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("open migration %d connection: %w", item.version, err)
+	}
+	defer conn.Close()
+	if item.rebuildsTables {
+		if _, err := conn.ExecContext(ctx, `PRAGMA foreign_keys = OFF`); err != nil {
+			return fmt.Errorf("prepare migration %d: %w", item.version, err)
+		}
+		defer func() { _, _ = conn.ExecContext(context.Background(), `PRAGMA foreign_keys = ON`) }()
+	}
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin migration %d: %w", item.version, err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	for _, statement := range item.statements {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("apply migration %d: %w", item.version, err)
+		}
+	}
+	if item.rebuildsTables {
+		rows, err := tx.QueryContext(ctx, `PRAGMA foreign_key_check`)
 		if err != nil {
-			return fmt.Errorf("begin migration %d: %w", item.version, err)
+			return fmt.Errorf("check migration %d references: %w", item.version, err)
 		}
-		for _, statement := range item.statements {
-			if _, err := tx.ExecContext(ctx, statement); err != nil {
-				_ = tx.Rollback()
-				return fmt.Errorf("apply migration %d: %w", item.version, err)
-			}
+		broken := rows.Next()
+		_ = rows.Close()
+		if broken {
+			return fmt.Errorf("apply migration %d: rebuilt tables have broken references", item.version)
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations(version, applied_at) VALUES (?, CURRENT_TIMESTAMP)`, item.version); err != nil {
-			_ = tx.Rollback()
-			return fmt.Errorf("record migration %d: %w", item.version, err)
-		}
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("commit migration %d: %w", item.version, err)
-		}
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations(version, applied_at) VALUES (?, CURRENT_TIMESTAMP)`, item.version); err != nil {
+		return fmt.Errorf("record migration %d: %w", item.version, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit migration %d: %w", item.version, err)
 	}
 	return nil
 }

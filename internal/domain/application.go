@@ -19,11 +19,65 @@ const (
 type Application struct {
 	ID              string            `json:"id"`
 	JobID           string            `json:"jobId"`
+	Name            string            `json:"name"`
 	Status          ApplicationStatus `json:"status"`
 	SelectedFactIDs []string          `json:"selectedFactIds"`
 	Versions        []ResumeVersion   `json:"versions"`
 	CreatedAt       string            `json:"createdAt"`
 	UpdatedAt       string            `json:"updatedAt"`
+}
+
+const maxResumeNameLength = 120
+
+// NormalizeResumeName collapses whitespace and enforces the stored length limit.
+func NormalizeResumeName(name string) (string, error) {
+	name = strings.Join(strings.Fields(name), " ")
+	if name == "" {
+		return "", fmt.Errorf("resume name is required")
+	}
+	if len(name) > maxResumeNameLength {
+		return "", fmt.Errorf("resume name must be %d characters or fewer", maxResumeNameLength)
+	}
+	return name, nil
+}
+
+// CreateResumeInput saves edited or template-rendered source as version 1 of a
+// new resume that is not tied to a job.
+type CreateResumeInput struct {
+	Name        string `json:"name"`
+	TemplateID  string `json:"templateId"`
+	LatexSource string `json:"latexSource"`
+}
+
+func (input CreateResumeInput) Validate() (CreateResumeInput, error) {
+	name, err := NormalizeResumeName(input.Name)
+	if err != nil {
+		return CreateResumeInput{}, err
+	}
+	input.Name = name
+	input.TemplateID = strings.TrimSpace(input.TemplateID)
+	if input.TemplateID == "" {
+		return CreateResumeInput{}, fmt.Errorf("select a resume template")
+	}
+	if err := validateResumeSource(input.LatexSource); err != nil {
+		return CreateResumeInput{}, err
+	}
+	return input, nil
+}
+
+type RenameResumeInput struct {
+	ApplicationID string `json:"applicationId"`
+	Name          string `json:"name"`
+}
+
+func validateResumeSource(source string) error {
+	if len(source) == 0 || len(source) > MaxTemplateSourceBytes {
+		return fmt.Errorf("LaTeX source is empty or exceeds the 1 MiB size limit")
+	}
+	if strings.IndexByte(source, 0) >= 0 {
+		return fmt.Errorf("LaTeX source contains a null byte")
+	}
+	return nil
 }
 
 type UpdateApplicationStatusInput struct {
@@ -87,11 +141,8 @@ func (input SaveResumeVersionEditInput) Validate() (SaveResumeVersionEditInput, 
 	if input.ApplicationID == "" || input.BaseVersionID == "" {
 		return SaveResumeVersionEditInput{}, fmt.Errorf("open a saved resume version before saving an edit")
 	}
-	if len(input.LatexSource) == 0 || len(input.LatexSource) > MaxTemplateSourceBytes {
-		return SaveResumeVersionEditInput{}, fmt.Errorf("LaTeX source is empty or exceeds the 1 MiB size limit")
-	}
-	if strings.IndexByte(input.LatexSource, 0) >= 0 {
-		return SaveResumeVersionEditInput{}, fmt.Errorf("LaTeX source contains a null byte")
+	if err := validateResumeSource(input.LatexSource); err != nil {
+		return SaveResumeVersionEditInput{}, err
 	}
 	return input, nil
 }

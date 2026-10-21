@@ -16,6 +16,8 @@ export function CompileLatex(arg1:string):Promise<domain.CompileResult>;
 
 export function CompileResumeVersion(arg1:string):Promise<domain.CompileResult>;
 
+export function CreateResume(arg1:domain.CreateResumeInput):Promise<domain.ApplicationResumeResult>;
+
 export function CreateResumeVersion(arg1:domain.CreateResumeVersionInput):Promise<domain.ApplicationResumeResult>;
 
 export function DeleteAchievement(arg1:string):Promise<void>;
@@ -32,7 +34,11 @@ export function DeleteJob(arg1:string):Promise<void>;
 
 export function DeleteProject(arg1:string):Promise<void>;
 
+export function DeleteResume(arg1:string):Promise<void>;
+
 export function DeleteResumeTemplate(arg1:string):Promise<void>;
+
+export function DuplicateResume(arg1:string):Promise<domain.Application>;
 
 export function ExportCompiledPDF():Promise<domain.FileResult>;
 
@@ -79,6 +85,8 @@ export function ListProjects():Promise<Array<domain.Project>>;
 export function ListResumeTemplates():Promise<Array<domain.ResumeTemplate>>;
 
 export function OpenResumeVersion(arg1:string):Promise<domain.ResumeVersionWorkspace>;
+
+export function RenameResume(arg1:domain.RenameResumeInput):Promise<domain.Application>;
 
 export function RenderResumeTemplate(arg1:string,arg2:Array<string>):Promise<string>;
 

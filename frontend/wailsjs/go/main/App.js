@@ -30,6 +30,10 @@ export function CompileResumeVersion(arg1) {
   return window['go']['main']['App']['CompileResumeVersion'](arg1);
 }
 
+export function CreateResume(arg1) {
+  return window['go']['main']['App']['CreateResume'](arg1);
+}
+
 export function CreateResumeVersion(arg1) {
   return window['go']['main']['App']['CreateResumeVersion'](arg1);
 }
@@ -62,8 +66,16 @@ export function DeleteProject(arg1) {
   return window['go']['main']['App']['DeleteProject'](arg1);
 }
 
+export function DeleteResume(arg1) {
+  return window['go']['main']['App']['DeleteResume'](arg1);
+}
+
 export function DeleteResumeTemplate(arg1) {
   return window['go']['main']['App']['DeleteResumeTemplate'](arg1);
+}
+
+export function DuplicateResume(arg1) {
+  return window['go']['main']['App']['DuplicateResume'](arg1);
 }
 
 export function ExportCompiledPDF() {
@@ -156,6 +168,10 @@ export function ListResumeTemplates() {
 
 export function OpenResumeVersion(arg1) {
   return window['go']['main']['App']['OpenResumeVersion'](arg1);
+}
+
+export function RenameResume(arg1) {
+  return window['go']['main']['App']['RenameResume'](arg1);
 }
 
 export function RenderResumeTemplate(arg1, arg2) {

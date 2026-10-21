@@ -243,9 +243,9 @@ func (s *Store) ReplaceProfileFromBackup(ctx context.Context, source domain.Prof
 
 	for _, application := range backup.Applications {
 		_, err := tx.ExecContext(ctx, `
-			INSERT INTO applications(id, job_id, status, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?)
-		`, application.ID, application.JobID, application.Status, application.CreatedAt, application.UpdatedAt)
+			INSERT INTO applications(id, job_id, name, status, created_at, updated_at)
+			VALUES (?, NULLIF(?, ''), ?, ?, ?, ?)
+		`, application.ID, application.JobID, application.Name, application.Status, application.CreatedAt, application.UpdatedAt)
 		if err != nil {
 			return fmt.Errorf("import application: %w", err)
 		}
@@ -407,7 +407,7 @@ func validateBackupIDs(backup domain.ProfileBackup) error {
 		if err := validateUniqueUUID(application.ID, applicationIDs); err != nil {
 			return fmt.Errorf("application %d ID: %w", index+1, err)
 		}
-		if _, exists := jobIDs[application.JobID]; !exists {
+		if _, exists := jobIDs[application.JobID]; application.JobID != "" && !exists {
 			return fmt.Errorf("application %d references an unknown job", index+1)
 		}
 		selectedIDs := make(map[string]struct{}, len(application.SelectedFactIDs))

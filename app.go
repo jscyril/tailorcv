@@ -480,6 +480,51 @@ func (a *App) ListApplications() ([]domain.Application, error) {
 	return a.store.ListApplications(a.appContext())
 }
 
+// CreateResume saves a general resume (not tied to a job) as version 1.
+func (a *App) CreateResume(input domain.CreateResumeInput) (domain.ApplicationResumeResult, error) {
+	if err := a.ready(); err != nil {
+		return domain.ApplicationResumeResult{}, err
+	}
+	if _, err := a.resumeTemplate(strings.TrimSpace(input.TemplateID)); err != nil {
+		return domain.ApplicationResumeResult{}, err
+	}
+	return a.store.CreateResume(a.appContext(), input)
+}
+
+func (a *App) RenameResume(input domain.RenameResumeInput) (domain.Application, error) {
+	if err := a.ready(); err != nil {
+		return domain.Application{}, err
+	}
+	return a.store.RenameApplication(a.appContext(), input)
+}
+
+func (a *App) DuplicateResume(applicationID string) (domain.Application, error) {
+	if err := a.ready(); err != nil {
+		return domain.Application{}, err
+	}
+	return a.store.DuplicateApplication(a.appContext(), applicationID)
+}
+
+// DeleteResume removes a resume, its versions and their private PDFs. A linked
+// job stays saved so it can be tailored again.
+func (a *App) DeleteResume(applicationID string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	paths, err := a.store.DeleteApplication(a.appContext(), applicationID)
+	if err != nil {
+		return err
+	}
+	for _, path := range paths {
+		// Only remove files inside the artifact folder, named <versionID>.pdf.
+		expected, err := a.resumeArtifactPath(strings.TrimSuffix(filepath.Base(path), ".pdf"))
+		if err == nil && filepath.Clean(path) == filepath.Clean(expected) {
+			_ = os.Remove(expected)
+		}
+	}
+	return nil
+}
+
 // UpdateApplicationStatus moves a saved application through its local
 // lifecycle without changing any immutable resume version.
 func (a *App) UpdateApplicationStatus(input domain.UpdateApplicationStatusInput) (domain.Application, error) {

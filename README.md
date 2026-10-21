@@ -68,7 +68,7 @@ See [PLAN.md](PLAN.md) for the product architecture and delivery milestones.
 Install the Wails CLI:
 
 ```bash
-go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
+go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.0
 ```
 
 ## Development
@@ -83,8 +83,10 @@ pnpm install
 Run the desktop application with live reload:
 
 ```bash
-wails dev
+WAILS_DEV_ALLOWED_HOSTS=wails.localhost wails dev
 ```
+
+Wails 2.17 rejects dev-server requests from unknown hostnames, and the Linux webview loads the app from the loopback name `wails.localhost`. On Linux with WebKitGTK 4.1, also pass `-tags webkit2_41`.
 
 To run the embedded production frontend directly on Linux with WebKitGTK 4.1:
 

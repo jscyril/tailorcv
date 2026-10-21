@@ -7,7 +7,7 @@ import App from "./App";
 
 const bindings = vi.hoisted(() => ({
   AcceptAITailoring: vi.fn(), AnalyzeJobDescription: vi.fn(), CancelAITailoring: vi.fn(), CheckGemini: vi.fn(), CheckOllama: vi.fn(),
-  CompileLatex: vi.fn(), CompileResumeVersion: vi.fn(), CreateResumeVersion: vi.fn(), DeleteAchievement: vi.fn(), DeleteCertification: vi.fn(),
+  CompileLatex: vi.fn(), CompileResumeVersion: vi.fn(), CreateResume: vi.fn(), CreateResumeVersion: vi.fn(), DeleteResume: vi.fn(), DuplicateResume: vi.fn(), RenameResume: vi.fn(), DeleteAchievement: vi.fn(), DeleteCertification: vi.fn(),
   DeleteEducation: vi.fn(), DeleteExperience: vi.fn(), DeleteGeminiAPIKey: vi.fn(), DeleteJob: vi.fn(), DeleteProject: vi.fn(), DeleteResumeTemplate: vi.fn(),
   ExportCompiledPDF: vi.fn(), ExportLatexSource: vi.fn(), ExportProfileBackup: vi.fn(), GenerateAITailoring: vi.fn(), GenerateProjectReadmeBullets: vi.fn(), GetAISettings: vi.fn(),
   GetGeminiCredentialStatus: vi.fn(), GetProfile: vi.fn(), GetSelectedResumeTemplateID: vi.fn(), ImportGitHubProjects: vi.fn(), ImportProfileBackup: vi.fn(),
@@ -143,7 +143,7 @@ describe("App Wails workflow integration", () => {
     render(<App />);
     await user.click(await screen.findByRole("button", { name: /^AI assistant/ }));
     await user.click(screen.getByRole("button", { name: "Check connection" }));
-    await user.click(screen.getByRole("button", { name: "Projects" }));
+    await user.click(screen.getByRole("button", { name: /^Projects/ }));
     await user.click(screen.getByRole("button", { name: "Manage evidence" }));
     await user.click(await screen.findByRole("button", { name: "Generate editable bullets from README" }));
 
@@ -192,6 +192,87 @@ describe("App Wails workflow integration", () => {
     await user.click(exportButton);
     await waitFor(() => expect(bindings.ExportCompiledPDF).toHaveBeenCalledOnce());
     expect(await screen.findByText("PDF exported to /tmp/staff-platform-resume.pdf")).toBeTruthy();
+  });
+
+  it("lists resumes on Home with versions and opens, starts, renames, duplicates, and deletes them", async () => {
+    const versionTwo = { ...version, id: "version-2", versionNumber: 2, createdAt: "2026-01-02T00:00:00Z" };
+    const tailored = { id: "application-1", jobId: job.id, name: "", status: "submitted", selectedFactIds: [fact.id], versions: [versionTwo, version], createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-02T00:00:00Z" };
+    const general = { id: "application-2", jobId: "", name: "General resume", status: "draft", selectedFactIds: [], versions: [{ ...version, id: "version-g1", applicationId: "application-2" }], createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" };
+    const copy = { ...general, id: "application-3", name: "Copy of Senior Platform Engineer at Fictional Cloud", updatedAt: "2026-01-03T00:00:00Z" };
+    bindings.ListJobs.mockResolvedValue([job]);
+    bindings.ListApplications.mockResolvedValue([tailored, general]);
+    bindings.OpenResumeVersion.mockImplementation(async (id: string) => ({ version: { ...version, id }, compileResult: { success: false, pdfBase64: "", engine: "", durationMs: 0, log: "", diagnostics: [] } }));
+    bindings.RenameResume.mockResolvedValue({ ...general, name: "Backend resume" });
+    bindings.DuplicateResume.mockResolvedValue(copy);
+    bindings.DeleteResume.mockResolvedValue(undefined);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    const user = userEvent.setup();
+    render(<App />);
+    expect(screen.getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
+    expect(await screen.findByText("Senior Platform Engineer at Fictional Cloud")).toBeTruthy();
+    expect(screen.getByText(/General resume · version 1/)).toBeTruthy();
+
+    // Open an older version from the version history.
+    await user.click(screen.getByText("2 versions"));
+    await user.click(screen.getByRole("button", { name: "Open version 1 of Senior Platform Engineer at Fictional Cloud" }));
+    await waitFor(() => expect(bindings.OpenResumeVersion).toHaveBeenCalledWith(version.id));
+    expect(screen.getByRole("button", { name: "LaTeX source" }).getAttribute("aria-current")).toBe("page");
+
+    await user.click(screen.getByRole("button", { name: "Home" }));
+    await user.click(screen.getByRole("button", { name: "Open latest version of Senior Platform Engineer at Fictional Cloud" }));
+    await waitFor(() => expect(bindings.OpenResumeVersion).toHaveBeenLastCalledWith(versionTwo.id));
+
+    // Rename inline.
+    await user.click(screen.getByRole("button", { name: "Home" }));
+    await user.click(screen.getByRole("button", { name: "Rename General resume" }));
+    const nameInput = screen.getByLabelText("Resume name");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Backend resume{Enter}");
+    await waitFor(() => expect(bindings.RenameResume).toHaveBeenCalledWith({ applicationId: general.id, name: "Backend resume" }));
+    expect(await screen.findByText("Backend resume")).toBeTruthy();
+
+    // Duplicate refreshes the list.
+    bindings.ListApplications.mockResolvedValue([copy, tailored, { ...general, name: "Backend resume" }]);
+    await user.click(screen.getByRole("button", { name: "Duplicate Senior Platform Engineer at Fictional Cloud" }));
+    await waitFor(() => expect(bindings.DuplicateResume).toHaveBeenCalledWith(tailored.id));
+    expect(await screen.findByText(copy.name)).toBeTruthy();
+
+    // Delete asks first and removes the row.
+    await user.click(screen.getByRole("button", { name: `Delete ${copy.name}` }));
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining(copy.name));
+    await waitFor(() => expect(bindings.DeleteResume).toHaveBeenCalledWith(copy.id));
+    await waitFor(() => expect(screen.queryByText(copy.name)).toBeNull());
+
+    // Starting a tailored resume opens an empty job.
+    await user.click(screen.getByRole("button", { name: "New tailored resume" }));
+    expect(screen.getByRole("button", { name: /^Job match/ }).getAttribute("aria-current")).toBe("page");
+    expect((screen.getByLabelText("Job description") as HTMLTextAreaElement).value).toBe("");
+    confirm.mockRestore();
+  });
+
+  it("creates a general resume from the selected template and saves template edits as a new resume", async () => {
+    const created = { id: "application-9", jobId: "", name: "General resume", status: "draft", selectedFactIds: [], versions: [], createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" };
+    const createdVersion = { ...version, id: "version-9", applicationId: created.id, latexSource: "\\documentclass{article}\\begin{document}Preview\\end{document}" };
+    bindings.CreateResume.mockResolvedValue({ application: created, version: createdVersion });
+    bindings.ListApplications.mockResolvedValueOnce([]).mockResolvedValue([{ ...created, versions: [createdVersion] }]);
+    bindings.OpenResumeVersion.mockResolvedValue({ version: createdVersion, compileResult: { success: false, pdfBase64: "", engine: "", durationMs: 0, log: "", diagnostics: [] } });
+
+    const user = userEvent.setup();
+    render(<App />);
+    expect(await screen.findByText(/No resumes yet/)).toBeTruthy();
+    await user.click(screen.getAllByRole("button", { name: "New general resume" })[0]);
+    await waitFor(() => expect(bindings.CreateResume).toHaveBeenCalledWith({ name: "General resume", templateId: template.id, latexSource: "\\documentclass{article}\\begin{document}Preview\\end{document}" }));
+    await waitFor(() => expect(bindings.OpenResumeVersion).toHaveBeenCalledWith(createdVersion.id));
+    expect(await screen.findByText('Saved "General resume" as version 1.')).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Version saved" })).toBeTruthy();
+
+    // A template loaded without an open version offers "Save as new resume".
+    bindings.SelectResumeTemplate.mockResolvedValue(template);
+    await user.click(screen.getByRole("button", { name: "Reload data" }));
+    const saveAsNew = await screen.findByRole("button", { name: "Save as new resume" });
+    await user.click(saveAsNew);
+    await waitFor(() => expect(bindings.CreateResume).toHaveBeenLastCalledWith(expect.objectContaining({ name: "Jake style resume", templateId: template.id })));
   });
 
   it("exports and restores a backup through the native-dialog bindings", async () => {

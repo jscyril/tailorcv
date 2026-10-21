@@ -1,14 +1,14 @@
 export namespace domain {
-
+	
 	export class AIProposal {
 	    targetFactId: string;
 	    supportingFactIds: string[];
 	    text: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AIProposal(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.targetFactId = source["targetFactId"];
@@ -22,11 +22,11 @@ export namespace domain {
 	    available: boolean;
 	    models: string[];
 	    message: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AIProviderStatus(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.provider = source["provider"];
@@ -51,11 +51,11 @@ export namespace domain {
 	    resumeVersionId: string;
 	    createdAt: string;
 	    acceptedAt: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AIRun(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -73,7 +73,7 @@ export namespace domain {
 	        this.createdAt = source["createdAt"];
 	        this.acceptedAt = source["acceptedAt"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -97,11 +97,11 @@ export namespace domain {
 	    ollamaEndpoint: string;
 	    ollamaModel: string;
 	    geminiModel: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AISettings(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.provider = source["provider"];
@@ -114,18 +114,18 @@ export namespace domain {
 	    runId: string;
 	    templateId: string;
 	    proposals: AIProposal[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AcceptAITailoringInput(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.runId = source["runId"];
 	        this.templateId = source["templateId"];
 	        this.proposals = this.convertValues(source["proposals"], AIProposal);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -155,11 +155,11 @@ export namespace domain {
 	    position: number;
 	    createdAt: string;
 	    updatedAt: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new Achievement(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -182,11 +182,11 @@ export namespace domain {
 	    sourceUrl: string;
 	    provenance: string;
 	    verification: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AchievementInput(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -202,11 +202,11 @@ export namespace domain {
 	    line: number;
 	    severity: string;
 	    message: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new CompileDiagnostic(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.line = source["line"];
@@ -225,11 +225,11 @@ export namespace domain {
 	    reasons: string[];
 	    verified: boolean;
 	    selectable: boolean;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new EvidenceMatch(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.factId = source["factId"];
@@ -261,11 +261,11 @@ export namespace domain {
 	    compiledAt: string;
 	    pdfAvailable: boolean;
 	    createdAt: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ResumeVersion(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -285,7 +285,7 @@ export namespace domain {
 	        this.pdfAvailable = source["pdfAvailable"];
 	        this.createdAt = source["createdAt"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -307,27 +307,29 @@ export namespace domain {
 	export class Application {
 	    id: string;
 	    jobId: string;
+	    name: string;
 	    status: string;
 	    selectedFactIds: string[];
 	    versions: ResumeVersion[];
 	    createdAt: string;
 	    updatedAt: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new Application(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.jobId = source["jobId"];
+	        this.name = source["name"];
 	        this.status = source["status"];
 	        this.selectedFactIds = source["selectedFactIds"];
 	        this.versions = this.convertValues(source["versions"], ResumeVersion);
 	        this.createdAt = source["createdAt"];
 	        this.updatedAt = source["updatedAt"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -349,17 +351,17 @@ export namespace domain {
 	export class ApplicationResumeResult {
 	    application: Application;
 	    version: ResumeVersion;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ApplicationResumeResult(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.application = this.convertValues(source["application"], Application);
 	        this.version = this.convertValues(source["version"], ResumeVersion);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -391,11 +393,11 @@ export namespace domain {
 	    resumeVersionCount: number;
 	    templateCount: number;
 	    aiRunCount: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new BackupResult(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.path = source["path"];
@@ -426,11 +428,11 @@ export namespace domain {
 	    position: number;
 	    createdAt: string;
 	    updatedAt: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new Certification(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -459,11 +461,11 @@ export namespace domain {
 	    description: string;
 	    provenance: string;
 	    verification: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new CertificationInput(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -478,7 +480,7 @@ export namespace domain {
 	        this.verification = source["verification"];
 	    }
 	}
-
+	
 	export class CompileResult {
 	    success: boolean;
 	    pdfBase64: string;
@@ -486,11 +488,11 @@ export namespace domain {
 	    durationMs: number;
 	    log: string;
 	    diagnostics: CompileDiagnostic[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new CompileResult(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.success = source["success"];
@@ -500,7 +502,7 @@ export namespace domain {
 	        this.log = source["log"];
 	        this.diagnostics = this.convertValues(source["diagnostics"], CompileDiagnostic);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -526,11 +528,11 @@ export namespace domain {
 	    position: number;
 	    createdAt: string;
 	    updatedAt: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ContactLink(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -545,11 +547,11 @@ export namespace domain {
 	    id: string;
 	    label: string;
 	    url: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ContactLinkInput(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -557,15 +559,31 @@ export namespace domain {
 	        this.url = source["url"];
 	    }
 	}
+	export class CreateResumeInput {
+	    name: string;
+	    templateId: string;
+	    latexSource: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CreateResumeInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.templateId = source["templateId"];
+	        this.latexSource = source["latexSource"];
+	    }
+	}
 	export class CreateResumeVersionInput {
 	    jobId: string;
 	    selectedFactIds: string[];
 	    templateId: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new CreateResumeVersionInput(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.jobId = source["jobId"];
@@ -576,11 +594,11 @@ export namespace domain {
 	export class CredentialStatus {
 	    configured: boolean;
 	    message: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new CredentialStatus(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.configured = source["configured"];
@@ -600,11 +618,11 @@ export namespace domain {
 	    position: number;
 	    createdAt: string;
 	    updatedAt: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new Education(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -631,11 +649,11 @@ export namespace domain {
 	    endDate: string;
 	    current: boolean;
 	    details: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new EducationInput(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -659,11 +677,11 @@ export namespace domain {
 	    position: number;
 	    createdAt: string;
 	    updatedAt: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new EvidenceBullet(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -684,11 +702,11 @@ export namespace domain {
 	    sourceUrl: string;
 	    verification: string;
 	    importance: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new EvidenceBulletInput(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -699,7 +717,7 @@ export namespace domain {
 	        this.importance = source["importance"];
 	    }
 	}
-
+	
 	export class Experience {
 	    id: string;
 	    company: string;
@@ -712,11 +730,11 @@ export namespace domain {
 	    bullets: EvidenceBullet[];
 	    createdAt: string;
 	    updatedAt: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new Experience(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -731,7 +749,7 @@ export namespace domain {
 	        this.createdAt = source["createdAt"];
 	        this.updatedAt = source["updatedAt"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -759,11 +777,11 @@ export namespace domain {
 	    endDate: string;
 	    current: boolean;
 	    bullets: EvidenceBulletInput[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ExperienceInput(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -775,7 +793,7 @@ export namespace domain {
 	        this.current = source["current"];
 	        this.bullets = this.convertValues(source["bullets"], EvidenceBulletInput);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -797,11 +815,11 @@ export namespace domain {
 	export class FileResult {
 	    path: string;
 	    cancelled: boolean;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new FileResult(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.path = source["path"];
@@ -814,11 +832,11 @@ export namespace domain {
 	    provider: string;
 	    model: string;
 	    endpoint: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new GenerateAITailoringInput(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.jobId = source["jobId"];
@@ -833,11 +851,11 @@ export namespace domain {
 	    provider: string;
 	    model: string;
 	    endpoint: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new GenerateProjectReadmeBulletsInput(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.projectId = source["projectId"];
@@ -853,11 +871,11 @@ export namespace domain {
 	    skipped: number;
 	    languageFallbacks: number;
 	    readmeFallbacks: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new GitHubImportResult(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.fetched = source["fetched"];
@@ -875,11 +893,11 @@ export namespace domain {
 	    description: string;
 	    createdAt: string;
 	    updatedAt: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new Job(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -903,11 +921,11 @@ export namespace domain {
 	    searchTerms: string[];
 	    rankedEvidence: EvidenceMatch[];
 	    explanation: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new JobAnalysis(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.job = this.convertValues(source["job"], Job);
@@ -923,7 +941,7 @@ export namespace domain {
 	        this.rankedEvidence = this.convertValues(source["rankedEvidence"], EvidenceMatch);
 	        this.explanation = source["explanation"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -947,11 +965,11 @@ export namespace domain {
 	    company: string;
 	    role: string;
 	    description: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new JobAnalysisInput(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -973,11 +991,11 @@ export namespace domain {
 	    skills: string[];
 	    contactLinks: ContactLink[];
 	    updatedAt: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new Profile(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
@@ -993,7 +1011,7 @@ export namespace domain {
 	        this.contactLinks = this.convertValues(source["contactLinks"], ContactLink);
 	        this.updatedAt = source["updatedAt"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -1024,11 +1042,11 @@ export namespace domain {
 	    summary: string;
 	    skills: string[];
 	    contactLinks: ContactLinkInput[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ProfileInput(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
@@ -1043,7 +1061,7 @@ export namespace domain {
 	        this.skills = source["skills"];
 	        this.contactLinks = this.convertValues(source["contactLinks"], ContactLinkInput);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -1065,11 +1083,11 @@ export namespace domain {
 	export class RepositoryLanguage {
 	    name: string;
 	    bytes: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new RepositoryLanguage(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
@@ -1099,11 +1117,11 @@ export namespace domain {
 	    bullets: EvidenceBullet[];
 	    createdAt: string;
 	    updatedAt: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new Project(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -1129,7 +1147,7 @@ export namespace domain {
 	        this.createdAt = source["createdAt"];
 	        this.updatedAt = source["updatedAt"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -1168,11 +1186,11 @@ export namespace domain {
 	    skills: string[];
 	    detectedLanguages: RepositoryLanguage[];
 	    bullets: EvidenceBulletInput[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ProjectInput(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -1195,7 +1213,7 @@ export namespace domain {
 	        this.detectedLanguages = this.convertValues(source["detectedLanguages"], RepositoryLanguage);
 	        this.bullets = this.convertValues(source["bullets"], EvidenceBulletInput);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -1216,17 +1234,31 @@ export namespace domain {
 	}
 	export class ProjectReadmeBulletsResult {
 	    bullets: string[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ProjectReadmeBulletsResult(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.bullets = source["bullets"];
 	    }
 	}
-
+	export class RenameResumeInput {
+	    applicationId: string;
+	    name: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RenameResumeInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.applicationId = source["applicationId"];
+	        this.name = source["name"];
+	    }
+	}
+	
 	export class ResumeTemplate {
 	    id: string;
 	    name: string;
@@ -1235,11 +1267,11 @@ export namespace domain {
 	    builtIn: boolean;
 	    createdAt: string;
 	    updatedAt: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ResumeTemplate(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -1256,11 +1288,11 @@ export namespace domain {
 	    name: string;
 	    description: string;
 	    source: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ResumeTemplateInput(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -1269,21 +1301,21 @@ export namespace domain {
 	        this.source = source["source"];
 	    }
 	}
-
+	
 	export class ResumeVersionWorkspace {
 	    version: ResumeVersion;
 	    compileResult: CompileResult;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ResumeVersionWorkspace(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.version = this.convertValues(source["version"], ResumeVersion);
 	        this.compileResult = this.convertValues(source["compileResult"], CompileResult);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -1306,11 +1338,11 @@ export namespace domain {
 	    applicationId: string;
 	    baseVersionId: string;
 	    latexSource: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new SaveResumeVersionEditInput(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.applicationId = source["applicationId"];
@@ -1321,11 +1353,11 @@ export namespace domain {
 	export class UpdateApplicationStatusInput {
 	    applicationId: string;
 	    status: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new UpdateApplicationStatusInput(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.applicationId = source["applicationId"];
