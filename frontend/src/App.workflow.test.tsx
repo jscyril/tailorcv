@@ -251,6 +251,25 @@ describe("App Wails workflow integration", () => {
     confirm.mockRestore();
   });
 
+  it("compares two saved versions of a resume on Home", async () => {
+    const one = { ...version, latexSource: "\\section{Skills}\nGo\n\\end{document}" };
+    const two = { ...version, id: "version-2", versionNumber: 2, latexSource: "\\section{Skills}\nGo, Rust\n\\end{document}" };
+    bindings.ListJobs.mockResolvedValue([job]);
+    bindings.ListApplications.mockResolvedValue([{ id: "application-1", jobId: job.id, name: "Platform", status: "draft", selectedFactIds: [], versions: [two, one], createdAt: "", updatedAt: "" }]);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByText("2 versions"));
+    await user.click(screen.getByRole("button", { name: "Compare versions of Platform" }));
+    const compare = screen.getByRole("region", { name: "Compare versions of Platform" });
+    expect(compare.textContent).toContain("+1 −1 lines");
+    expect(compare.querySelector(".version-diff .removed")?.textContent).toContain("Go");
+    expect(compare.querySelector(".version-diff .added")?.textContent).toContain("Go, Rust");
+
+    await user.selectOptions(screen.getByLabelText("From"), "version-2");
+    expect(compare.textContent).toContain("No changes");
+  });
+
   it("creates a general resume from the selected template and saves template edits as a new resume", async () => {
     const created = { id: "application-9", jobId: "", name: "General resume", status: "draft", selectedFactIds: [], versions: [], createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" };
     const createdVersion = { ...version, id: "version-9", applicationId: created.id, latexSource: "\\documentclass{article}\\begin{document}Preview\\end{document}" };

@@ -5,6 +5,7 @@ import { ProjectDraft } from "../../lib/project";
 import { type Application, type ResumeVersion, type View } from "../../lib/resume";
 import { PanelHeader } from "../../components/ui";
 import { type Job } from "../ai/AIWorkspace";
+import { VersionCompare } from "./VersionCompare";
 
 export function resumeTitle(application: Application, jobs: Job[]): string {
   if (application.name) return application.name;
@@ -15,6 +16,7 @@ export function resumeTitle(application: Application, jobs: Job[]): string {
 export function WorkspaceOverview({ profile, completion, experiences, projects, applications, jobs, busy, onOpen, onNewResume, onNewGeneralResume, onOpenJob, onOpenVersion, onRename, onDuplicate, onDelete }: { profile: Profile; completion: number; experiences: ExperienceDraft[]; projects: ProjectDraft[]; applications: Application[]; jobs: Job[]; busy: boolean; onOpen: (view: View) => void; onNewResume: () => void; onNewGeneralResume: () => void; onOpenJob: (job: Job) => void; onOpenVersion: (version: ResumeVersion) => void; onRename: (application: Application, name: string) => Promise<boolean>; onDuplicate: (application: Application) => void; onDelete: (application: Application, title: string) => void }) {
   const versionCount = applications.reduce((sum, application) => sum + application.versions.length, 0);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  const [comparing, setComparing] = useState<string | null>(null);
   const resumes = [...applications].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return <section className="workspace-panel scroll-panel">
     <PanelHeader eyebrow="Your workspace" title={profile.name ? `Welcome back, ${profile.name.split(" ")[0]}.` : "Build your source of truth."} description="Keep one reliable career profile, then create general or job-tailored resumes from it." action={<div className="panel-actions"><button className="secondary-button" disabled={busy} onClick={onNewGeneralResume}>New general resume</button><button className="primary-button" onClick={onNewResume}>New tailored resume</button></div>} />
@@ -52,6 +54,9 @@ export function WorkspaceOverview({ profile, completion, experiences, projects, 
               <small>{new Date(version.createdAt).toLocaleString()}{version.pdfAvailable ? " · PDF" : version.compiledAt && !version.compileSuccess ? " · failed to compile" : ""}</small>
               <button className="text-button" aria-label={`Open version ${version.versionNumber} of ${title}`} onClick={() => onOpenVersion(version)}>Open</button>
             </li>)}</ol>
+            {application.versions.length > 1 && (comparing === application.id
+              ? <VersionCompare versions={application.versions} title={title} onClose={() => setComparing(null)} />
+              : <button className="secondary-button" aria-label={`Compare versions of ${title}`} onClick={() => setComparing(application.id)}>Compare versions</button>)}
           </details>}
         </li>;
       })}</ul> : <div className="resume-library-empty"><p>No resumes yet. Create a general resume from your profile and the selected template, or paste a job description to build a tailored one.</p><div className="panel-actions"><button className="secondary-button" disabled={busy} onClick={onNewGeneralResume}>New general resume</button><button className="primary-button" onClick={onNewResume}>New tailored resume</button></div></div>}
