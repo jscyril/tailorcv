@@ -12,6 +12,8 @@ export function CheckGemini():Promise<domain.AIProviderStatus>;
 
 export function CheckOllama(arg1:string):Promise<domain.AIProviderStatus>;
 
+export function ClearLatexDraft():Promise<void>;
+
 export function CompileLatex(arg1:string):Promise<domain.CompileResult>;
 
 export function CompileResumeVersion(arg1:string):Promise<domain.CompileResult>;
@@ -53,6 +55,8 @@ export function GenerateProjectReadmeBullets(arg1:domain.GenerateProjectReadmeBu
 export function GetAISettings():Promise<domain.AISettings>;
 
 export function GetGeminiCredentialStatus():Promise<domain.CredentialStatus>;
+
+export function GetLatexDraft():Promise<domain.LatexDraft>;
 
 export function GetProfile():Promise<domain.Profile>;
 
@@ -105,6 +109,8 @@ export function SaveEducation(arg1:domain.EducationInput):Promise<domain.Educati
 export function SaveExperience(arg1:domain.ExperienceInput):Promise<domain.Experience>;
 
 export function SaveGeminiAPIKey(arg1:string):Promise<domain.CredentialStatus>;
+
+export function SaveLatexDraft(arg1:string,arg2:string):Promise<void>;
 
 export function SaveProfile(arg1:domain.ProfileInput):Promise<domain.Profile>;
 

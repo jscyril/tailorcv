@@ -15,7 +15,7 @@ const bindings = vi.hoisted(() => ({
   ListExperiences: vi.fn(), ListJobs: vi.fn(), ListProjects: vi.fn(), ListResumeTemplates: vi.fn(), OpenResumeVersion: vi.fn(), RenderResumeTemplate: vi.fn(), SaveAchievement: vi.fn(),
   SaveAISettings: vi.fn(), SaveCertification: vi.fn(), SaveEducation: vi.fn(), SaveExperience: vi.fn(), SaveGeminiAPIKey: vi.fn(), SaveProfile: vi.fn(),
   SaveProject: vi.fn(), SaveResumeTemplate: vi.fn(), SaveResumeVersionEdit: vi.fn(), SelectResumeTemplate: vi.fn(), UpdateApplicationStatus: vi.fn(),
-  ListAutomaticBackups: vi.fn(), RestoreAutomaticBackup: vi.fn(),
+  ListAutomaticBackups: vi.fn(), RestoreAutomaticBackup: vi.fn(), GetLatexDraft: vi.fn(), SaveLatexDraft: vi.fn(), ClearLatexDraft: vi.fn(),
 }));
 
 vi.mock("../wailsjs/go/main/App", () => bindings);
@@ -71,6 +71,9 @@ beforeEach(() => {
   bindings.ListApplications.mockResolvedValue([]);
   bindings.ListAIRuns.mockResolvedValue([]);
   bindings.ListAutomaticBackups.mockResolvedValue([]);
+  bindings.GetLatexDraft.mockResolvedValue({ source: "", versionId: "", savedAt: "" });
+  bindings.SaveLatexDraft.mockResolvedValue(undefined);
+  bindings.ClearLatexDraft.mockResolvedValue(undefined);
   bindings.GetAISettings.mockResolvedValue({ provider: "ollama", ollamaEndpoint: "http://127.0.0.1:11434", ollamaModel: "", geminiModel: "" });
   bindings.GetGeminiCredentialStatus.mockResolvedValue({ configured: false, message: "Gemini API key is not configured." });
   bindings.RenderResumeTemplate.mockResolvedValue("\\documentclass{article}\\begin{document}Preview\\end{document}");
@@ -294,6 +297,39 @@ describe("App Wails workflow integration", () => {
     const saveAsNew = await screen.findByRole("button", { name: "Save as new resume" });
     await user.click(saveAsNew);
     await waitFor(() => expect(bindings.CreateResume).toHaveBeenLastCalledWith(expect.objectContaining({ name: "Jake style resume", templateId: template.id })));
+  });
+
+  it("recovers a saved LaTeX draft, keeps saving it, and asks before discarding it", async () => {
+    const draftSource = "\\documentclass{article}\\begin{document}Recovered draft\\end{document}";
+    bindings.GetLatexDraft.mockResolvedValue({ source: draftSource, versionId: "", savedAt: "2026-10-21T10:00:00Z" });
+    bindings.ListApplications.mockResolvedValue([{ id: "application-1", jobId: "", name: "Backend", status: "draft", selectedFactIds: [], versions: [version], createdAt: "", updatedAt: "" }]);
+    bindings.CompileLatex.mockResolvedValue({ success: false, pdfBase64: "", engine: "", durationMs: 0, log: "", diagnostics: [] });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    const user = userEvent.setup();
+    render(<App />);
+    expect(await screen.findByText(/Unsaved LaTeX edits from/)).toBeTruthy();
+    await new Promise((resolve) => setTimeout(resolve, 1700));
+    expect(bindings.SaveLatexDraft).not.toHaveBeenCalled();
+    expect(bindings.ClearLatexDraft).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Restore edits" }));
+    expect(screen.getByRole("textbox", { name: "LaTeX source editor" }).textContent).toContain("Recovered draft");
+    await waitFor(() => expect(bindings.SaveLatexDraft).toHaveBeenCalledWith(draftSource, ""), { timeout: 3000 });
+
+    await user.click(screen.getByRole("button", { name: "Home" }));
+    await user.click(await screen.findByRole("button", { name: "Open latest version of Backend" }));
+    expect(confirm).toHaveBeenCalledWith("You have unsaved LaTeX changes. Discard them?");
+    expect(bindings.OpenResumeVersion).not.toHaveBeenCalled();
+  });
+
+  it("discards a recovered LaTeX draft", async () => {
+    bindings.GetLatexDraft.mockResolvedValue({ source: "old draft", versionId: "", savedAt: "2026-10-21T10:00:00Z" });
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Discard" }));
+    await waitFor(() => expect(bindings.ClearLatexDraft).toHaveBeenCalled());
+    expect(screen.queryByText(/Unsaved LaTeX edits from/)).toBeNull();
   });
 
   it("exports and restores a backup through the native-dialog bindings", async () => {

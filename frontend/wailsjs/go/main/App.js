@@ -22,6 +22,10 @@ export function CheckOllama(arg1) {
   return window['go']['main']['App']['CheckOllama'](arg1);
 }
 
+export function ClearLatexDraft() {
+  return window['go']['main']['App']['ClearLatexDraft']();
+}
+
 export function CompileLatex(arg1) {
   return window['go']['main']['App']['CompileLatex'](arg1);
 }
@@ -104,6 +108,10 @@ export function GetAISettings() {
 
 export function GetGeminiCredentialStatus() {
   return window['go']['main']['App']['GetGeminiCredentialStatus']();
+}
+
+export function GetLatexDraft() {
+  return window['go']['main']['App']['GetLatexDraft']();
 }
 
 export function GetProfile() {
@@ -208,6 +216,10 @@ export function SaveExperience(arg1) {
 
 export function SaveGeminiAPIKey(arg1) {
   return window['go']['main']['App']['SaveGeminiAPIKey'](arg1);
+}
+
+export function SaveLatexDraft(arg1, arg2) {
+  return window['go']['main']['App']['SaveLatexDraft'](arg1, arg2);
 }
 
 export function SaveProfile(arg1) {

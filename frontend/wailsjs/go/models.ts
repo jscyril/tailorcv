@@ -996,6 +996,22 @@ export namespace domain {
 	        this.description = source["description"];
 	    }
 	}
+	export class LatexDraft {
+	    source: string;
+	    versionId: string;
+	    savedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LatexDraft(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source = source["source"];
+	        this.versionId = source["versionId"];
+	        this.savedAt = source["savedAt"];
+	    }
+	}
 	export class Profile {
 	    name: string;
 	    headline: string;
