@@ -10,6 +10,7 @@ TailorCV has a complete deterministic resume-building vertical slice, local comp
 
 - A Wails desktop shell with a React interface whose Home screen lists every resume, general or job-tailored, with open, rename, duplicate, delete, numbered version history, and a line-by-line compare of any two versions.
 - A locally persisted career profile backed by SQLite.
+- A to-do list for follow-ups and deadlines, with due dates, notes, optional links to resumes, backup coverage, and an on/off switch in Settings.
 - Manual experience records with ordered, provenance-aware evidence bullets.
 - Reviewable projects with skills, source links, eligibility, and ordered evidence.
 - Education records with validated study dates and live resume-preview rendering.

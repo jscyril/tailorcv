@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const ProfileBackupSchemaVersion = 7
+const ProfileBackupSchemaVersion = 8
 
 type ProfileBackup struct {
 	SchemaVersion      int              `json:"schemaVersion"`
@@ -26,6 +26,8 @@ type ProfileBackup struct {
 	SelectedTemplateID string           `json:"selectedTemplateId,omitempty"`
 	AIRuns             []AIRun          `json:"aiRuns,omitempty"`
 	AISettings         AISettings       `json:"aiSettings"`
+	Todos              []Todo           `json:"todos,omitempty"`
+	TodosDisabled      bool             `json:"todosDisabled,omitempty"`
 }
 
 type BackupResult struct {
@@ -392,6 +394,25 @@ func (backup ProfileBackup) Validate() (ProfileBackup, error) {
 		return ProfileBackup{}, fmt.Errorf("AI settings: %w", err)
 	}
 	backup.AISettings = settings
+
+	todos := make([]Todo, 0, len(backup.Todos))
+	for index, source := range backup.Todos {
+		validated, err := (TodoInput{ID: source.ID, Title: source.Title, Notes: source.Notes, DueDate: source.DueDate, ApplicationID: source.ApplicationID}).Validate()
+		if err != nil {
+			return ProfileBackup{}, fmt.Errorf("to-do %d: %w", index+1, err)
+		}
+		for field, value := range map[string]struct {
+			value    string
+			required bool
+		}{"creation": {source.CreatedAt, true}, "update": {source.UpdatedAt, true}, "completion": {source.CompletedAt, false}} {
+			if err := validateBackupTimestamp(fmt.Sprintf("to-do %d %s time", index+1, field), value.value, value.required); err != nil {
+				return ProfileBackup{}, err
+			}
+		}
+		validated.CompletedAt, validated.CreatedAt, validated.UpdatedAt = source.CompletedAt, source.CreatedAt, source.UpdatedAt
+		todos = append(todos, validated)
+	}
+	backup.Todos = todos
 	backup.SchemaVersion = ProfileBackupSchemaVersion
 	return backup, nil
 }

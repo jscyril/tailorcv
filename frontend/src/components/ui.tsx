@@ -10,7 +10,7 @@ export function NavButton({ active, label, icon, badge, onClick }: { active: boo
   );
 }
 
-export type IconName = "home" | "user" | "briefcase" | "folder" | "education" | "sparkles" | "template" | "code" | "target" | "chat" | "download" | "refresh" | "check" | "search" | "database";
+export type IconName = "home" | "user" | "briefcase" | "folder" | "education" | "sparkles" | "template" | "code" | "target" | "chat" | "download" | "refresh" | "check" | "search" | "database" | "checklist" | "settings";
 
 export const iconPaths: Record<IconName, React.ReactNode> = {
   home: <><path d="m3 10 9-7 9 7" /><path d="M5 9v11h14V9" /><path d="M9 20v-6h6v6" /></>,
@@ -27,6 +27,8 @@ export const iconPaths: Record<IconName, React.ReactNode> = {
   refresh: <><path d="M20 7V3h-4M4 17v4h4" /><path d="M19 10a7 7 0 0 0-12-4L4 9M5 14a7 7 0 0 0 12 4l3-3" /></>,
   check: <path d="m5 12 4 4L19 6" />,
   search: <><circle cx="10" cy="10" r="6" /><path d="m15 15 5 5" /></>,
+  checklist: <><path d="m4 6 2 2 3-3M4 13l2 2 3-3M4 20h.01M12 7h8M12 14h8M12 20h8" /></>,
+  settings: <><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1" /></>,
   database: <><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" /></>,
 };
 

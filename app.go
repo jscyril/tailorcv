@@ -206,6 +206,52 @@ func (a *App) DeleteAchievement(id string) error {
 	return a.store.DeleteAchievement(a.appContext(), id)
 }
 
+func (a *App) ListTodos() ([]domain.Todo, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	return a.store.ListTodos(a.appContext())
+}
+
+func (a *App) SaveTodo(input domain.TodoInput) (domain.Todo, error) {
+	if err := a.ready(); err != nil {
+		return domain.Todo{}, err
+	}
+	item, err := input.Validate()
+	if err != nil {
+		return domain.Todo{}, err
+	}
+	return a.store.SaveTodo(a.appContext(), item)
+}
+
+func (a *App) SetTodoDone(id string, done bool) (domain.Todo, error) {
+	if err := a.ready(); err != nil {
+		return domain.Todo{}, err
+	}
+	return a.store.SetTodoDone(a.appContext(), id, done)
+}
+
+func (a *App) DeleteTodo(id string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return a.store.DeleteTodo(a.appContext(), id)
+}
+
+func (a *App) GetTodosEnabled() (bool, error) {
+	if err := a.ready(); err != nil {
+		return false, err
+	}
+	return a.store.TodosEnabled(a.appContext())
+}
+
+func (a *App) SetTodosEnabled(enabled bool) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return a.store.SetTodosEnabled(a.appContext(), enabled)
+}
+
 // ListProjects returns manual and imported projects with their review state,
 // skills, and ordered evidence.
 func (a *App) ListProjects() ([]domain.Project, error) {

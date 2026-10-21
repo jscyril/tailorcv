@@ -38,6 +38,8 @@ export function DeleteResume(arg1:string):Promise<void>;
 
 export function DeleteResumeTemplate(arg1:string):Promise<void>;
 
+export function DeleteTodo(arg1:string):Promise<void>;
+
 export function DuplicateResume(arg1:string):Promise<domain.Application>;
 
 export function ExportCompiledPDF(arg1:string):Promise<domain.FileResult>;
@@ -57,6 +59,8 @@ export function GetGeminiCredentialStatus():Promise<domain.CredentialStatus>;
 export function GetProfile():Promise<domain.Profile>;
 
 export function GetSelectedResumeTemplateID():Promise<string>;
+
+export function GetTodosEnabled():Promise<boolean>;
 
 export function ImportGitHubProject(arg1:string):Promise<domain.Project>;
 
@@ -84,6 +88,8 @@ export function ListProjects():Promise<Array<domain.Project>>;
 
 export function ListResumeTemplates():Promise<Array<domain.ResumeTemplate>>;
 
+export function ListTodos():Promise<Array<domain.Todo>>;
+
 export function OpenResumeVersion(arg1:string):Promise<domain.ResumeVersionWorkspace>;
 
 export function RenameResume(arg1:domain.RenameResumeInput):Promise<domain.Application>;
@@ -110,6 +116,12 @@ export function SaveResumeTemplate(arg1:domain.ResumeTemplateInput):Promise<doma
 
 export function SaveResumeVersionEdit(arg1:domain.SaveResumeVersionEditInput):Promise<domain.ResumeVersion>;
 
+export function SaveTodo(arg1:domain.TodoInput):Promise<domain.Todo>;
+
 export function SelectResumeTemplate(arg1:string):Promise<domain.ResumeTemplate>;
+
+export function SetTodoDone(arg1:string,arg2:boolean):Promise<domain.Todo>;
+
+export function SetTodosEnabled(arg1:boolean):Promise<void>;
 
 export function UpdateApplicationStatus(arg1:domain.UpdateApplicationStatusInput):Promise<domain.Application>;

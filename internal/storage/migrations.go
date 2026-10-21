@@ -302,6 +302,21 @@ var migrations = []migration{
 			`CREATE INDEX applications_updated_at_idx ON applications(updated_at DESC)`,
 		},
 	},
+	{
+		version: 16,
+		statements: []string{
+			`CREATE TABLE todos (
+				id TEXT PRIMARY KEY,
+				title TEXT NOT NULL,
+				notes TEXT NOT NULL DEFAULT '',
+				due_date TEXT NOT NULL DEFAULT '',
+				application_id TEXT REFERENCES applications(id) ON DELETE SET NULL,
+				completed_at TEXT NOT NULL DEFAULT '',
+				created_at TEXT NOT NULL,
+				updated_at TEXT NOT NULL
+			)`,
+		},
+	},
 }
 
 func (s *Store) applyMigrations(ctx context.Context) error {

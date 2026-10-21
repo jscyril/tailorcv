@@ -15,6 +15,7 @@ const bindings = vi.hoisted(() => ({
   ListExperiences: vi.fn(), ListJobs: vi.fn(), ListProjects: vi.fn(), ListResumeTemplates: vi.fn(), OpenResumeVersion: vi.fn(), RenderResumeTemplate: vi.fn(), SaveAchievement: vi.fn(),
   SaveAISettings: vi.fn(), SaveCertification: vi.fn(), SaveEducation: vi.fn(), SaveExperience: vi.fn(), SaveGeminiAPIKey: vi.fn(), SaveProfile: vi.fn(),
   SaveProject: vi.fn(), SaveResumeTemplate: vi.fn(), SaveResumeVersionEdit: vi.fn(), SelectResumeTemplate: vi.fn(), UpdateApplicationStatus: vi.fn(),
+  ListTodos: vi.fn(), GetTodosEnabled: vi.fn(), SaveTodo: vi.fn(), SetTodoDone: vi.fn(), DeleteTodo: vi.fn(), SetTodosEnabled: vi.fn(),
 }));
 
 vi.mock("../wailsjs/go/main/App", () => bindings);
@@ -69,6 +70,8 @@ beforeEach(() => {
   bindings.ListJobs.mockResolvedValue([]);
   bindings.ListApplications.mockResolvedValue([]);
   bindings.ListAIRuns.mockResolvedValue([]);
+  bindings.ListTodos.mockResolvedValue([]);
+  bindings.GetTodosEnabled.mockResolvedValue(true);
   bindings.GetAISettings.mockResolvedValue({ provider: "ollama", ollamaEndpoint: "http://127.0.0.1:11434", ollamaModel: "", geminiModel: "" });
   bindings.GetGeminiCredentialStatus.mockResolvedValue({ configured: false, message: "Gemini API key is not configured." });
   bindings.RenderResumeTemplate.mockResolvedValue("\\documentclass{article}\\begin{document}Preview\\end{document}");
@@ -268,6 +271,35 @@ describe("App Wails workflow integration", () => {
 
     await user.selectOptions(screen.getByLabelText("From"), "version-2");
     expect(compare.textContent).toContain("No changes");
+  });
+
+  it("adds, links, completes, and hides to-dos from Settings", async () => {
+    const resume = { id: "application-1", jobId: "", name: "Backend resume", status: "draft", selectedFactIds: [], versions: [version], createdAt: "", updatedAt: "" };
+    const saved = { id: "todo-1", title: "Follow up with Acme", notes: "", dueDate: "2000-01-01", applicationId: resume.id, completedAt: "", createdAt: "", updatedAt: "" };
+    bindings.ListApplications.mockResolvedValue([resume]);
+    bindings.SaveTodo.mockImplementation(async () => { bindings.ListTodos.mockResolvedValue([saved]); return saved; });
+    bindings.SetTodoDone.mockImplementation(async () => { bindings.ListTodos.mockResolvedValue([{ ...saved, completedAt: "2026-01-02T00:00:00Z" }]); });
+    bindings.SetTodosEnabled.mockResolvedValue(undefined);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "To-do" }));
+    await user.type(screen.getByLabelText("Task"), saved.title);
+    await user.type(screen.getByLabelText("Due date"), saved.dueDate);
+    await user.selectOptions(screen.getByLabelText("Resume (optional)"), resume.id);
+    await user.click(screen.getByRole("button", { name: "Add task" }));
+    expect(bindings.SaveTodo).toHaveBeenCalledWith(expect.objectContaining({ title: saved.title, dueDate: saved.dueDate, applicationId: resume.id }));
+    expect(await screen.findByText(/Overdue/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^To-do/ }).textContent).toContain("1");
+
+    await user.click(screen.getByLabelText(saved.title));
+    expect(bindings.SetTodoDone).toHaveBeenCalledWith("todo-1", true);
+    expect(await screen.findByText("Completed · 1")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(screen.getByLabelText("Show the to-do list"));
+    expect(bindings.SetTodosEnabled).toHaveBeenCalledWith(false);
+    await waitFor(() => expect(screen.queryByRole("button", { name: /^To-do/ })).toBeNull());
   });
 
   it("creates a general resume from the selected template and saves template edits as a new resume", async () => {

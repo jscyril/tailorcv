@@ -743,3 +743,21 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .status-pill.submitted { border-color: var(--accent); color: var(--accent); }
 .status-pill.archived { opacity: .6; }
 @media (max-width: 860px) { .resume-library-row { grid-template-columns: 1fr; } .resume-library-actions { justify-content: flex-start; } }
+
+.todo-form { margin-bottom: 18px; }
+.todo-list h2 { margin: 0 0 8px; color: var(--secondary); font-size: 12px; font-weight: 700; }
+.todo-list ul { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line-soft); border-radius: 8px; }
+.todo-list li { display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line-soft); }
+.todo-list li:last-child { border-bottom: 0; }
+.todo-list li input[type="checkbox"] { margin-top: 2px; accent-color: var(--accent); }
+.todo-list li label { color: var(--text); font-size: 13px; cursor: pointer; }
+.todo-list li.done label { color: var(--muted); text-decoration: line-through; }
+.todo-list li small { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 3px; color: var(--muted); font-size: 11px; }
+.todo-list li p { margin: 4px 0 0; color: var(--secondary); font-size: 11px; line-height: 1.5; white-space: pre-wrap; }
+.todo-due.today { color: var(--accent); }
+.todo-due.overdue { color: var(--danger); font-weight: 700; }
+.todo-actions { display: flex; gap: 6px; }
+.todo-list details { margin-top: 12px; }
+.todo-list summary { margin-bottom: 8px; color: var(--secondary); font-size: 12px; cursor: pointer; }
+.todo-empty { margin: 0; color: var(--muted); font-size: 12px; }
+.text-button.danger { color: var(--danger); }

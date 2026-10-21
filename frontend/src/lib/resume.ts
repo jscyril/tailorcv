@@ -2,7 +2,7 @@ import { domain } from "../../wailsjs/go/models";
 import { type EvidenceMatch } from "../features/ai/AIWorkspace";
 import { type ApplicationStatus } from "../features/applications/ApplicationStatusControl";
 
-export type View = "overview" | "profile" | "experience" | "projects" | "education" | "credentials" | "skills" | "templates" | "latex" | "job" | "ai" | "data";
+export type View = "overview" | "profile" | "experience" | "projects" | "education" | "credentials" | "skills" | "templates" | "latex" | "job" | "ai" | "data" | "todos" | "settings";
 
 export type ResumeVersion = {
   id: string;

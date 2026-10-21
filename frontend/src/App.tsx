@@ -9,6 +9,8 @@ import { Profile, emptyProfile, parseSkills, profileCompletion } from "./lib/pro
 import { Project, ProjectDraft, isProjectSelectable, newProjectDraft, projectToDraft, reconcileSelectedProjectKeys, removeSelectedProjectKey, toProjectInput } from "./lib/project";
 import { type Application, type ResumeVersion, type View } from "./lib/resume";
 import { NavButton, PanelHeader, TopToolbar } from "./components/ui";
+import { SettingsWorkspace } from "./features/settings/Settings";
+import { TodoWorkspace, useTodos } from "./features/todos/Todos";
 import { type AIProposal, type AIProvider, type AIProviderStatus, type AIRun, AIWorkspace, type CredentialStatus, type Job, type JobAnalysis } from "./features/ai/AIWorkspace";
 import { type ApplicationStatus } from "./features/applications/ApplicationStatusControl";
 import { DataWorkspace } from "./features/data/DataWorkspace";
@@ -79,6 +81,7 @@ export default function App() {
   const [onboardingPending, setOnboardingPending] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const todoList = useTodos(applications, setError);
   const [selectedProjectKeys, setSelectedProjectKeys] = useState<string[]>([]);
   const [latexSource, setLatexSource] = useState(DEFAULT_LATEX);
   const [templates, setTemplates] = useState<domain.ResumeTemplate[]>([]);
@@ -1019,7 +1022,9 @@ export default function App() {
             <NavButton active={view === "job"} label="Job match" icon="target" badge={analysis ? `${analysis.score}%` : jobs.length || undefined} onClick={() => setView("job")} />
             <NavButton active={view === "ai"} label="AI assistant" icon="chat" badge="Setup" onClick={() => setView("ai")} />
             <p className="nav-section-label nav-section-spaced">System</p>
+            {todoList.enabled && <NavButton active={view === "todos"} label="To-do" icon="checklist" badge={todoList.openCount || undefined} onClick={() => setView("todos")} />}
             <NavButton active={view === "data"} label="Backup & restore" icon="database" onClick={() => setView("data")} />
+            <NavButton active={view === "settings"} label="Settings" icon="settings" onClick={() => setView("settings")} />
           </nav>
 
           <button className="provider-status" onClick={() => setView("ai")}>
@@ -1045,6 +1050,8 @@ export default function App() {
             {view === "latex" && <LatexWorkspace source={latexSource} template={activeTemplate} result={compileResult} busy={templateBusyKey !== ""} compiling={compileBusy} versionBusy={versionBusy} hasOpenVersion={openVersionID !== ""} versionDirty={openVersionID !== "" && latexSource !== savedVersionSource} onChange={updateLatexSource} onSave={saveCurrentTemplate} onSaveVersion={saveResumeVersionEdit} onSaveAsResume={() => saveAsNewResume(`${activeTemplate?.name ?? "General"} resume`, latexSource)} onReload={() => useResumeTemplate(selectedTemplateID)} onCompile={compileLatex} onExport={exportLatexSource} />}
             {view === "job" && <JobTailor job={jobDraft} jobs={jobs} application={currentApplication} analysis={analysis} selectedFactIDs={selectedFactIDs} busy={busy} versionBusy={versionBusy} statusBusy={applicationStatusBusy} hasEvidence={hasCareerEvidence} templateName={activeTemplate?.name ?? "Selected template"} onChange={updateJobDraft} onNew={newJob} onOpen={openJob} onDelete={deleteJob} onToggleEvidence={toggleEvidenceFact} onCreateVersion={createResumeVersion} onOpenVersion={openResumeVersion} onStatusChange={updateApplicationStatus} onSubmit={analyzeJob} onProfile={() => setView("skills")} />}
             {view === "ai" && <AIWorkspace provider={aiProvider} endpoint={ollamaEndpoint} status={aiProviderStatus} model={aiProvider === "ollama" ? ollamaModel : geminiModel} credential={geminiCredential} apiKey={geminiAPIKey} run={aiRun} runs={aiRuns} proposals={reviewedProposals} acceptedProposalIDs={acceptedProposalIDs} job={jobDraft} analysis={analysis} selectedFactIDs={selectedFactIDs} templateName={activeTemplate?.name ?? "Selected template"} busy={aiBusy} onProviderChange={changeAIProvider} onEndpointChange={(value) => { setOllamaEndpoint(value); setAIProviderStatus(null); }} onModelChange={changeAIModel} onAPIKeyChange={setGeminiAPIKey} onSaveCredential={saveGeminiCredential} onDeleteCredential={deleteGeminiCredential} onCheck={checkAIProvider} onGenerate={generateAITailoring} onCancel={cancelAITailoring} onProposalChange={updateReviewedProposal} onToggleProposal={toggleAcceptedProposal} onAccept={acceptAITailoring} onOpenJob={() => setView("job")} />}
+            {view === "todos" && todoList.enabled && <TodoWorkspace todos={todoList.todos} applications={applications} jobs={jobs} onSave={todoList.save} onSetDone={todoList.setDone} onDelete={todoList.remove} />}
+            {view === "settings" && <SettingsWorkspace todosEnabled={todoList.enabled} onTodosEnabled={todoList.setEnabled} />}
             {view === "data" && <DataWorkspace profile={profile} experiences={experiences} projects={projects} educations={educations} jobs={jobs} applications={applications} busy={backupBusy} lastResult={lastBackupResult} onExport={exportBackup} onImport={importBackup} />}
           </div>
 

@@ -1350,6 +1350,52 @@ export namespace domain {
 	        this.latexSource = source["latexSource"];
 	    }
 	}
+	export class Todo {
+	    id: string;
+	    title: string;
+	    notes: string;
+	    dueDate: string;
+	    applicationId: string;
+	    completedAt: string;
+	    createdAt: string;
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Todo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.title = source["title"];
+	        this.notes = source["notes"];
+	        this.dueDate = source["dueDate"];
+	        this.applicationId = source["applicationId"];
+	        this.completedAt = source["completedAt"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
+	export class TodoInput {
+	    id: string;
+	    title: string;
+	    notes: string;
+	    dueDate: string;
+	    applicationId: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TodoInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.title = source["title"];
+	        this.notes = source["notes"];
+	        this.dueDate = source["dueDate"];
+	        this.applicationId = source["applicationId"];
+	    }
+	}
 	export class UpdateApplicationStatusInput {
 	    applicationId: string;
 	    status: string;

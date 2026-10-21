@@ -59,6 +59,14 @@ func (s *Store) CreateProfileBackup(ctx context.Context) (domain.ProfileBackup, 
 	if err != nil {
 		return domain.ProfileBackup{}, err
 	}
+	todos, err := s.ListTodos(ctx)
+	if err != nil {
+		return domain.ProfileBackup{}, err
+	}
+	todosEnabled, err := s.TodosEnabled(ctx)
+	if err != nil {
+		return domain.ProfileBackup{}, err
+	}
 	return domain.ProfileBackup{
 		SchemaVersion:      domain.ProfileBackupSchemaVersion,
 		ExportedAt:         time.Now().UTC().Format(time.RFC3339),
@@ -74,6 +82,8 @@ func (s *Store) CreateProfileBackup(ctx context.Context) (domain.ProfileBackup, 
 		SelectedTemplateID: selectedTemplateID,
 		AIRuns:             aiRuns,
 		AISettings:         aiSettings,
+		Todos:              todos,
+		TodosDisabled:      !todosEnabled,
 	}, nil
 }
 
@@ -93,6 +103,7 @@ func (s *Store) ReplaceProfileFromBackup(ctx context.Context, source domain.Prof
 	defer func() { _ = tx.Rollback() }()
 
 	for _, statement := range []string{
+		`DELETE FROM todos`,
 		`DELETE FROM ai_runs`,
 		`DELETE FROM applications`,
 		`DELETE FROM jobs`,
@@ -308,6 +319,16 @@ func (s *Store) ReplaceProfileFromBackup(ctx context.Context, source domain.Prof
 	if _, err := tx.ExecContext(ctx, `INSERT INTO app_settings(key, value) VALUES (?, ?)`, aiSettingsKey, string(settingsJSON)); err != nil {
 		return fmt.Errorf("import AI settings: %w", err)
 	}
+	if backup.TodosDisabled {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO app_settings(key, value) VALUES (?, 'false')`, todosEnabledSetting); err != nil {
+			return fmt.Errorf("import to-do setting: %w", err)
+		}
+	}
+	for _, item := range backup.Todos {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO todos(id,title,notes,due_date,application_id,completed_at,created_at,updated_at) VALUES(?,?,?,?,NULLIF(?,''),?,?,?)`, item.ID, item.Title, item.Notes, item.DueDate, item.ApplicationID, item.CompletedAt, item.CreatedAt, item.UpdatedAt); err != nil {
+			return fmt.Errorf("import to-do: %w", err)
+		}
+	}
 
 	for _, run := range backup.AIRuns {
 		selectedJSON, err := json.Marshal(run.SelectedFactIDs)
@@ -426,6 +447,15 @@ func validateBackupIDs(backup domain.ProfileBackup) error {
 					return fmt.Errorf("application %d resume version %d selected fact %d: %w", index+1, versionIndex+1, factIndex+1, err)
 				}
 			}
+		}
+	}
+	todoIDs := make(map[string]struct{}, len(backup.Todos))
+	for index, item := range backup.Todos {
+		if err := validateUniqueUUID(item.ID, todoIDs); err != nil {
+			return fmt.Errorf("to-do %d ID: %w", index+1, err)
+		}
+		if _, exists := applicationIDs[item.ApplicationID]; item.ApplicationID != "" && !exists {
+			return fmt.Errorf("to-do %d references an unknown resume", index+1)
 		}
 	}
 	templateIDs := make(map[string]struct{}, len(backup.Templates))

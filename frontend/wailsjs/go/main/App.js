@@ -74,6 +74,10 @@ export function DeleteResumeTemplate(arg1) {
   return window['go']['main']['App']['DeleteResumeTemplate'](arg1);
 }
 
+export function DeleteTodo(arg1) {
+  return window['go']['main']['App']['DeleteTodo'](arg1);
+}
+
 export function DuplicateResume(arg1) {
   return window['go']['main']['App']['DuplicateResume'](arg1);
 }
@@ -112,6 +116,10 @@ export function GetProfile() {
 
 export function GetSelectedResumeTemplateID() {
   return window['go']['main']['App']['GetSelectedResumeTemplateID']();
+}
+
+export function GetTodosEnabled() {
+  return window['go']['main']['App']['GetTodosEnabled']();
 }
 
 export function ImportGitHubProject(arg1) {
@@ -166,6 +174,10 @@ export function ListResumeTemplates() {
   return window['go']['main']['App']['ListResumeTemplates']();
 }
 
+export function ListTodos() {
+  return window['go']['main']['App']['ListTodos']();
+}
+
 export function OpenResumeVersion(arg1) {
   return window['go']['main']['App']['OpenResumeVersion'](arg1);
 }
@@ -218,8 +230,20 @@ export function SaveResumeVersionEdit(arg1) {
   return window['go']['main']['App']['SaveResumeVersionEdit'](arg1);
 }
 
+export function SaveTodo(arg1) {
+  return window['go']['main']['App']['SaveTodo'](arg1);
+}
+
 export function SelectResumeTemplate(arg1) {
   return window['go']['main']['App']['SelectResumeTemplate'](arg1);
+}
+
+export function SetTodoDone(arg1, arg2) {
+  return window['go']['main']['App']['SetTodoDone'](arg1, arg2);
+}
+
+export function SetTodosEnabled(arg1) {
+  return window['go']['main']['App']['SetTodosEnabled'](arg1);
 }
 
 export function UpdateApplicationStatus(arg1) {
