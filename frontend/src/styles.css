@@ -372,6 +372,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .pdf-preview { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
 .pdf-controls { display: flex; align-items: center; justify-content: flex-end; gap: 7px; padding: 7px 12px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 9px; }
 .pdf-controls button { width: 24px; height: 24px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--elevated); color: var(--secondary); }
+.keyword-coverage { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 9px 16px; border-bottom: 1px solid var(--line); background: var(--panel); font-size: 12px; }
+.keyword-coverage > span { color: var(--muted); font-size: 11px; }
+.keyword-coverage ul { display: flex; flex-wrap: wrap; gap: 5px; width: 100%; margin: 0; padding: 0; list-style: none; }
+.keyword-coverage li { display: inline-flex; gap: 4px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 11px; }
+.keyword-coverage li.present { border-color: #c8e86b55; color: var(--accent); }
+.keyword-coverage li small { opacity: .7; }
 .page-warning { margin: 0; padding: 8px 12px; border-bottom: 1px solid #e0b85a55; background: #e0b85a14; color: #e0b85a; font-size: 12px; }
 .pdf-controls i { width: 1px; height: 18px; margin: 0 4px; background: var(--line); }
 .preview-stage.compiled { display: block; padding: 18px; overflow: auto; text-align: center; }

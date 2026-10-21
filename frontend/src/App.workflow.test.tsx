@@ -14,7 +14,7 @@ const bindings = vi.hoisted(() => ({
   ImportResumeTemplate: vi.fn(), ListAchievements: vi.fn(), ListAIRuns: vi.fn(), ListApplications: vi.fn(), ListCertifications: vi.fn(), ListEducations: vi.fn(),
   ListExperiences: vi.fn(), ListJobs: vi.fn(), ListProjects: vi.fn(), ListResumeTemplates: vi.fn(), OpenResumeVersion: vi.fn(), RenderResumeTemplate: vi.fn(), SaveAchievement: vi.fn(),
   SaveAISettings: vi.fn(), SaveCertification: vi.fn(), SaveEducation: vi.fn(), SaveExperience: vi.fn(), SaveGeminiAPIKey: vi.fn(), SaveProfile: vi.fn(),
-  SaveProject: vi.fn(), SaveResumeTemplate: vi.fn(), SaveResumeVersionEdit: vi.fn(), SelectResumeTemplate: vi.fn(), UpdateApplicationStatus: vi.fn(), UpdateApplicationDetails: vi.fn(),
+  SaveProject: vi.fn(), SaveResumeTemplate: vi.fn(), SaveResumeVersionEdit: vi.fn(), SelectResumeTemplate: vi.fn(), UpdateApplicationStatus: vi.fn(), UpdateApplicationDetails: vi.fn(), KeywordCoverage: vi.fn(),
   ListAutomaticBackups: vi.fn(), RestoreAutomaticBackup: vi.fn(), GetLatexDraft: vi.fn(), SaveLatexDraft: vi.fn(), ClearLatexDraft: vi.fn(),
 }));
 
@@ -71,6 +71,7 @@ beforeEach(() => {
   bindings.ListApplications.mockResolvedValue([]);
   bindings.ListAIRuns.mockResolvedValue([]);
   bindings.ListAutomaticBackups.mockResolvedValue([]);
+  bindings.KeywordCoverage.mockResolvedValue({ required: [], preferred: [] });
   bindings.GetLatexDraft.mockResolvedValue({ source: "", versionId: "", savedAt: "" });
   bindings.SaveLatexDraft.mockResolvedValue(undefined);
   bindings.ClearLatexDraft.mockResolvedValue(undefined);
@@ -291,6 +292,22 @@ describe("App Wails workflow integration", () => {
     await user.click(save);
     await waitFor(() => expect(bindings.UpdateApplicationDetails).toHaveBeenCalledWith({ applicationId: tailored.id, appliedOn: "", followUpOn: "2020-01-01", postingUrl: "https://jobs.example.com/1", notes: "Recruiter: Sam" }));
     expect(await screen.findByText("Application tracking saved.")).toBeTruthy();
+  });
+
+  it("shows which job skills an opened tailored resume covers", async () => {
+    const tailored = { id: "application-1", jobId: job.id, name: "", status: "draft", selectedFactIds: [fact.id], versions: [version], createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-02T00:00:00Z" };
+    bindings.ListJobs.mockResolvedValue([job]);
+    bindings.ListApplications.mockResolvedValue([tailored]);
+    bindings.OpenResumeVersion.mockResolvedValue({ version, compileResult: { success: false, pdfBase64: "", engine: "", durationMs: 0, log: "", diagnostics: [] } });
+    bindings.KeywordCoverage.mockResolvedValue({ required: [{ skill: "Go", present: true }, { skill: "Kubernetes", present: false }], preferred: [] });
+
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Open latest version of Senior Platform Engineer at Fictional Cloud" }));
+    const coverage = await screen.findByRole("region", { name: "Job keyword coverage" });
+    expect(within(coverage).getByText("1 of 2 job skills in this resume")).toBeTruthy();
+    expect(within(coverage).getByText("(missing)", { exact: false }).textContent).toContain("missing");
+    expect(bindings.KeywordCoverage).toHaveBeenCalledWith(job.id, version.latexSource);
   });
 
   it("compares two saved versions of a resume on Home", async () => {

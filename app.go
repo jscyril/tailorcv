@@ -542,6 +542,30 @@ func (a *App) UpdateApplicationStatus(input domain.UpdateApplicationStatusInput)
 	return a.store.UpdateApplicationStatus(a.appContext(), input)
 }
 
+// KeywordCoverage reports which skills the saved job asks for appear in the
+// given resume source.
+func (a *App) KeywordCoverage(jobID, latexSource string) (domain.KeywordCoverage, error) {
+	if err := a.ready(); err != nil {
+		return domain.KeywordCoverage{}, err
+	}
+	if len(latexSource) > domain.MaxTemplateSourceBytes {
+		return domain.KeywordCoverage{}, fmt.Errorf("LaTeX source exceeds the 1 MiB size limit")
+	}
+	job, err := a.store.GetJob(a.appContext(), jobID)
+	if err != nil {
+		return domain.KeywordCoverage{}, err
+	}
+	profile, err := a.store.GetProfile(a.appContext())
+	if err != nil {
+		return domain.KeywordCoverage{}, err
+	}
+	projects, err := a.store.ListProjects(a.appContext())
+	if err != nil {
+		return domain.KeywordCoverage{}, err
+	}
+	return domain.CheckKeywordCoverage(domain.JobAnalysisInput{ID: job.ID, Company: job.Company, Role: job.Role, Description: job.Description}, profile.Skills, projects, latexSource)
+}
+
 // UpdateApplicationDetails saves the applied date, follow-up date, job
 // posting link, and notes of an application.
 func (a *App) UpdateApplicationDetails(input domain.UpdateApplicationDetailsInput) (domain.Application, error) {

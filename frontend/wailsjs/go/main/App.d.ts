@@ -70,6 +70,8 @@ export function ImportProfileBackup():Promise<domain.BackupResult>;
 
 export function ImportResumeTemplate():Promise<domain.ResumeTemplate>;
 
+export function KeywordCoverage(arg1:string,arg2:string):Promise<domain.KeywordCoverage>;
+
 export function ListAIRuns():Promise<Array<domain.AIRun>>;
 
 export function ListAchievements():Promise<Array<domain.Achievement>>;
