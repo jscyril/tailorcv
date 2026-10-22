@@ -128,6 +128,12 @@ In priority order. Reliability comes first because losing data in a daily tool i
 - [x] One-page warning when the compiled PDF runs past one page.
 - [x] Copy a resume as plain text for job sites that require pasting.
 
+### Bringing an existing resume
+
+- [x] Import a Jake-format `.tex` resume into the profile forms after review; downloaded Jake's templates compile offline, and the built-in Jake's Resume uses Jake's real layout.
+- [ ] Import other formats (PDF, other LaTeX layouts), likely with AI-assisted extraction and the same review step.
+- [ ] Turn an imported custom template into a form-driven one by replacing its body with TailorCV markers.
+
 ### Writing help
 
 - [x] Cover letters per job, drafted from the selected evidence with the same citation and validation guarantees, exported beside the resume.

@@ -767,36 +767,51 @@ func (a *App) ImportResumeTemplate() (domain.ResumeTemplate, error) {
 	if err := a.ready(); err != nil {
 		return domain.ResumeTemplate{}, err
 	}
-	path, err := a.chooseOpenFile(a.appContext(), runtime.OpenDialogOptions{
-		Title:   "Import LaTeX resume template",
-		Filters: []runtime.FileFilter{{DisplayName: "LaTeX template (*.tex)", Pattern: "*.tex"}},
-	})
-	if err != nil {
-		return domain.ResumeTemplate{}, fmt.Errorf("choose LaTeX template: %w", err)
-	}
-	if path == "" {
-		return domain.ResumeTemplate{}, nil
-	}
-	if !strings.EqualFold(filepath.Ext(path), ".tex") {
-		return domain.ResumeTemplate{}, fmt.Errorf("template file must use the .tex extension")
-	}
-	info, err := os.Stat(path)
-	if err != nil {
-		return domain.ResumeTemplate{}, fmt.Errorf("inspect LaTeX template: %w", err)
-	}
-	if info.Size() > domain.MaxTemplateSourceBytes {
-		return domain.ResumeTemplate{}, fmt.Errorf("template source exceeds the 1 MiB size limit")
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return domain.ResumeTemplate{}, fmt.Errorf("read LaTeX template: %w", err)
+	path, data, err := a.chooseTexFile("Import LaTeX resume template")
+	if err != nil || path == "" {
+		return domain.ResumeTemplate{}, err
 	}
 	name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-	template, err := (domain.ResumeTemplateInput{Name: name, Description: "Imported from " + filepath.Base(path), Source: string(data)}).Validate()
+	description := "Imported from " + filepath.Base(path)
+	source, removed := resume.CommentOutPDFTeXOnly(string(data))
+	if removed > 0 {
+		description += fmt.Sprintf(". TailorCV commented out %d pdfTeX-only line(s) (glyphtounicode) that Tectonic does not need.", removed)
+	}
+	template, err := (domain.ResumeTemplateInput{Name: name, Description: description, Source: source}).Validate()
 	if err != nil {
 		return domain.ResumeTemplate{}, err
 	}
 	return a.store.SaveTemplate(a.appContext(), template)
+}
+
+// chooseTexFile asks for a .tex file and reads it. An empty path means the
+// user cancelled.
+func (a *App) chooseTexFile(title string) (string, []byte, error) {
+	path, err := a.chooseOpenFile(a.appContext(), runtime.OpenDialogOptions{
+		Title:   title,
+		Filters: []runtime.FileFilter{{DisplayName: "LaTeX file (*.tex)", Pattern: "*.tex"}},
+	})
+	if err != nil {
+		return "", nil, fmt.Errorf("choose LaTeX file: %w", err)
+	}
+	if path == "" {
+		return "", nil, nil
+	}
+	if !strings.EqualFold(filepath.Ext(path), ".tex") {
+		return "", nil, fmt.Errorf("the file must use the .tex extension")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", nil, fmt.Errorf("inspect LaTeX file: %w", err)
+	}
+	if info.Size() > domain.MaxTemplateSourceBytes {
+		return "", nil, fmt.Errorf("the LaTeX file exceeds the 1 MiB size limit")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", nil, fmt.Errorf("read LaTeX file: %w", err)
+	}
+	return path, data, nil
 }
 
 // SaveResumeTemplate creates or updates a user-owned template. Built-ins can

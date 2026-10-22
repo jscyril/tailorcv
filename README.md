@@ -19,7 +19,8 @@ TailorCV has a complete deterministic resume-building vertical slice, local comp
 - Manual evidence selection with saved applications, `draft`/`submitted`/`interviewing`/`offer`/`rejected`/`archived` lifecycle controls, and immutable numbered LaTeX resume snapshots, including evidence-ranking explanations and content hashes.
 - New immutable versions for edited source, with compilation metadata and private per-version PDF artifacts.
 - A dark split workspace with project selection, a CodeMirror LaTeX editor, clickable compiler diagnostics, job keyword coverage for tailored resumes, and a zoomable PDF.js preview that warns past one page and copies the resume as plain text.
-- Read-only Jake-style and Classic ATS templates, plus persistent user-imported `.tex` templates.
+- Read-only Jake's Resume and Classic ATS templates, plus persistent user-imported `.tex` templates. Downloaded templates such as Jake's Resume compile offline; pdfTeX-only `glyphtounicode` lines are removed on import.
+- Import of an existing resume written with Jake's resume commands (`\resumeSubheading`, `\resumeItem`, `\resumeProjectHeading`) into the profile, experience, projects, education, and skills, after a review step.
 - Debounced local Tectonic compilation with structured line diagnostics, isolated untrusted workspaces, resource limits, an OS sandbox (Landlock on Linux, `sandbox-exec` on macOS) that keeps LaTeX inside its workspace, and native `.tex`/`.pdf` export with "Name - Company - Role" file names.
 - Versioned JSON backup and atomic restore for all currently supported profile data.
 - Public GitHub repository sync with stable repository identity, visibility, update timestamps, bounded README snapshots, complete language detection, user-controlled language selection, and an explicit review gate before resume eligibility.

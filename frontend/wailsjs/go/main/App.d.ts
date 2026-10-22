@@ -6,6 +6,8 @@ export function AcceptAITailoring(arg1:domain.AcceptAITailoringInput):Promise<do
 
 export function AnalyzeJobDescription(arg1:domain.JobAnalysisInput):Promise<domain.JobAnalysis>;
 
+export function ApplyResumeImport(arg1:domain.ResumeImport):Promise<domain.ResumeImportResult>;
+
 export function CancelAITailoring():Promise<void>;
 
 export function CheckGemini():Promise<domain.AIProviderStatus>;
@@ -99,6 +101,8 @@ export function ListProjects():Promise<Array<domain.Project>>;
 export function ListResumeTemplates():Promise<Array<domain.ResumeTemplate>>;
 
 export function OpenResumeVersion(arg1:string):Promise<domain.ResumeVersionWorkspace>;
+
+export function PreviewResumeImport():Promise<domain.ResumeImport>;
 
 export function RenameResume(arg1:domain.RenameResumeInput):Promise<domain.Application>;
 

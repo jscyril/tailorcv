@@ -14,7 +14,7 @@ const bindings = vi.hoisted(() => ({
   ImportResumeTemplate: vi.fn(), ListAchievements: vi.fn(), ListAIRuns: vi.fn(), ListApplications: vi.fn(), ListCertifications: vi.fn(), ListEducations: vi.fn(),
   ListExperiences: vi.fn(), ListJobs: vi.fn(), ListProjects: vi.fn(), ListResumeTemplates: vi.fn(), OpenResumeVersion: vi.fn(), RenderResumeTemplate: vi.fn(), SaveAchievement: vi.fn(),
   SaveAISettings: vi.fn(), SaveCertification: vi.fn(), SaveEducation: vi.fn(), SaveExperience: vi.fn(), SaveGeminiAPIKey: vi.fn(), SaveProfile: vi.fn(),
-  SaveProject: vi.fn(), SaveResumeTemplate: vi.fn(), SaveResumeVersionEdit: vi.fn(), SelectResumeTemplate: vi.fn(), UpdateApplicationStatus: vi.fn(), UpdateApplicationDetails: vi.fn(), KeywordCoverage: vi.fn(), DraftCoverLetter: vi.fn(), GenerateCoverLetter: vi.fn(), SaveCoverLetter: vi.fn(), ExportCoverLetterPDF: vi.fn(),
+  SaveProject: vi.fn(), SaveResumeTemplate: vi.fn(), SaveResumeVersionEdit: vi.fn(), SelectResumeTemplate: vi.fn(), UpdateApplicationStatus: vi.fn(), UpdateApplicationDetails: vi.fn(), KeywordCoverage: vi.fn(), DraftCoverLetter: vi.fn(), GenerateCoverLetter: vi.fn(), SaveCoverLetter: vi.fn(), ExportCoverLetterPDF: vi.fn(), PreviewResumeImport: vi.fn(), ApplyResumeImport: vi.fn(),
   ListAutomaticBackups: vi.fn(), RestoreAutomaticBackup: vi.fn(), GetLatexDraft: vi.fn(), SaveLatexDraft: vi.fn(), ClearLatexDraft: vi.fn(),
 }));
 
@@ -465,6 +465,42 @@ describe("App Wails workflow integration", () => {
     expect(await screen.findByText(/^Restored the backup from/)).toBeTruthy();
     expect(confirm.mock.calls[1][0]).toContain("safety copy");
     await waitFor(() => expect(bindings.ListAutomaticBackups).toHaveBeenCalledTimes(2));
+  });
+
+  it("imports an existing resume from onboarding after review", async () => {
+    const empty = {
+      name: "", headline: "", email: "", phone: "", location: "", website: "", githubUsername: "", linkedInUrl: "",
+      summary: "", skills: [], contactLinks: [], updatedAt: "",
+    };
+    bindings.GetProfile.mockResolvedValue(empty);
+    bindings.ListExperiences.mockResolvedValue([]);
+    const role = (title: string) => ({ id: "", company: "Example Systems", title, location: "Remote", startDate: "2022-06", endDate: "", current: true, bullets: [{ id: "", text: "Built things", provenance: "imported", sourceUrl: "", verification: "verified", importance: "standard" }] });
+    bindings.PreviewResumeImport.mockResolvedValue({
+      fileName: "resume.tex",
+      profile: { ...empty, name: "Casey Fictional", email: "casey@example.com", skills: ["Go", "Python"], contactLinks: [] },
+      experiences: [role("Software Engineer"), role("Intern")],
+      projects: [], educations: [],
+      warnings: ['The "Leadership" section was not imported; add it by hand if you need it.'],
+    });
+    bindings.ApplyResumeImport.mockResolvedValue({ experiences: 1, projects: 0, educations: 0, skills: 2, duplicates: 0 });
+
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Import existing resume (.tex)" }));
+    const dialog = await screen.findByRole("dialog", { name: "Review what was found in resume.tex" });
+    expect(within(dialog).getByText(/Leadership/)).toBeTruthy();
+    expect(within(dialog).getByText("Casey Fictional · casey@example.com")).toBeTruthy();
+
+    // Leave out the internship, then import.
+    await user.click(within(dialog).getByRole("checkbox", { name: /Intern · Example Systems/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Import 1 entry" }));
+    await waitFor(() => expect(bindings.ApplyResumeImport).toHaveBeenCalledTimes(1));
+    const sent = bindings.ApplyResumeImport.mock.calls[0][0];
+    expect(sent.experiences.map((entry: { title: string }) => entry.title)).toEqual(["Software Engineer"]);
+    expect(sent.profile.skills).toEqual(["Go", "Python"]);
+    expect(await screen.findByText(/Imported 1 role, 0 projects, 0 education entries, and 2 new skills/)).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: /^Experience/ }).getAttribute("aria-current")).toBe("page");
   });
 
   it("creates the first local profile through onboarding", async () => {

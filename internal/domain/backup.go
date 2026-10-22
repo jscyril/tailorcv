@@ -67,25 +67,7 @@ func (backup ProfileBackup) Validate() (ProfileBackup, error) {
 		return ProfileBackup{}, fmt.Errorf("backup export time is not valid")
 	}
 
-	profile, err := (ProfileInput{
-		Name:           backup.Profile.Name,
-		Headline:       backup.Profile.Headline,
-		Email:          backup.Profile.Email,
-		Phone:          backup.Profile.Phone,
-		Location:       backup.Profile.Location,
-		Website:        backup.Profile.Website,
-		GitHubUsername: backup.Profile.GitHubUsername,
-		LinkedInURL:    backup.Profile.LinkedInURL,
-		Summary:        backup.Profile.Summary,
-		Skills:         backup.Profile.Skills,
-		ContactLinks: func() []ContactLinkInput {
-			result := make([]ContactLinkInput, len(backup.Profile.ContactLinks))
-			for i, item := range backup.Profile.ContactLinks {
-				result[i] = ContactLinkInput{ID: item.ID, Label: item.Label, URL: item.URL}
-			}
-			return result
-		}(),
-	}).Validate()
+	profile, err := backup.Profile.Input().Validate()
 	if err != nil {
 		return ProfileBackup{}, fmt.Errorf("profile: %w", err)
 	}

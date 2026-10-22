@@ -45,6 +45,19 @@ type ProfileInput struct {
 	ContactLinks   []ContactLinkInput `json:"contactLinks"`
 }
 
+// Input returns the profile as form input, for editing and re-validation.
+func (profile Profile) Input() ProfileInput {
+	links := make([]ContactLinkInput, len(profile.ContactLinks))
+	for index, item := range profile.ContactLinks {
+		links[index] = ContactLinkInput{ID: item.ID, Label: item.Label, URL: item.URL}
+	}
+	return ProfileInput{
+		Name: profile.Name, Headline: profile.Headline, Email: profile.Email, Phone: profile.Phone, Location: profile.Location,
+		Website: profile.Website, GitHubUsername: profile.GitHubUsername, LinkedInURL: profile.LinkedInURL, Summary: profile.Summary,
+		Skills: append([]string(nil), profile.Skills...), ContactLinks: links,
+	}
+}
+
 type ContactLink struct {
 	ID        string `json:"id"`
 	Label     string `json:"label"`
