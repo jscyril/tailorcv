@@ -1,1 +1,2 @@
 build/tectonic/fixtures/*.tex text eol=lf
+internal/resumeimport/testdata/*.tex text eol=lf

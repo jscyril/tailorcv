@@ -285,12 +285,13 @@ func fallback(value, fallbackValue string) string {
 
 // pdfTeX-only lines common in downloaded templates (Jake's resume among them).
 // Tectonic runs XeTeX, which already writes Unicode text, so they are unneeded.
-var pdfTeXOnlyLine = regexp.MustCompile(`(?m)^[ \t]*(\\input\{glyphtounicode\}|\\pdfgentounicode\s*=\s*1)[ \t]*$`)
+var pdfTeXOnlyLine = regexp.MustCompile(`(?m)^[ \t]*(\\input\{glyphtounicode\}|\\pdfgentounicode\s*=\s*1)[ \t]*(\r?)$`)
 
 // CommentOutPDFTeXOnly replaces those lines with a note and reports how many
 // it changed. The note holds no backslash, because the Windows safety scan
 // reads comments too and would refuse a commented-out \input.
 func CommentOutPDFTeXOnly(source string) (string, int) {
 	count := len(pdfTeXOnlyLine.FindAllStringIndex(source, -1))
-	return pdfTeXOnlyLine.ReplaceAllString(source, "% TailorCV removed a pdfTeX-only line (glyphtounicode setup); Tectonic does not need it."), count
+	// $2 keeps a Windows line ending (\r) when the file has one.
+	return pdfTeXOnlyLine.ReplaceAllString(source, "% TailorCV removed a pdfTeX-only line (glyphtounicode setup); Tectonic does not need it.$2"), count
 }

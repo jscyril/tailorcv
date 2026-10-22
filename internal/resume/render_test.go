@@ -86,6 +86,13 @@ func TestCommentOutPDFTeXOnly(t *testing.T) {
 	}
 }
 
+func TestCommentOutPDFTeXOnlyWithWindowsLineEndings(t *testing.T) {
+	got, count := CommentOutPDFTeXOnly("\\input{glyphtounicode}\r\n\\pdfgentounicode=1\r\n")
+	if count != 2 || strings.Contains(got, `\input`) || strings.Count(got, "\r\n") != 2 {
+		t.Fatalf("CommentOutPDFTeXOnly(CRLF) = %q, %d", got, count)
+	}
+}
+
 func mustCommentOut(source string) string {
 	result, _ := CommentOutPDFTeXOnly(source)
 	return result
