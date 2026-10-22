@@ -7,7 +7,17 @@ import { PanelHeader } from "../../components/ui";
 import { type Job } from "../ai/AIWorkspace";
 import { VersionCompare } from "./VersionCompare";
 import { ApplicationTracker, followUpDue, type ApplicationDetails } from "../applications/ApplicationTracker";
+import { CoverLetterPanel } from "../coverletter/CoverLetterPanel";
 import { STATUS_OPTIONS, type ApplicationStatus } from "../applications/ApplicationStatusControl";
+
+export type CoverLetterHandlers = {
+  aiModel: string;
+  busyId: string;
+  draft: (application: Application) => Promise<string | null>;
+  generate: (application: Application) => Promise<string | null>;
+  save: (application: Application, text: string) => Promise<boolean>;
+  export: (application: Application, text: string) => void;
+};
 
 export function resumeTitle(application: Application, jobs: Job[]): string {
   if (application.name) return application.name;
@@ -15,7 +25,7 @@ export function resumeTitle(application: Application, jobs: Job[]): string {
   return [job?.role, job?.company].filter(Boolean).join(" at ") || "Untitled resume";
 }
 
-export function WorkspaceOverview({ profile, completion, experiences, projects, applications, jobs, busy, onOpen, onNewResume, onNewGeneralResume, onOpenJob, onOpenVersion, onRename, onDuplicate, onDelete, statusBusy, onStatusChange, onSaveDetails }: { profile: Profile; completion: number; experiences: ExperienceDraft[]; projects: ProjectDraft[]; applications: Application[]; jobs: Job[]; busy: boolean; onOpen: (view: View) => void; onNewResume: () => void; onNewGeneralResume: () => void; onOpenJob: (job: Job) => void; onOpenVersion: (version: ResumeVersion) => void; onRename: (application: Application, name: string) => Promise<boolean>; onDuplicate: (application: Application) => void; onDelete: (application: Application, title: string) => void; statusBusy: boolean; onStatusChange: (status: ApplicationStatus, application: Application) => void; onSaveDetails: (application: Application, details: ApplicationDetails) => Promise<boolean> }) {
+export function WorkspaceOverview({ profile, completion, experiences, projects, applications, jobs, busy, onOpen, onNewResume, onNewGeneralResume, onOpenJob, onOpenVersion, onRename, onDuplicate, onDelete, statusBusy, onStatusChange, onSaveDetails, coverLetters }: { profile: Profile; completion: number; experiences: ExperienceDraft[]; projects: ProjectDraft[]; applications: Application[]; jobs: Job[]; busy: boolean; onOpen: (view: View) => void; onNewResume: () => void; onNewGeneralResume: () => void; onOpenJob: (job: Job) => void; onOpenVersion: (version: ResumeVersion) => void; onRename: (application: Application, name: string) => Promise<boolean>; onDuplicate: (application: Application) => void; onDelete: (application: Application, title: string) => void; statusBusy: boolean; onStatusChange: (status: ApplicationStatus, application: Application) => void; onSaveDetails: (application: Application, details: ApplicationDetails) => Promise<boolean>; coverLetters: CoverLetterHandlers }) {
   const versionCount = applications.reduce((sum, application) => sum + application.versions.length, 0);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const [comparing, setComparing] = useState<string | null>(null);
@@ -69,6 +79,10 @@ export function WorkspaceOverview({ profile, completion, experiences, projects, 
             <summary>Track application</summary>
             <ApplicationTracker application={application} title={title} busy={statusBusy} onStatusChange={(status) => onStatusChange(status, application)} onSave={(details) => onSaveDetails(application, details)} />
           </details>
+          {job && <details className="resume-versions">
+            <summary>Cover letter{application.coverLetter ? "" : " (none yet)"}</summary>
+            <CoverLetterPanel application={application} title={title} aiModel={coverLetters.aiModel} busy={coverLetters.busyId === application.id} onDraft={() => coverLetters.draft(application)} onGenerate={() => coverLetters.generate(application)} onSave={(text) => coverLetters.save(application, text)} onExport={(text) => coverLetters.export(application, text)} />
+          </details>}
           {application.versions.length > 0 && <details className="resume-versions">
             <summary>{application.versions.length} version{application.versions.length === 1 ? "" : "s"}</summary>
             <ol>{application.versions.map((version) => <li key={version.id}>

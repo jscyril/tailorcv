@@ -14,7 +14,7 @@ const bindings = vi.hoisted(() => ({
   ImportResumeTemplate: vi.fn(), ListAchievements: vi.fn(), ListAIRuns: vi.fn(), ListApplications: vi.fn(), ListCertifications: vi.fn(), ListEducations: vi.fn(),
   ListExperiences: vi.fn(), ListJobs: vi.fn(), ListProjects: vi.fn(), ListResumeTemplates: vi.fn(), OpenResumeVersion: vi.fn(), RenderResumeTemplate: vi.fn(), SaveAchievement: vi.fn(),
   SaveAISettings: vi.fn(), SaveCertification: vi.fn(), SaveEducation: vi.fn(), SaveExperience: vi.fn(), SaveGeminiAPIKey: vi.fn(), SaveProfile: vi.fn(),
-  SaveProject: vi.fn(), SaveResumeTemplate: vi.fn(), SaveResumeVersionEdit: vi.fn(), SelectResumeTemplate: vi.fn(), UpdateApplicationStatus: vi.fn(), UpdateApplicationDetails: vi.fn(), KeywordCoverage: vi.fn(),
+  SaveProject: vi.fn(), SaveResumeTemplate: vi.fn(), SaveResumeVersionEdit: vi.fn(), SelectResumeTemplate: vi.fn(), UpdateApplicationStatus: vi.fn(), UpdateApplicationDetails: vi.fn(), KeywordCoverage: vi.fn(), DraftCoverLetter: vi.fn(), GenerateCoverLetter: vi.fn(), SaveCoverLetter: vi.fn(), ExportCoverLetterPDF: vi.fn(),
   ListAutomaticBackups: vi.fn(), RestoreAutomaticBackup: vi.fn(), GetLatexDraft: vi.fn(), SaveLatexDraft: vi.fn(), ClearLatexDraft: vi.fn(),
 }));
 
@@ -309,6 +309,43 @@ describe("App Wails workflow integration", () => {
     expect(within(coverage).getByText("1 of 2 job skills in this resume")).toBeTruthy();
     expect(within(coverage).getByText("(missing)", { exact: false }).textContent).toContain("missing");
     expect(bindings.KeywordCoverage).toHaveBeenCalledWith(job.id, version.latexSource);
+  });
+
+  it("drafts, edits, saves, and exports a cover letter from Home", async () => {
+    const tailored = { id: "application-1", jobId: job.id, name: "", status: "draft", selectedFactIds: [fact.id], versions: [version], createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-02T00:00:00Z" };
+    bindings.ListJobs.mockResolvedValue([job]);
+    bindings.ListApplications.mockResolvedValue([tailored]);
+    bindings.DraftCoverLetter.mockResolvedValue("Dear Fictional Cloud hiring team,\n\n- Built reliable Go deployment services");
+    bindings.SaveCoverLetter.mockImplementation(async ({ text }) => ({ ...tailored, coverLetter: text }));
+    bindings.ExportCoverLetterPDF.mockResolvedValue({ path: "/tmp/letter.pdf", cancelled: false });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByText("Cover letter (none yet)"));
+    const panel = screen.getByRole("region", { name: "Cover letter for Senior Platform Engineer at Fictional Cloud" });
+    // AI drafting needs a model first.
+    expect((within(panel).getByRole("button", { name: "Draft with AI" }) as HTMLButtonElement).disabled).toBe(true);
+
+    await user.click(within(panel).getByRole("button", { name: "Draft from evidence" }));
+    const letter = within(panel).getByLabelText("Cover letter text") as HTMLTextAreaElement;
+    await waitFor(() => expect(letter.value).toContain("Built reliable Go deployment services"));
+    expect(confirm).not.toHaveBeenCalled();
+    await user.type(letter, " Thanks!");
+    await user.click(within(panel).getByRole("button", { name: "Save letter" }));
+    await waitFor(() => expect(bindings.SaveCoverLetter).toHaveBeenCalledWith({ applicationId: tailored.id, text: expect.stringContaining("Thanks!") }));
+    expect(await screen.findByText("Cover letter saved.")).toBeTruthy();
+
+    // Drafting again asks before replacing the saved letter.
+    confirm.mockReturnValue(false);
+    await user.click(within(panel).getByRole("button", { name: "Draft from evidence" }));
+    expect(confirm).toHaveBeenCalledWith("Replace the current cover letter with a new draft?");
+    expect(bindings.DraftCoverLetter).toHaveBeenCalledTimes(1);
+
+    await user.click(within(panel).getByRole("button", { name: "Export PDF" }));
+    await waitFor(() => expect(bindings.ExportCoverLetterPDF).toHaveBeenCalledWith(expect.stringContaining("Thanks!"), "Ada Lovelace - Fictional Cloud - Cover letter"));
+    expect(await screen.findByText("Cover letter exported to /tmp/letter.pdf.")).toBeTruthy();
+    confirm.mockRestore();
   });
 
   it("compares two saved versions of a resume on Home", async () => {

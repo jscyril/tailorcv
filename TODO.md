@@ -130,7 +130,7 @@ In priority order. Reliability comes first because losing data in a daily tool i
 
 ### Writing help
 
-- [ ] Cover letters per job, drafted from the selected evidence with the same citation and validation guarantees, exported beside the resume.
+- [x] Cover letters per job, drafted from the selected evidence with the same citation and validation guarantees, exported beside the resume.
 - [ ] Form-based editing of a single saved resume (reword, hide, reorder sections) without LaTeX. Requires storing resume content as structured data.
 - [ ] Saved answers to common application questions, reusable and adaptable per job.
 

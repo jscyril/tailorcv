@@ -769,6 +769,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .resume-library-filters input { flex: 1; min-width: 0; }
 .resume-library-filters select option { background: #0d100e; }
 .resume-library-no-match { margin: 0; padding: 14px 16px; color: var(--muted); font-size: 12px; }
+.cover-letter { display: grid; gap: 10px; margin-top: 8px; padding: 12px; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--panel); }
+.cover-letter-actions, .cover-letter footer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cover-letter footer > span { flex: 1; }
+.cover-letter textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 7px; background: #0d100e; color: var(--text); font: inherit; font-size: 12px; line-height: 1.55; resize: vertical; }
+.cover-letter small { color: var(--muted); font-size: 11px; }
 .application-tracker { display: grid; gap: 12px; margin-top: 8px; padding: 12px; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--panel); }
 .application-tracker-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .application-tracker-grid label { display: grid; gap: 5px; color: var(--secondary); font-size: 11px; }
