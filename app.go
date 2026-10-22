@@ -1018,8 +1018,13 @@ func (a *App) ExportCompiledPDF(name string) (domain.FileResult, error) {
 	if len(pdf) == 0 {
 		return domain.FileResult{}, fmt.Errorf("compile the current LaTeX source before exporting a PDF")
 	}
+	return a.savePDF("Export compiled resume", name, pdf)
+}
+
+// savePDF asks where to save a PDF, suggesting name, and writes it.
+func (a *App) savePDF(title, name string, pdf []byte) (domain.FileResult, error) {
 	path, err := a.chooseSaveFile(a.appContext(), runtime.SaveDialogOptions{
-		Title:           "Export compiled resume",
+		Title:           title,
 		DefaultFilename: exportFilename(name, ".pdf"),
 		Filters:         []runtime.FileFilter{{DisplayName: "PDF document (*.pdf)", Pattern: "*.pdf"}},
 	})
@@ -1036,6 +1041,48 @@ func (a *App) ExportCompiledPDF(name string) (domain.FileResult, error) {
 		return domain.FileResult{}, fmt.Errorf("export PDF: %w", err)
 	}
 	return domain.FileResult{Path: path}, nil
+}
+
+// SaveCoverLetter stores the edited cover letter of an application.
+func (a *App) SaveCoverLetter(input domain.SaveCoverLetterInput) (domain.Application, error) {
+	if err := a.ready(); err != nil {
+		return domain.Application{}, err
+	}
+	return a.store.SaveCoverLetter(a.appContext(), input)
+}
+
+// ExportCoverLetterPDF compiles cover letter text with the letter template
+// and saves the PDF; name suggests the file name.
+func (a *App) ExportCoverLetterPDF(text, name string) (domain.FileResult, error) {
+	if err := a.ready(); err != nil {
+		return domain.FileResult{}, err
+	}
+	letter, err := (domain.SaveCoverLetterInput{ApplicationID: "export", Text: text}).Validate()
+	if err != nil {
+		return domain.FileResult{}, err
+	}
+	if letter.Text == "" {
+		return domain.FileResult{}, fmt.Errorf("write or draft the cover letter before exporting it")
+	}
+	profile, err := a.store.GetProfile(a.appContext())
+	if err != nil {
+		return domain.FileResult{}, err
+	}
+	result, pdf, err := a.compile(a.appContext(), resume.RenderCoverLetter(profile, letter.Text))
+	if err != nil {
+		return domain.FileResult{}, err
+	}
+	if !result.Success || len(pdf) == 0 {
+		message := "the cover letter did not compile"
+		for _, diagnostic := range result.Diagnostics {
+			if diagnostic.Severity == "error" {
+				message += ": " + diagnostic.Message
+				break
+			}
+		}
+		return domain.FileResult{}, fmt.Errorf("%s", message)
+	}
+	return a.savePDF("Export cover letter", name, pdf)
 }
 
 func (a *App) ExportLatexSource(source, name string) (domain.FileResult, error) {

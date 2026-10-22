@@ -15,14 +15,14 @@ import (
 )
 
 func (s *Store) ListApplications(ctx context.Context) ([]domain.Application, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, COALESCE(job_id, ''), name, status, applied_on, follow_up_on, posting_url, notes, created_at, updated_at FROM applications ORDER BY updated_at DESC, created_at DESC`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, COALESCE(job_id, ''), name, status, applied_on, follow_up_on, posting_url, notes, cover_letter, created_at, updated_at FROM applications ORDER BY updated_at DESC, created_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("list applications: %w", err)
 	}
 	applications := make([]domain.Application, 0)
 	for rows.Next() {
 		var application domain.Application
-		if err := rows.Scan(&application.ID, &application.JobID, &application.Name, &application.Status, &application.AppliedOn, &application.FollowUpOn, &application.PostingURL, &application.Notes, &application.CreatedAt, &application.UpdatedAt); err != nil {
+		if err := rows.Scan(&application.ID, &application.JobID, &application.Name, &application.Status, &application.AppliedOn, &application.FollowUpOn, &application.PostingURL, &application.Notes, &application.CoverLetter, &application.CreatedAt, &application.UpdatedAt); err != nil {
 			_ = rows.Close()
 			return nil, fmt.Errorf("scan application: %w", err)
 		}
@@ -68,7 +68,7 @@ func (s *Store) UpdateApplicationStatus(ctx context.Context, input domain.Update
 	if count, err := result.RowsAffected(); err != nil || count != 1 {
 		return domain.Application{}, fmt.Errorf("application was not found")
 	}
-	return s.getApplication(ctx, validated.ApplicationID)
+	return s.GetApplication(ctx, validated.ApplicationID)
 }
 
 func (s *Store) UpdateApplicationDetails(ctx context.Context, input domain.UpdateApplicationDetailsInput) (domain.Application, error) {
@@ -87,10 +87,29 @@ func (s *Store) UpdateApplicationDetails(ctx context.Context, input domain.Updat
 	if count, err := result.RowsAffected(); err != nil || count != 1 {
 		return domain.Application{}, fmt.Errorf("application was not found")
 	}
-	return s.getApplication(ctx, validated.ApplicationID)
+	return s.GetApplication(ctx, validated.ApplicationID)
 }
 
-func (s *Store) getApplication(ctx context.Context, id string) (domain.Application, error) {
+func (s *Store) SaveCoverLetter(ctx context.Context, input domain.SaveCoverLetterInput) (domain.Application, error) {
+	validated, err := input.Validate()
+	if err != nil {
+		return domain.Application{}, err
+	}
+	if _, err := uuid.Parse(validated.ApplicationID); err != nil {
+		return domain.Application{}, fmt.Errorf("application ID is not valid")
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	result, err := s.db.ExecContext(ctx, `UPDATE applications SET cover_letter = ?, updated_at = ? WHERE id = ?`, validated.Text, now, validated.ApplicationID)
+	if err != nil {
+		return domain.Application{}, fmt.Errorf("save cover letter: %w", err)
+	}
+	if count, err := result.RowsAffected(); err != nil || count != 1 {
+		return domain.Application{}, fmt.Errorf("application was not found")
+	}
+	return s.GetApplication(ctx, validated.ApplicationID)
+}
+
+func (s *Store) GetApplication(ctx context.Context, id string) (domain.Application, error) {
 	applications, err := s.ListApplications(ctx)
 	if err != nil {
 		return domain.Application{}, err
@@ -152,7 +171,7 @@ func (s *Store) RenameApplication(ctx context.Context, input domain.RenameResume
 	if count, err := result.RowsAffected(); err != nil || count != 1 {
 		return domain.Application{}, fmt.Errorf("resume was not found")
 	}
-	return s.getApplication(ctx, input.ApplicationID)
+	return s.GetApplication(ctx, input.ApplicationID)
 }
 
 // DuplicateApplication copies the latest version into a new, job-free resume.
@@ -225,7 +244,7 @@ func (s *Store) DuplicateApplication(ctx context.Context, id string) (domain.App
 	if err := tx.Commit(); err != nil {
 		return domain.Application{}, fmt.Errorf("commit resume copy: %w", err)
 	}
-	return s.getApplication(ctx, copyID)
+	return s.GetApplication(ctx, copyID)
 }
 
 // DeleteApplication removes a resume and all its versions, keeping any linked

@@ -54,26 +54,9 @@ func (input GenerateProjectReadmeBulletsInput) Validate() (GenerateProjectReadme
 	if input.ProjectID == "" {
 		return GenerateProjectReadmeBulletsInput{}, fmt.Errorf("save the project before generating README bullets")
 	}
-	input.Provider = strings.ToLower(strings.TrimSpace(input.Provider))
-	if input.Provider == "" {
-		input.Provider = "ollama"
-	}
-	if input.Provider != "ollama" && input.Provider != "gemini" {
-		return GenerateProjectReadmeBulletsInput{}, fmt.Errorf("AI provider %q is not supported", input.Provider)
-	}
-	input.Model = strings.TrimSpace(input.Model)
-	if input.Model == "" || len(input.Model) > 200 {
-		return GenerateProjectReadmeBulletsInput{}, fmt.Errorf("select a model for %s", input.Provider)
-	}
-	if input.Provider == "ollama" {
-		endpoint, err := ValidateOllamaEndpoint(input.Endpoint)
-		if err != nil {
-			return GenerateProjectReadmeBulletsInput{}, err
-		}
-		input.Endpoint = endpoint
-	} else {
-		input.Model = strings.TrimPrefix(input.Model, "models/")
-		input.Endpoint = ""
+	var err error
+	if input.Provider, input.Model, input.Endpoint, err = validateProviderChoice(input.Provider, input.Model, input.Endpoint); err != nil {
+		return GenerateProjectReadmeBulletsInput{}, err
 	}
 	return input, nil
 }
@@ -89,26 +72,8 @@ func (input GenerateAITailoringInput) Validate() (GenerateAITailoringInput, erro
 	}
 	input.JobID = selection.JobID
 	input.SelectedFactIDs = selection.SelectedFactIDs
-	input.Provider = strings.ToLower(strings.TrimSpace(input.Provider))
-	if input.Provider == "" {
-		input.Provider = "ollama"
-	}
-	if input.Provider != "ollama" && input.Provider != "gemini" {
-		return GenerateAITailoringInput{}, fmt.Errorf("AI provider %q is not supported", input.Provider)
-	}
-	input.Model = strings.TrimSpace(input.Model)
-	if input.Model == "" || len(input.Model) > 200 {
-		return GenerateAITailoringInput{}, fmt.Errorf("select a model for %s", input.Provider)
-	}
-	if input.Provider == "ollama" {
-		endpoint, err := ValidateOllamaEndpoint(input.Endpoint)
-		if err != nil {
-			return GenerateAITailoringInput{}, err
-		}
-		input.Endpoint = endpoint
-	} else {
-		input.Model = strings.TrimPrefix(input.Model, "models/")
-		input.Endpoint = ""
+	if input.Provider, input.Model, input.Endpoint, err = validateProviderChoice(input.Provider, input.Model, input.Endpoint); err != nil {
+		return GenerateAITailoringInput{}, err
 	}
 	return input, nil
 }
@@ -156,4 +121,50 @@ func ValidateOllamaEndpoint(value string) (string, error) {
 	}
 	parsed.Path = strings.TrimRight(parsed.Path, "/")
 	return strings.TrimRight(parsed.String(), "/"), nil
+}
+
+// validateProviderChoice normalizes the provider, model, and endpoint shared
+// by every AI request.
+func validateProviderChoice(provider, model, endpoint string) (string, string, string, error) {
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	if provider == "" {
+		provider = "ollama"
+	}
+	if provider != "ollama" && provider != "gemini" {
+		return "", "", "", fmt.Errorf("AI provider %q is not supported", provider)
+	}
+	model = strings.TrimSpace(model)
+	if model == "" || len(model) > 200 {
+		return "", "", "", fmt.Errorf("select a model for %s", provider)
+	}
+	if provider == "gemini" {
+		return provider, strings.TrimPrefix(model, "models/"), "", nil
+	}
+	endpoint, err := ValidateOllamaEndpoint(endpoint)
+	if err != nil {
+		return "", "", "", err
+	}
+	return provider, model, endpoint, nil
+}
+
+// GenerateCoverLetterInput asks the configured provider for cover letter body
+// paragraphs from an application's selected evidence. Nothing is saved until
+// the user saves the letter.
+type GenerateCoverLetterInput struct {
+	ApplicationID string `json:"applicationId"`
+	Provider      string `json:"provider"`
+	Model         string `json:"model"`
+	Endpoint      string `json:"endpoint"`
+}
+
+func (input GenerateCoverLetterInput) Validate() (GenerateCoverLetterInput, error) {
+	input.ApplicationID = strings.TrimSpace(input.ApplicationID)
+	if input.ApplicationID == "" {
+		return GenerateCoverLetterInput{}, fmt.Errorf("application ID is required")
+	}
+	var err error
+	if input.Provider, input.Model, input.Endpoint, err = validateProviderChoice(input.Provider, input.Model, input.Endpoint); err != nil {
+		return GenerateCoverLetterInput{}, err
+	}
+	return input, nil
 }

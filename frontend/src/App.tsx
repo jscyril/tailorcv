@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { AcceptAITailoring, AnalyzeJobDescription, CancelAITailoring, CheckGemini, CheckOllama, ClearLatexDraft, CompileLatex, CompileResumeVersion, CreateResume, CreateResumeVersion, DeleteAchievement, DeleteCertification, DeleteEducation, DeleteExperience, DeleteGeminiAPIKey, DeleteJob, DeleteProject, DeleteResume, DeleteResumeTemplate, DuplicateResume, ExportCompiledPDF, ExportLatexSource, ExportProfileBackup, GenerateAITailoring, GenerateProjectReadmeBullets, GetAISettings, GetGeminiCredentialStatus, GetLatexDraft, GetProfile, GetSelectedResumeTemplateID, ImportGitHubProject, ImportGitHubProjects, ImportProfileBackup, ImportResumeTemplate, KeywordCoverage, ListAIRuns, ListAchievements, ListApplications, ListCertifications, ListEducations, ListExperiences, ListJobs, ListProjects, ListResumeTemplates, OpenResumeVersion, RenameResume, RenderResumeTemplate, RestoreAutomaticBackup, SaveAISettings, SaveAchievement, SaveCertification, SaveEducation, SaveExperience, SaveGeminiAPIKey, SaveLatexDraft, SaveProfile, SaveProject, SaveResumeTemplate, SaveResumeVersionEdit, SelectResumeTemplate, UpdateApplicationDetails, UpdateApplicationStatus } from "../wailsjs/go/main/App";
+import { AcceptAITailoring, AnalyzeJobDescription, CancelAITailoring, CheckGemini, CheckOllama, ClearLatexDraft, CompileLatex, CompileResumeVersion, CreateResume, CreateResumeVersion, DeleteAchievement, DeleteCertification, DeleteEducation, DeleteExperience, DeleteGeminiAPIKey, DeleteJob, DeleteProject, DeleteResume, DeleteResumeTemplate, DraftCoverLetter, DuplicateResume, ExportCompiledPDF, ExportCoverLetterPDF, ExportLatexSource, ExportProfileBackup, GenerateAITailoring, GenerateCoverLetter, GenerateProjectReadmeBullets, GetAISettings, GetGeminiCredentialStatus, GetLatexDraft, GetProfile, GetSelectedResumeTemplateID, ImportGitHubProject, ImportGitHubProjects, ImportProfileBackup, ImportResumeTemplate, KeywordCoverage, ListAIRuns, ListAchievements, ListApplications, ListCertifications, ListEducations, ListExperiences, ListJobs, ListProjects, ListResumeTemplates, OpenResumeVersion, RenameResume, RenderResumeTemplate, RestoreAutomaticBackup, SaveAISettings, SaveAchievement, SaveCertification, SaveCoverLetter, SaveEducation, SaveExperience, SaveGeminiAPIKey, SaveLatexDraft, SaveProfile, SaveProject, SaveResumeTemplate, SaveResumeVersionEdit, SelectResumeTemplate, UpdateApplicationDetails, UpdateApplicationStatus } from "../wailsjs/go/main/App";
 import { domain } from "../wailsjs/go/models";
 import { Achievement, AchievementDraft, Certification, CertificationDraft, achievementToDraft, certificationToDraft, toAchievementInput, toCertificationInput } from "./lib/credentials";
 import { Education, EducationDraft, educationToDraft, newEducationDraft, toEducationInput } from "./lib/education";
@@ -14,7 +14,7 @@ import { type ApplicationStatus } from "./features/applications/ApplicationStatu
 import { DataWorkspace } from "./features/data/DataWorkspace";
 import { LatexWorkspace } from "./features/editor/LatexWorkspace";
 import { ExperienceSection } from "./features/experience/ExperienceSection";
-import { WorkspaceOverview } from "./features/home/Home";
+import { WorkspaceOverview, type CoverLetterHandlers } from "./features/home/Home";
 import { type ApplicationDetails } from "./features/applications/ApplicationTracker";
 import { JobTailor } from "./features/jobs/JobTailor";
 import { Onboarding } from "./features/onboarding/Onboarding";
@@ -285,6 +285,41 @@ export default function App() {
     } finally {
       setApplicationStatusBusy(false);
     }
+  };
+
+  const [coverLetterBusyId, setCoverLetterBusyId] = useState("");
+  const aiModel = aiProvider === "ollama" ? ollamaModel : geminiModel;
+  // Runs one cover letter action, showing errors; returns null on failure.
+  const coverLetterAction = async <T,>(application: Application, action: () => Promise<T>): Promise<T | null> => {
+    setCoverLetterBusyId(application.id);
+    setError("");
+    setMessage("");
+    try {
+      return await action();
+    } catch (reason) {
+      setError(errorMessage(reason));
+      return null;
+    } finally {
+      setCoverLetterBusyId("");
+    }
+  };
+  const coverLetters: CoverLetterHandlers = {
+    aiModel: aiModel ? `${aiProvider === "ollama" ? "Ollama" : "Gemini"} · ${aiModel}` : "",
+    busyId: coverLetterBusyId,
+    draft: (application) => coverLetterAction(application, () => DraftCoverLetter(application.id)),
+    generate: (application) => coverLetterAction(application, () => GenerateCoverLetter({ applicationId: application.id, provider: aiProvider, model: aiModel, endpoint: aiProvider === "ollama" ? ollamaEndpoint : "" })),
+    save: async (application, text) => {
+      const updated = await coverLetterAction(application, () => SaveCoverLetter({ applicationId: application.id, text }));
+      if (!updated) return false;
+      setApplications((current) => current.map((item) => item.id === application.id ? updated as unknown as Application : item));
+      setMessage("Cover letter saved.");
+      return true;
+    },
+    export: async (application, text) => {
+      const job = jobs.find((item) => item.id === application.jobId);
+      const result = await coverLetterAction(application, () => ExportCoverLetterPDF(text, [profile.name, job?.company || job?.role, "Cover letter"].filter(Boolean).join(" - ")));
+      if (result && !result.cancelled) setMessage(`Cover letter exported to ${result.path}.`);
+    },
   };
 
   const saveApplicationDetails = async (target: Application, details: ApplicationDetails) => {
@@ -1134,7 +1169,7 @@ export default function App() {
           {message && <div className="notice success" role="status">{message}<button aria-label="Dismiss message" onClick={() => setMessage("")}>×</button></div>}
 
           <div className="editor-pane">
-            {view === "overview" && <WorkspaceOverview profile={profile} completion={completion} experiences={experiences} projects={projects} applications={applications} jobs={jobs} busy={versionBusy} onOpen={setView} onNewResume={() => { newJob(); setView("job"); }} onNewGeneralResume={createGeneralResume} onOpenJob={(job) => { openJob(job); setView("job"); }} onOpenVersion={openResumeVersion} onRename={renameResume} onDuplicate={duplicateResume} onDelete={deleteResume} statusBusy={applicationStatusBusy} onStatusChange={updateApplicationStatus} onSaveDetails={saveApplicationDetails} />}
+            {view === "overview" && <WorkspaceOverview profile={profile} completion={completion} experiences={experiences} projects={projects} applications={applications} jobs={jobs} busy={versionBusy} onOpen={setView} onNewResume={() => { newJob(); setView("job"); }} onNewGeneralResume={createGeneralResume} onOpenJob={(job) => { openJob(job); setView("job"); }} onOpenVersion={openResumeVersion} onRename={renameResume} onDuplicate={duplicateResume} onDelete={deleteResume} statusBusy={applicationStatusBusy} onStatusChange={updateApplicationStatus} onSaveDetails={saveApplicationDetails} coverLetters={coverLetters} />}
             {view === "profile" && <ProfileWorkspace profile={profile} busy={busy} message={message} onChange={updateProfile} onSubmit={saveProfile} />}
             {view === "experience" && <section className="workspace-panel scroll-panel"><PanelHeader eyebrow="Career evidence" title="Experience" description="Keep every claim factual, ordered, and reviewable." action={<button className="secondary-button" onClick={addExperience}>Add role</button>} /><ExperienceSection experiences={experiences} busyKey={experienceBusyKey} onAdd={addExperience} onUpdate={updateExperience} onSave={saveExperience} onDelete={deleteExperience} /></section>}
             {view === "projects" && <ProjectWorkspace projects={projects} selectedKeys={selectedProjectKeys} busyKey={projectBusyKey} readmeBusyKey={projectReadmeBusyKey} aiReady={Boolean(aiProviderStatus?.available && (aiProvider === "ollama" ? ollamaModel : geminiModel))} githubUsername={profile.githubUsername} githubBusy={githubBusy} onToggle={toggleProject} onAdd={addProject} onUpdate={updateProject} onSave={saveProject} onDelete={deleteProject} onGenerateReadmeBullets={generateProjectReadmeBullets} onImportGitHubProject={importGitHubProject} onSyncGitHub={syncGitHubProjects} onOpenProfile={() => setView("profile")} />}

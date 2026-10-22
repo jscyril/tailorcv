@@ -32,6 +32,7 @@ export type Application = {
   followUpOn?: string;
   postingUrl?: string;
   notes?: string;
+  coverLetter?: string;
   selectedFactIds: string[];
   versions: ResumeVersion[];
   createdAt: string;

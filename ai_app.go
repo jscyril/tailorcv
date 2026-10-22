@@ -139,23 +139,8 @@ func (a *App) GenerateAITailoring(input domain.GenerateAITailoringInput) (domain
 		SelectedFactIDs:  append([]string(nil), validated.SelectedFactIDs...),
 		ValidationErrors: []string{}, Proposals: []domain.AIProposal{},
 	}
-	ctx, cancel := context.WithTimeout(a.appContext(), 90*time.Second)
-	a.aiMu.Lock()
-	if a.aiCancel != nil {
-		a.aiCancel()
-	}
-	a.aiGeneration++
-	generation := a.aiGeneration
-	a.aiCancel = cancel
-	a.aiMu.Unlock()
-	defer func() {
-		cancel()
-		a.aiMu.Lock()
-		if a.aiGeneration == generation {
-			a.aiCancel = nil
-		}
-		a.aiMu.Unlock()
-	}()
+	ctx, done := a.beginAIRequest()
+	defer done()
 	raw, generateErr := provider.Generate(ctx, validated.Model, request)
 	if generateErr != nil {
 		run.FailureCategory = "provider"
@@ -205,23 +190,8 @@ func (a *App) GenerateProjectReadmeBullets(input domain.GenerateProjectReadmeBul
 		return domain.ProjectReadmeBulletsResult{}, err
 	}
 	request := ai.ProjectReadmeBulletsRequest(project)
-	ctx, cancel := context.WithTimeout(a.appContext(), 90*time.Second)
-	a.aiMu.Lock()
-	if a.aiCancel != nil {
-		a.aiCancel()
-	}
-	a.aiGeneration++
-	generation := a.aiGeneration
-	a.aiCancel = cancel
-	a.aiMu.Unlock()
-	defer func() {
-		cancel()
-		a.aiMu.Lock()
-		if a.aiGeneration == generation {
-			a.aiCancel = nil
-		}
-		a.aiMu.Unlock()
-	}()
+	ctx, done := a.beginAIRequest()
+	defer done()
 	raw, err := provider.Generate(ctx, validated.Model, request)
 	if err != nil {
 		return domain.ProjectReadmeBulletsResult{}, fmt.Errorf("generate README bullets: %w", err)
@@ -239,6 +209,118 @@ func (a *App) GenerateProjectReadmeBullets(input domain.GenerateProjectReadmeBul
 		result.Bullets = append(result.Bullets, proposal.Text)
 	}
 	return result, nil
+}
+
+// beginAIRequest cancels any running AI request and returns a context that
+// CancelAITailoring can stop. Call done when the request finishes.
+func (a *App) beginAIRequest() (context.Context, func()) {
+	ctx, cancel := context.WithTimeout(a.appContext(), 90*time.Second)
+	a.aiMu.Lock()
+	if a.aiCancel != nil {
+		a.aiCancel()
+	}
+	a.aiGeneration++
+	generation := a.aiGeneration
+	a.aiCancel = cancel
+	a.aiMu.Unlock()
+	return ctx, func() {
+		cancel()
+		a.aiMu.Lock()
+		if a.aiGeneration == generation {
+			a.aiCancel = nil
+		}
+		a.aiMu.Unlock()
+	}
+}
+
+// GenerateCoverLetter drafts a cover letter whose body paragraphs come from
+// the provider and pass the same evidence validation as resume proposals.
+// The draft is returned for editing and is not saved.
+func (a *App) GenerateCoverLetter(input domain.GenerateCoverLetterInput) (string, error) {
+	if err := a.ready(); err != nil {
+		return "", err
+	}
+	validated, err := input.Validate()
+	if err != nil {
+		return "", err
+	}
+	job, request, err := a.coverLetterRequest(validated.ApplicationID)
+	if err != nil {
+		return "", err
+	}
+	provider, err := a.newAIProvider(validated.Provider, validated.Endpoint)
+	if err != nil {
+		return "", err
+	}
+	request.Task = ai.CoverLetterTask
+	ctx, done := a.beginAIRequest()
+	defer done()
+	raw, err := provider.Generate(ctx, validated.Model, request)
+	if err != nil {
+		return "", fmt.Errorf("generate cover letter: %w", err)
+	}
+	validation := ai.DecodeAndValidate(request, raw)
+	if len(validation.Errors) > 0 {
+		return "", fmt.Errorf("cover letter failed evidence validation: %s", strings.Join(validation.Errors, "; "))
+	}
+	proposals := ai.NormalizeProposals(validation.Response.Proposals)
+	if len(proposals) > 4 {
+		proposals = proposals[:4]
+	}
+	body := make([]string, 0, len(proposals))
+	for _, proposal := range proposals {
+		body = append(body, proposal.Text)
+	}
+	profile, err := a.store.GetProfile(a.appContext())
+	if err != nil {
+		return "", err
+	}
+	return domain.ComposeCoverLetter(profile, job, body), nil
+}
+
+// DraftCoverLetter builds a cover letter without AI: the body lists the
+// application's selected evidence word for word.
+func (a *App) DraftCoverLetter(applicationID string) (string, error) {
+	if err := a.ready(); err != nil {
+		return "", err
+	}
+	job, request, err := a.coverLetterRequest(applicationID)
+	if err != nil {
+		return "", err
+	}
+	profile, err := a.store.GetProfile(a.appContext())
+	if err != nil {
+		return "", err
+	}
+	lines := []string{"Relevant work from my background:"}
+	for index, fact := range request.Facts {
+		if index == 5 {
+			break
+		}
+		lines = append(lines, "- "+strings.Join(strings.Fields(fact.Text), " "))
+	}
+	return domain.ComposeCoverLetter(profile, job, []string{strings.Join(lines, "\n")}), nil
+}
+
+// coverLetterRequest loads a job-tailored application and its selected
+// evidence as an AI request.
+func (a *App) coverLetterRequest(applicationID string) (domain.Job, ai.Request, error) {
+	application, err := a.store.GetApplication(a.appContext(), strings.TrimSpace(applicationID))
+	if err != nil {
+		return domain.Job{}, ai.Request{}, err
+	}
+	if application.JobID == "" {
+		return domain.Job{}, ai.Request{}, fmt.Errorf("cover letters need a job; tailor this resume to a job first")
+	}
+	if len(application.SelectedFactIDs) == 0 {
+		return domain.Job{}, ai.Request{}, fmt.Errorf("select evidence for this job before drafting a cover letter")
+	}
+	job, err := a.store.GetJob(a.appContext(), application.JobID)
+	if err != nil {
+		return domain.Job{}, ai.Request{}, err
+	}
+	request, err := a.aiRequest(job.ID, application.SelectedFactIDs)
+	return job, request, err
 }
 
 func (a *App) newAIProvider(name, endpoint string) (ai.Provider, error) {

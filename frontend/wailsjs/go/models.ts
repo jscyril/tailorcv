@@ -313,6 +313,7 @@ export namespace domain {
 	    followUpOn?: string;
 	    postingUrl?: string;
 	    notes?: string;
+	    coverLetter?: string;
 	    selectedFactIds: string[];
 	    versions: ResumeVersion[];
 	    createdAt: string;
@@ -332,6 +333,7 @@ export namespace domain {
 	        this.followUpOn = source["followUpOn"];
 	        this.postingUrl = source["postingUrl"];
 	        this.notes = source["notes"];
+	        this.coverLetter = source["coverLetter"];
 	        this.selectedFactIds = source["selectedFactIds"];
 	        this.versions = this.convertValues(source["versions"], ResumeVersion);
 	        this.createdAt = source["createdAt"];
@@ -867,6 +869,24 @@ export namespace domain {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.jobId = source["jobId"];
 	        this.selectedFactIds = source["selectedFactIds"];
+	        this.provider = source["provider"];
+	        this.model = source["model"];
+	        this.endpoint = source["endpoint"];
+	    }
+	}
+	export class GenerateCoverLetterInput {
+	    applicationId: string;
+	    provider: string;
+	    model: string;
+	    endpoint: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GenerateCoverLetterInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.applicationId = source["applicationId"];
 	        this.provider = source["provider"];
 	        this.model = source["model"];
 	        this.endpoint = source["endpoint"];
@@ -1421,6 +1441,20 @@ export namespace domain {
 		    }
 		    return a;
 		}
+	}
+	export class SaveCoverLetterInput {
+	    applicationId: string;
+	    text: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SaveCoverLetterInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.applicationId = source["applicationId"];
+	        this.text = source["text"];
+	    }
 	}
 	export class SaveResumeVersionEditInput {
 	    applicationId: string;

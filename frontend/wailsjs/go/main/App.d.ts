@@ -40,15 +40,21 @@ export function DeleteResume(arg1:string):Promise<void>;
 
 export function DeleteResumeTemplate(arg1:string):Promise<void>;
 
+export function DraftCoverLetter(arg1:string):Promise<string>;
+
 export function DuplicateResume(arg1:string):Promise<domain.Application>;
 
 export function ExportCompiledPDF(arg1:string):Promise<domain.FileResult>;
+
+export function ExportCoverLetterPDF(arg1:string,arg2:string):Promise<domain.FileResult>;
 
 export function ExportLatexSource(arg1:string,arg2:string):Promise<domain.FileResult>;
 
 export function ExportProfileBackup():Promise<domain.BackupResult>;
 
 export function GenerateAITailoring(arg1:domain.GenerateAITailoringInput):Promise<domain.AIRun>;
+
+export function GenerateCoverLetter(arg1:domain.GenerateCoverLetterInput):Promise<string>;
 
 export function GenerateProjectReadmeBullets(arg1:domain.GenerateProjectReadmeBulletsInput):Promise<domain.ProjectReadmeBulletsResult>;
 
@@ -105,6 +111,8 @@ export function SaveAISettings(arg1:domain.AISettings):Promise<domain.AISettings
 export function SaveAchievement(arg1:domain.AchievementInput):Promise<domain.Achievement>;
 
 export function SaveCertification(arg1:domain.CertificationInput):Promise<domain.Certification>;
+
+export function SaveCoverLetter(arg1:domain.SaveCoverLetterInput):Promise<domain.Application>;
 
 export function SaveEducation(arg1:domain.EducationInput):Promise<domain.Education>;
 

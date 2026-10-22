@@ -120,14 +120,21 @@ func ProjectReadmeBulletsRequest(project domain.Project) Request {
 	return Request{SchemaVersion: SchemaVersion, Task: "project-readme-bullets", Job: JobRequirements{Role: project.Name}, Facts: facts}
 }
 
+// CoverLetterTask asks for cover letter body paragraphs. Each paragraph is a
+// proposal around one target fact, so the usual evidence validation applies.
+const CoverLetterTask = "cover-letter"
+
 func Prompt(request Request) (string, error) {
 	requestJSON, err := json.MarshalIndent(request, "", "  ")
 	if err != nil {
 		return "", fmt.Errorf("encode AI tailoring request: %w", err)
 	}
 	instruction := "Rewrite selected resume evidence for the supplied job requirements."
-	if request.Task == "project-readme-bullets" {
+	switch request.Task {
+	case "project-readme-bullets":
 		instruction = "Write up to three concise résumé bullets for this project from its README excerpts. Each proposal must target a distinct supplied README excerpt and cite that target."
+	case CoverLetterTask:
+		instruction = "Write two or three short first-person cover letter body paragraphs for the supplied job. Each proposal is one paragraph built around a distinct target fact. Do not write a greeting, an opening about applying, a closing, or a signature; those are added separately."
 	}
 	return instruction + `
 
