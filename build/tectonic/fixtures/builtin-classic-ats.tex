@@ -13,38 +13,94 @@
 \begin{center}
   {\LARGE\textbf{Fictional Candidate}}\\[2pt]
   Software Engineer\\[2pt]
-  {\small fictional@example.com $\vert$ +1 555 0100 $\vert$ Remote $\vert$ https://example.com $\vert$ https://linkedin.com/in/fictional $\vert$ github.com/fictional $\vert$ https://example.com/work}
+  {\small \href{mailto:fictional@example.com}{\underline{fictional@example.com}} $|$ +1 555 0100 $|$ Remote $|$ \href{https://example.com}{\underline{example.com}} $|$ \href{https://linkedin.com/in/fictional}{\underline{linkedin.com/in/fictional}} $|$ \href{https://github.com/fictional}{\underline{github.com/fictional}} $|$ \href{https://example.com/work}{\underline{example.com/work}}}
 \end{center}
 \hrule
 \vspace{6pt}
 
 \section{Summary}
 Builds reliable systems \& tools.
+\providecommand{\tailorcvListStart}{}
+\providecommand{\tailorcvListEnd}{}
+\providecommand{\tailorcvEntry}[4]{\textbf{#1}\hfill #2\par\textit{#3}\hfill\textit{#4}\par}
+\providecommand{\tailorcvProject}[3]{\textbf{#1}\if\relax\detokenize{#2}\relax\else{} $|$ \emph{#2}\fi\hfill #3\par}
+\providecommand{\tailorcvBulletsStart}{\begin{itemize}}
+\providecommand{\tailorcvBulletsEnd}{\end{itemize}}
+\providecommand{\tailorcvBullet}[1]{\item #1}
+\providecommand{\tailorcvSkills}[1]{#1}
 \section{Experience}
-\textbf{Platform Engineer} $\cdot$ Example Systems\hfill 2023-01 -- Present\\
-\textit{Remote}\\
-\begin{itemize}
-  \item Cut release time by 40\% for 30 teams with a deterministic deploy service
-  \item Moved R\&D workloads to Kubernetes; costs fell \$12k/yr (ticket \#42, \textasciitilde{}3 weeks)
-\end{itemize}
-\vspace{3pt}
+\tailorcvListStart
+\tailorcvEntry{Platform Engineer}{Jan 2023 -- Present}{Example Systems}{Remote}
+\tailorcvBulletsStart
+  \tailorcvBullet{Cut release time by 40\% for 30 teams with a deterministic deploy service}
+  \tailorcvBullet{Moved R\&D workloads to Kubernetes; costs fell \$12k/yr (ticket \#42, \textasciitilde{}3 weeks)}
+\tailorcvBulletsEnd
+\tailorcvListEnd
+\providecommand{\tailorcvListStart}{}
+\providecommand{\tailorcvListEnd}{}
+\providecommand{\tailorcvEntry}[4]{\textbf{#1}\hfill #2\par\textit{#3}\hfill\textit{#4}\par}
+\providecommand{\tailorcvProject}[3]{\textbf{#1}\if\relax\detokenize{#2}\relax\else{} $|$ \emph{#2}\fi\hfill #3\par}
+\providecommand{\tailorcvBulletsStart}{\begin{itemize}}
+\providecommand{\tailorcvBulletsEnd}{\end{itemize}}
+\providecommand{\tailorcvBullet}[1]{\item #1}
+\providecommand{\tailorcvSkills}[1]{#1}
 \section{Projects}
-\textbf{fixture\_project}\\
-An offline fixture\\
-\begin{itemize}
-  \item Kept every build \{reproducible\}
-\end{itemize}
-\vspace{3pt}
+\tailorcvListStart
+\tailorcvProject{fixture\_project}{Go, TypeScript}{}
+\tailorcvBulletsStart
+  \tailorcvBullet{Kept every build \{reproducible\}}
+\tailorcvBulletsEnd
+\tailorcvListEnd
+\providecommand{\tailorcvListStart}{}
+\providecommand{\tailorcvListEnd}{}
+\providecommand{\tailorcvEntry}[4]{\textbf{#1}\hfill #2\par\textit{#3}\hfill\textit{#4}\par}
+\providecommand{\tailorcvProject}[3]{\textbf{#1}\if\relax\detokenize{#2}\relax\else{} $|$ \emph{#2}\fi\hfill #3\par}
+\providecommand{\tailorcvBulletsStart}{\begin{itemize}}
+\providecommand{\tailorcvBulletsEnd}{\end{itemize}}
+\providecommand{\tailorcvBullet}[1]{\item #1}
+\providecommand{\tailorcvSkills}[1]{#1}
 \section{Education}
-\textbf{Example University} $\cdot$ BSc in Mathematics\hfill 2018-09 -- 2021-06\\
-First-class honours\\
+\tailorcvListStart
+\tailorcvEntry{Example University}{Remote}{BSc in Mathematics}{Sep 2018 -- Jun 2021}
+\tailorcvBulletsStart
+  \tailorcvBullet{First-class honours}
+\tailorcvBulletsEnd
+\tailorcvListEnd
+\providecommand{\tailorcvListStart}{}
+\providecommand{\tailorcvListEnd}{}
+\providecommand{\tailorcvEntry}[4]{\textbf{#1}\hfill #2\par\textit{#3}\hfill\textit{#4}\par}
+\providecommand{\tailorcvProject}[3]{\textbf{#1}\if\relax\detokenize{#2}\relax\else{} $|$ \emph{#2}\fi\hfill #3\par}
+\providecommand{\tailorcvBulletsStart}{\begin{itemize}}
+\providecommand{\tailorcvBulletsEnd}{\end{itemize}}
+\providecommand{\tailorcvBullet}[1]{\item #1}
+\providecommand{\tailorcvSkills}[1]{#1}
 \section{Certifications}
-\textbf{Cloud Professional} $\cdot$ Example Institute\hfill 2024-05\\
-Fictional certification\\
+\tailorcvListStart
+\tailorcvEntry{Cloud Professional}{May 2024}{Example Institute}{}
+\tailorcvBulletsStart
+  \tailorcvBullet{Fictional certification}
+\tailorcvBulletsEnd
+\tailorcvListEnd
+\providecommand{\tailorcvListStart}{}
+\providecommand{\tailorcvListEnd}{}
+\providecommand{\tailorcvEntry}[4]{\textbf{#1}\hfill #2\par\textit{#3}\hfill\textit{#4}\par}
+\providecommand{\tailorcvProject}[3]{\textbf{#1}\if\relax\detokenize{#2}\relax\else{} $|$ \emph{#2}\fi\hfill #3\par}
+\providecommand{\tailorcvBulletsStart}{\begin{itemize}}
+\providecommand{\tailorcvBulletsEnd}{\end{itemize}}
+\providecommand{\tailorcvBullet}[1]{\item #1}
+\providecommand{\tailorcvSkills}[1]{#1}
 \section{Achievements}
-\begin{itemize}
-  \item \textbf{Engineering Award}: Recognized for a fictional release system (2025-02)
-\end{itemize}
+\tailorcvBulletsStart
+  \tailorcvBullet{\textbf{Engineering Award}: Recognized for a fictional release system (Feb 2025)}
+\tailorcvBulletsEnd
+\providecommand{\tailorcvListStart}{}
+\providecommand{\tailorcvListEnd}{}
+\providecommand{\tailorcvEntry}[4]{\textbf{#1}\hfill #2\par\textit{#3}\hfill\textit{#4}\par}
+\providecommand{\tailorcvProject}[3]{\textbf{#1}\if\relax\detokenize{#2}\relax\else{} $|$ \emph{#2}\fi\hfill #3\par}
+\providecommand{\tailorcvBulletsStart}{\begin{itemize}}
+\providecommand{\tailorcvBulletsEnd}{\end{itemize}}
+\providecommand{\tailorcvBullet}[1]{\item #1}
+\providecommand{\tailorcvSkills}[1]{#1}
 \section{Skills}
-Go, C\#, C++, PostgreSQL, Kubernetes
+\tailorcvSkills{Go, C\#, C++, PostgreSQL, Kubernetes}
 \end{document}
