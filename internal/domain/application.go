@@ -37,6 +37,7 @@ type Application struct {
 	FollowUpOn      string            `json:"followUpOn,omitempty"`
 	PostingURL      string            `json:"postingUrl,omitempty"`
 	Notes           string            `json:"notes,omitempty"`
+	CoverLetter     string            `json:"coverLetter,omitempty"`
 	SelectedFactIDs []string          `json:"selectedFactIds"`
 	Versions        []ResumeVersion   `json:"versions"`
 	CreatedAt       string            `json:"createdAt"`
@@ -113,6 +114,53 @@ func (input UpdateApplicationStatusInput) Validate() (UpdateApplicationStatusInp
 }
 
 const maxApplicationNotesLength = 10000
+
+const maxCoverLetterLength = 20000
+
+type SaveCoverLetterInput struct {
+	ApplicationID string `json:"applicationId"`
+	Text          string `json:"text"`
+}
+
+func (input SaveCoverLetterInput) Validate() (SaveCoverLetterInput, error) {
+	input.ApplicationID = strings.TrimSpace(input.ApplicationID)
+	input.Text = strings.TrimSpace(strings.ReplaceAll(input.Text, "\r\n", "\n"))
+	if input.ApplicationID == "" {
+		return SaveCoverLetterInput{}, fmt.Errorf("application ID is required")
+	}
+	if len(input.Text) > maxCoverLetterLength || strings.IndexByte(input.Text, 0) >= 0 {
+		return SaveCoverLetterInput{}, fmt.Errorf("cover letter must be %d characters or fewer", maxCoverLetterLength)
+	}
+	return input, nil
+}
+
+// ComposeCoverLetter wraps body paragraphs in a greeting, an opening that
+// names the role, and a closing signed with the profile name. The body is the
+// only part that carries claims, so it must come from evidence.
+func ComposeCoverLetter(profile Profile, job Job, body []string) string {
+	greeting := "Dear hiring team,"
+	if job.Company != "" {
+		greeting = "Dear " + job.Company + " hiring team,"
+	}
+	opening := "I am writing to apply for "
+	if job.Role != "" {
+		opening += "the " + job.Role + " role"
+	} else {
+		opening += "this role"
+	}
+	if job.Company != "" {
+		opening += " at " + job.Company
+	}
+	opening += "."
+	parts := []string{greeting, opening}
+	for _, paragraph := range body {
+		if paragraph = strings.TrimSpace(paragraph); paragraph != "" {
+			parts = append(parts, paragraph)
+		}
+	}
+	parts = append(parts, "Thank you for your time and consideration. I would welcome the chance to discuss how my experience fits your team.", strings.TrimSpace("Sincerely,\n"+profile.Name))
+	return strings.Join(parts, "\n\n")
+}
 
 // UpdateApplicationDetailsInput holds the tracking fields of an application.
 // Dates use YYYY-MM-DD and may be empty.

@@ -243,9 +243,9 @@ func (s *Store) ReplaceProfileFromBackup(ctx context.Context, source domain.Prof
 
 	for _, application := range backup.Applications {
 		_, err := tx.ExecContext(ctx, `
-			INSERT INTO applications(id, job_id, name, status, applied_on, follow_up_on, posting_url, notes, created_at, updated_at)
-			VALUES (?, NULLIF(?, ''), ?, ?, ?, ?, ?, ?, ?, ?)
-		`, application.ID, application.JobID, application.Name, application.Status, application.AppliedOn, application.FollowUpOn, application.PostingURL, application.Notes, application.CreatedAt, application.UpdatedAt)
+			INSERT INTO applications(id, job_id, name, status, applied_on, follow_up_on, posting_url, notes, cover_letter, created_at, updated_at)
+			VALUES (?, NULLIF(?, ''), ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, application.ID, application.JobID, application.Name, application.Status, application.AppliedOn, application.FollowUpOn, application.PostingURL, application.Notes, application.CoverLetter, application.CreatedAt, application.UpdatedAt)
 		if err != nil {
 			return fmt.Errorf("import application: %w", err)
 		}

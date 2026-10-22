@@ -78,12 +78,20 @@ export function DeleteResumeTemplate(arg1) {
   return window['go']['main']['App']['DeleteResumeTemplate'](arg1);
 }
 
+export function DraftCoverLetter(arg1) {
+  return window['go']['main']['App']['DraftCoverLetter'](arg1);
+}
+
 export function DuplicateResume(arg1) {
   return window['go']['main']['App']['DuplicateResume'](arg1);
 }
 
 export function ExportCompiledPDF(arg1) {
   return window['go']['main']['App']['ExportCompiledPDF'](arg1);
+}
+
+export function ExportCoverLetterPDF(arg1, arg2) {
+  return window['go']['main']['App']['ExportCoverLetterPDF'](arg1, arg2);
 }
 
 export function ExportLatexSource(arg1, arg2) {
@@ -96,6 +104,10 @@ export function ExportProfileBackup() {
 
 export function GenerateAITailoring(arg1) {
   return window['go']['main']['App']['GenerateAITailoring'](arg1);
+}
+
+export function GenerateCoverLetter(arg1) {
+  return window['go']['main']['App']['GenerateCoverLetter'](arg1);
 }
 
 export function GenerateProjectReadmeBullets(arg1) {
@@ -208,6 +220,10 @@ export function SaveAchievement(arg1) {
 
 export function SaveCertification(arg1) {
   return window['go']['main']['App']['SaveCertification'](arg1);
+}
+
+export function SaveCoverLetter(arg1) {
+  return window['go']['main']['App']['SaveCoverLetter'](arg1);
 }
 
 export function SaveEducation(arg1) {

@@ -327,6 +327,11 @@ var migrations = []migration{
 			`CREATE INDEX applications_updated_at_idx ON applications(updated_at DESC)`,
 		},
 	},
+	{
+		// One editable cover letter per application.
+		version:    17,
+		statements: []string{`ALTER TABLE applications ADD COLUMN cover_letter TEXT NOT NULL DEFAULT ''`},
+	},
 }
 
 func (s *Store) applyMigrations(ctx context.Context) error {

@@ -60,3 +60,16 @@ func TestRenderTreatsJobAndModelDerivedEvidenceAsLiteralText(t *testing.T) {
 		t.Fatalf("Render() did not escape injected control sequences in:\n%s", result)
 	}
 }
+
+func TestRenderCoverLetterEscapesTextAndKeepsStructure(t *testing.T) {
+	letter := "Dear Acme hiring team,\n\nIntro with 100% & $5 \\input{x}.\nSecond line\n\nWork:\n- Built Go #1\n- Ran R&D\n\nSincerely,\nAda"
+	result := RenderCoverLetter(domain.Profile{Name: "Ada"}, letter)
+	for _, expected := range []string{`Intro with 100\% \& \$5 \textbackslash{}input\{x\}.\\`, "Second line", "Work:\n\\begin{itemize}\n  \\item Built Go \\#1\n  \\item Ran R\\&D\n\\end{itemize}", "Sincerely,\\\\\nAda", `\textbf{Ada}`} {
+		if !strings.Contains(result, expected) {
+			t.Errorf("RenderCoverLetter() missing %q in:\n%s", expected, result)
+		}
+	}
+	if strings.Contains(result, `\input{x}`) {
+		t.Fatal("letter text must not become a LaTeX command")
+	}
+}

@@ -105,7 +105,14 @@ func TestResumeLibraryMigrationKeepsExistingResumes(t *testing.T) {
 		}
 	}
 	store := &Store{db: db}
-	if err := store.applyMigrationSet(ctx, migrations[:len(migrations)-2]); err != nil {
+	// Start from the schema before resume names (15), then upgrade through every later migration.
+	var before []migration
+	for _, item := range migrations {
+		if item.version < 15 {
+			before = append(before, item)
+		}
+	}
+	if err := store.applyMigrationSet(ctx, before); err != nil {
 		t.Fatalf("apply previous migrations: %v", err)
 	}
 	jobID, applicationID, versionID := uuid.NewString(), uuid.NewString(), uuid.NewString()
@@ -154,6 +161,9 @@ func TestBackupRoundTripKeepsGeneralResumes(t *testing.T) {
 	if _, err := source.UpdateApplicationDetails(ctx, details); err != nil {
 		t.Fatalf("UpdateApplicationDetails() error = %v", err)
 	}
+	if _, err := source.SaveCoverLetter(ctx, domain.SaveCoverLetterInput{ApplicationID: created.Application.ID, Text: "Dear team,\r\n\r\nHello."}); err != nil {
+		t.Fatalf("SaveCoverLetter() error = %v", err)
+	}
 	if _, err := source.UpdateApplicationStatus(ctx, domain.UpdateApplicationStatusInput{ApplicationID: created.Application.ID, Status: domain.ApplicationStatusInterviewing}); err != nil {
 		t.Fatalf("UpdateApplicationStatus() error = %v", err)
 	}
@@ -182,7 +192,7 @@ func TestBackupRoundTripKeepsGeneralResumes(t *testing.T) {
 		t.Fatalf("restored resumes = %#v, %v", applications, err)
 	}
 	restored := applications[0]
-	if restored.Status != domain.ApplicationStatusInterviewing || restored.AppliedOn != details.AppliedOn || restored.FollowUpOn != details.FollowUpOn || restored.PostingURL != details.PostingURL || restored.Notes != details.Notes {
+	if restored.Status != domain.ApplicationStatusInterviewing || restored.AppliedOn != details.AppliedOn || restored.FollowUpOn != details.FollowUpOn || restored.PostingURL != details.PostingURL || restored.Notes != details.Notes || restored.CoverLetter != "Dear team,\n\nHello." {
 		t.Fatalf("restored tracking details = %#v", restored)
 	}
 }
