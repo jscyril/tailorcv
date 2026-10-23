@@ -16,7 +16,7 @@ func TestRenderEscapesProfileAndEvidence(t *testing.T) {
 			Bullets: []domain.EvidenceBullet{{Text: `Reduced cost by $5 & shipped #1`}},
 		}},
 	})
-	for _, expected := range []string{`Ada \& Co\_100\%`, `\section{Experience}`, `\$5 \& shipped \#1`, `2024-01 -- Present`} {
+	for _, expected := range []string{`Ada \& Co\_100\%`, `\section{Experience}`, `\$5 \& shipped \#1`, `Jan 2024 -- Present`} {
 		if !strings.Contains(result, expected) {
 			t.Fatalf("Render() missing %q in:\n%s", expected, result)
 		}
@@ -71,5 +71,40 @@ func TestRenderCoverLetterEscapesTextAndKeepsStructure(t *testing.T) {
 	}
 	if strings.Contains(result, `\input{x}`) {
 		t.Fatal("letter text must not become a LaTeX command")
+	}
+}
+
+func TestCommentOutPDFTeXOnly(t *testing.T) {
+	if reason := unsafeSourceReason(mustCommentOut("\\input{glyphtounicode}"), "Windows"); reason != "" {
+		t.Fatalf("the replacement note must pass the Windows scan: %s", reason)
+	}
+	source := "\\usepackage{tabularx}\n\\input{glyphtounicode}\n\\pdfgentounicode=1\n\\input{other}\n"
+	got, count := CommentOutPDFTeXOnly(source)
+	note := "% TailorCV removed a pdfTeX-only line (glyphtounicode setup); Tectonic does not need it."
+	if count != 2 || got != "\\usepackage{tabularx}\n"+note+"\n"+note+"\n\\input{other}\n" {
+		t.Fatalf("CommentOutPDFTeXOnly() = %q, %d", got, count)
+	}
+}
+
+func TestCommentOutPDFTeXOnlyWithWindowsLineEndings(t *testing.T) {
+	got, count := CommentOutPDFTeXOnly("\\input{glyphtounicode}\r\n\\pdfgentounicode=1\r\n")
+	if count != 2 || strings.Contains(got, `\input`) || strings.Count(got, "\r\n") != 2 {
+		t.Fatalf("CommentOutPDFTeXOnly(CRLF) = %q, %d", got, count)
+	}
+}
+
+func mustCommentOut(source string) string {
+	result, _ := CommentOutPDFTeXOnly(source)
+	return result
+}
+
+func TestContactLinksAndOptionalHeadline(t *testing.T) {
+	result := Render(`{{TAILORCV_HEADLINE_LINE}}|{{TAILORCV_CONTACT_LINKS}}`, Data{Profile: domain.Profile{Email: "a_b@example.com", Phone: "+1 555 0100", Location: "Remote", Website: "https://example.com/100%", GitHubUsername: "ada"}})
+	want := `|\href{mailto:a\_b@example.com}{\underline{a\_b@example.com}} $|$ +1 555 0100 $|$ Remote $|$ \href{https://example.com/100\%}{\underline{example.com/100\%}} $|$ \href{https://github.com/ada}{\underline{github.com/ada}}`
+	if result != want {
+		t.Fatalf("Render() = %q\nwant      %q", result, want)
+	}
+	if got := Render(`{{TAILORCV_HEADLINE_LINE}}`, Data{Profile: domain.Profile{Headline: "Engineer"}}); got != `Engineer\\[2pt]` {
+		t.Fatalf("headline line = %q", got)
 	}
 }

@@ -37,7 +37,17 @@ var fixtureCoverLetter = domain.ComposeCoverLetter(fixtureData.Profile, domain.J
 // match what the templates really render. Regenerate with UPDATE_FIXTURES=1.
 func TestOfflineFixturesMatchBuiltinTemplates(t *testing.T) {
 	directory := filepath.Join("..", "..", "build", "tectonic", "fixtures")
-	sources := map[string]string{"cover-letter": RenderCoverLetter(fixtureData.Profile, fixtureCoverLetter)}
+	// A downloaded Jake's resume, as TailorCV imports it, so the bundle has
+	// the packages that popular template uses.
+	jake, err := os.ReadFile(filepath.Join("..", "resumeimport", "testdata", "jake.tex"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	downloadedJake, _ := CommentOutPDFTeXOnly(string(jake))
+	if reason := unsafeSourceReason(downloadedJake, "Windows"); reason != "" {
+		t.Fatalf("imported Jake's resume must compile on Windows: %s", reason)
+	}
+	sources := map[string]string{"cover-letter": RenderCoverLetter(fixtureData.Profile, fixtureCoverLetter), "jake-downloaded": downloadedJake}
 	for _, template := range BuiltinTemplates() {
 		sources[template.ID] = Render(template.Source, fixtureData)
 	}

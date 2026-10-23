@@ -38,7 +38,9 @@ func Open(path string) (*Store, error) {
 	db.SetMaxOpenConns(1)
 
 	store := &Store{db: db}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Generous: a first run or an upgrade that rebuilds tables can be slow on
+	// busy disks (Windows CI timed out at 5s). Each migration is atomic.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	if err := store.initialize(ctx); err != nil {
 		_ = db.Close()

@@ -12,7 +12,7 @@ const profile = { name: "", email: "", headline: "", location: "", githubUsernam
 describe("Onboarding", () => {
   it("announces itself as a modal, focuses the first field, and contains keyboard focus", async () => {
     const user = userEvent.setup();
-    render(<Onboarding profile={profile} skillsText="" busy={false} onChange={vi.fn()} onSkillsChange={vi.fn()} onSubmit={vi.fn()} onSkip={vi.fn()} />);
+    render(<Onboarding profile={profile} skillsText="" busy={false} onChange={vi.fn()} onSkillsChange={vi.fn()} onSubmit={vi.fn()} onSkip={vi.fn()} onImport={vi.fn()} />);
 
     expect(screen.getByRole("dialog", { name: "Start with facts you control." }).getAttribute("aria-modal")).toBe("true");
     const firstField = screen.getByLabelText("Full name");
@@ -26,7 +26,7 @@ describe("Onboarding", () => {
   it("supports keyboard activation of the explicit skip action", async () => {
     const user = userEvent.setup();
     const onSkip = vi.fn();
-    render(<Onboarding profile={profile} skillsText="" busy={false} onChange={vi.fn()} onSkillsChange={vi.fn()} onSubmit={vi.fn()} onSkip={onSkip} />);
+    render(<Onboarding profile={profile} skillsText="" busy={false} onChange={vi.fn()} onSkillsChange={vi.fn()} onSubmit={vi.fn()} onSkip={onSkip} onImport={vi.fn()} />);
     screen.getByRole("button", { name: "Explore first" }).focus();
     await user.keyboard("{Enter}");
     expect(onSkip).toHaveBeenCalledOnce();

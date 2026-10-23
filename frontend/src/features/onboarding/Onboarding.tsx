@@ -19,11 +19,12 @@ interface OnboardingProps {
   onSkillsChange: (value: string) => void;
   onSubmit: (event: FormEvent) => void;
   onSkip: () => void;
+  onImport: () => void;
 }
 
 const focusableSelector = "button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])";
 
-export function Onboarding({ profile, skillsText, busy, onChange, onSkillsChange, onSubmit, onSkip }: OnboardingProps) {
+export function Onboarding({ profile, skillsText, busy, onChange, onSkillsChange, onSubmit, onSkip, onImport }: OnboardingProps) {
   const dialogRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -70,7 +71,7 @@ export function Onboarding({ profile, skillsText, busy, onChange, onSkillsChange
             </div>
             <label className="field"><span>Core skills</span><textarea rows={3} value={skillsText} onChange={(event) => onSkillsChange(event.target.value)} placeholder="Go, TypeScript, PostgreSQL, Docker" /><small>Separate skills with commas.</small></label>
           </div>
-          <footer><button className="text-button" type="button" onClick={onSkip}>Explore first</button><button className="primary-button" disabled={busy}>{busy ? "Creating profile…" : "Create local profile"}</button></footer>
+          <footer><button className="text-button" type="button" onClick={onSkip}>Explore first</button><button className="secondary-button" type="button" onClick={onImport}>Import existing resume (.tex)</button><button className="primary-button" disabled={busy}>{busy ? "Creating profile…" : "Create local profile"}</button></footer>
         </form>
       </section>
     </div>

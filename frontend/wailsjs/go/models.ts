@@ -1367,6 +1367,66 @@ export namespace domain {
 	    }
 	}
 	
+	export class ResumeImport {
+	    fileName: string;
+	    profile: ProfileInput;
+	    experiences: ExperienceInput[];
+	    projects: ProjectInput[];
+	    educations: EducationInput[];
+	    warnings: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ResumeImport(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.fileName = source["fileName"];
+	        this.profile = this.convertValues(source["profile"], ProfileInput);
+	        this.experiences = this.convertValues(source["experiences"], ExperienceInput);
+	        this.projects = this.convertValues(source["projects"], ProjectInput);
+	        this.educations = this.convertValues(source["educations"], EducationInput);
+	        this.warnings = source["warnings"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ResumeImportResult {
+	    experiences: number;
+	    projects: number;
+	    educations: number;
+	    skills: number;
+	    duplicates: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ResumeImportResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.experiences = source["experiences"];
+	        this.projects = source["projects"];
+	        this.educations = source["educations"];
+	        this.skills = source["skills"];
+	        this.duplicates = source["duplicates"];
+	    }
+	}
 	export class ResumeTemplate {
 	    id: string;
 	    name: string;

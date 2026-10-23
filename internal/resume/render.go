@@ -2,6 +2,7 @@ package resume
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/jscyril/tailorcv/internal/domain"
@@ -21,12 +22,15 @@ func Render(source string, data Data) string {
 	for _, link := range data.Profile.ContactLinks {
 		contact = append(contact, link.URL)
 	}
+	links := contactLinks(contact)
 	for index := range contact {
 		contact[index] = escape(contact[index])
 	}
 	replacements := map[string]string{
 		"{{TAILORCV_NAME}}":                   fallback(escape(data.Profile.Name), "Your Name"),
 		"{{TAILORCV_HEADLINE}}":               fallback(escape(data.Profile.Headline), "Professional Headline"),
+		"{{TAILORCV_HEADLINE_LINE}}":          headlineLine(data.Profile.Headline),
+		"{{TAILORCV_CONTACT_LINKS}}":          links,
 		"{{TAILORCV_CONTACT}}":                strings.Join(contact, ` $\vert$ `),
 		"{{TAILORCV_SUMMARY_SECTION}}":        summarySection(data.Profile.Summary),
 		"{{TAILORCV_EXPERIENCE_SECTION}}":     experienceSection(data.Experiences),
@@ -42,23 +46,52 @@ func Render(source string, data Data) string {
 	return source
 }
 
+// headlineLine is the headline on its own line, or nothing when it is empty.
+func headlineLine(headline string) string {
+	if strings.TrimSpace(headline) == "" {
+		return ""
+	}
+	return escape(headline) + "\\\\[2pt]"
+}
+
+// contactLinks joins contact details, linking emails and web addresses the
+// way Jake's resume does. It needs hyperref, so only built-ins use it.
+func contactLinks(items []string) string {
+	parts := make([]string, 0, len(items))
+	for _, item := range items {
+		item = strings.TrimSpace(item)
+		label := escape(item)
+		switch {
+		case strings.Contains(item, "@") && !strings.ContainsAny(item, " /"):
+			parts = append(parts, `\href{mailto:`+label+`}{\underline{`+label+`}}`)
+		case strings.Contains(item, ".") && !strings.Contains(item, " ") && !phoneLike.MatchString(item):
+			target := item
+			if !strings.HasPrefix(strings.ToLower(item), "http") {
+				target = "https://" + item
+			}
+			shown := strings.TrimPrefix(strings.TrimPrefix(item, "https://"), "http://")
+			parts = append(parts, `\href{`+escape(target)+`}{\underline{`+escape(shown)+`}}`)
+		default:
+			parts = append(parts, label)
+		}
+	}
+	return strings.Join(parts, ` $|$ `)
+}
+
+var phoneLike = regexp.MustCompile(`^\+?[\d\s().-]+$`)
+
 func certificationSection(items []domain.Certification) string {
 	if len(items) == 0 {
 		return ""
 	}
-	var output strings.Builder
-	output.WriteString("\\section{Certifications}\n")
-	for _, item := range items {
-		fmt.Fprintf(&output, "\\textbf{%s} $\\cdot$ %s", escape(item.Name), escape(item.Issuer))
-		if item.IssueDate != "" {
-			fmt.Fprintf(&output, "\\hfill %s", escape(item.IssueDate))
+	return section("Certifications", func(output *strings.Builder) {
+		for _, item := range items {
+			fmt.Fprintf(output, "\\tailorcvEntry{%s}{%s}{%s}{}\n", escape(item.Name), escape(displayMonth(item.IssueDate)), escape(item.Issuer))
+			if item.Description != "" {
+				writeBullets(output, []domain.EvidenceBullet{{Text: item.Description}})
+			}
 		}
-		output.WriteString("\\\\\n")
-		if item.Description != "" {
-			output.WriteString(escape(item.Description) + "\\\\\n")
-		}
-	}
-	return strings.TrimSpace(output.String())
+	})
 }
 
 func achievementSection(items []domain.Achievement) string {
@@ -66,16 +99,16 @@ func achievementSection(items []domain.Achievement) string {
 		return ""
 	}
 	var output strings.Builder
-	output.WriteString("\\section{Achievements}\n\\begin{itemize}\n")
+	output.WriteString(sectionCommandDefaults + "\\section{Achievements}\n\\tailorcvBulletsStart\n")
 	for _, item := range items {
-		fmt.Fprintf(&output, "  \\item \\textbf{%s}: %s", escape(item.Title), escape(item.Description))
+		text := "\\textbf{" + escape(item.Title) + "}: " + escape(item.Description)
 		if item.Date != "" {
-			fmt.Fprintf(&output, " (%s)", escape(item.Date))
+			text += " (" + escape(displayMonth(item.Date)) + ")"
 		}
-		output.WriteString("\n")
+		fmt.Fprintf(&output, "  \\tailorcvBullet{%s}\n", text)
 	}
-	output.WriteString("\\end{itemize}\n")
-	return strings.TrimSpace(output.String())
+	output.WriteString("\\tailorcvBulletsEnd")
+	return output.String()
 }
 
 func escape(value string) string {
@@ -101,89 +134,123 @@ func summarySection(summary string) string {
 	return "\\section{Summary}\n" + escape(summary)
 }
 
+// Sections are written with these commands so a template can restyle every
+// entry by defining them before \begin{document}. \providecommand keeps the
+// template's definition and otherwise falls back to a plain layout.
+const sectionCommandDefaults = `\providecommand{\tailorcvListStart}{}
+\providecommand{\tailorcvListEnd}{}
+\providecommand{\tailorcvEntry}[4]{\textbf{#1}\hfill #2\par\textit{#3}\hfill\textit{#4}\par}
+\providecommand{\tailorcvProject}[3]{\textbf{#1}\if\relax\detokenize{#2}\relax\else{} $|$ \emph{#2}\fi\hfill #3\par}
+\providecommand{\tailorcvBulletsStart}{\begin{itemize}}
+\providecommand{\tailorcvBulletsEnd}{\end{itemize}}
+\providecommand{\tailorcvBullet}[1]{\item #1}
+\providecommand{\tailorcvSkills}[1]{#1}
+`
+
+func section(title string, body func(*strings.Builder)) string {
+	var output strings.Builder
+	output.WriteString(sectionCommandDefaults)
+	fmt.Fprintf(&output, "\\section{%s}\n\\tailorcvListStart\n", title)
+	body(&output)
+	output.WriteString("\\tailorcvListEnd")
+	return output.String()
+}
+
 func experienceSection(experiences []domain.Experience) string {
 	if len(experiences) == 0 {
 		return ""
 	}
-	var output strings.Builder
-	output.WriteString("\\section{Experience}\n")
-	for _, experience := range experiences {
-		fmt.Fprintf(&output, "\\textbf{%s} $\\cdot$ %s\\hfill %s\\\\\n", escape(experience.Title), escape(experience.Company), escape(dateRange(experience.StartDate, experience.EndDate, experience.Current)))
-		if experience.Location != "" {
-			fmt.Fprintf(&output, "\\textit{%s}\\\\\n", escape(experience.Location))
+	return section("Experience", func(output *strings.Builder) {
+		for _, experience := range experiences {
+			fmt.Fprintf(output, "\\tailorcvEntry{%s}{%s}{%s}{%s}\n", escape(experience.Title), escape(dateRange(experience.StartDate, experience.EndDate, experience.Current)), escape(experience.Company), escape(experience.Location))
+			writeBullets(output, experience.Bullets)
 		}
-		writeBullets(&output, experience.Bullets)
-		output.WriteString("\\vspace{3pt}\n")
-	}
-	return strings.TrimSpace(output.String())
+	})
 }
 
 func projectSection(projects []domain.Project) string {
 	if len(projects) == 0 {
 		return ""
 	}
-	var output strings.Builder
-	output.WriteString("\\section{Projects}\n")
-	for _, project := range projects {
-		fmt.Fprintf(&output, "\\textbf{%s}", escape(project.Name))
-		if project.Role != "" {
-			fmt.Fprintf(&output, " $\\cdot$ %s", escape(project.Role))
+	return section("Projects", func(output *strings.Builder) {
+		for _, project := range projects {
+			detail := strings.Join(project.Skills, ", ")
+			if detail == "" {
+				detail = project.Role
+			}
+			dates := ""
+			if project.StartDate != "" || project.EndDate != "" || project.Ongoing {
+				dates = dateRange(project.StartDate, project.EndDate, project.Ongoing)
+			}
+			fmt.Fprintf(output, "\\tailorcvProject{%s}{%s}{%s}\n", escape(project.Name), escape(detail), escape(dates))
+			bullets := project.Bullets
+			if project.Description != "" && len(bullets) == 0 {
+				bullets = []domain.EvidenceBullet{{Text: project.Description}}
+			}
+			writeBullets(output, bullets)
 		}
-		if project.StartDate != "" || project.EndDate != "" || project.Ongoing {
-			fmt.Fprintf(&output, "\\hfill %s", escape(dateRange(project.StartDate, project.EndDate, project.Ongoing)))
-		}
-		output.WriteString("\\\\\n")
-		if project.Description != "" {
-			output.WriteString(escape(project.Description) + "\\\\\n")
-		}
-		writeBullets(&output, project.Bullets)
-		output.WriteString("\\vspace{3pt}\n")
-	}
-	return strings.TrimSpace(output.String())
+	})
 }
 
 func educationSection(educations []domain.Education) string {
 	if len(educations) == 0 {
 		return ""
 	}
-	var output strings.Builder
-	output.WriteString("\\section{Education}\n")
-	for _, education := range educations {
-		fmt.Fprintf(&output, "\\textbf{%s} $\\cdot$ %s", escape(education.Institution), escape(education.Degree))
-		if education.FieldOfStudy != "" {
-			fmt.Fprintf(&output, " in %s", escape(education.FieldOfStudy))
+	return section("Education", func(output *strings.Builder) {
+		for _, education := range educations {
+			degree := education.Degree
+			if education.FieldOfStudy != "" {
+				degree += " in " + education.FieldOfStudy
+			}
+			fmt.Fprintf(output, "\\tailorcvEntry{%s}{%s}{%s}{%s}\n", escape(education.Institution), escape(education.Location), escape(degree), escape(dateRange(education.StartDate, education.EndDate, education.Current)))
+			if education.Details != "" {
+				lines := []domain.EvidenceBullet{}
+				for _, line := range strings.Split(education.Details, "\n") {
+					if line = strings.TrimSpace(line); line != "" {
+						lines = append(lines, domain.EvidenceBullet{Text: line})
+					}
+				}
+				writeBullets(output, lines)
+			}
 		}
-		fmt.Fprintf(&output, "\\hfill %s\\\\\n", escape(dateRange(education.StartDate, education.EndDate, education.Current)))
-		if education.Details != "" {
-			output.WriteString(escape(education.Details) + "\\\\\n")
-		}
-	}
-	return strings.TrimSpace(output.String())
+	})
 }
 
 func skillsSection(skills []string) string {
 	if len(skills) == 0 {
 		return ""
 	}
-	return "\\section{Skills}\n" + escape(strings.Join(skills, ", "))
+	return sectionCommandDefaults + "\\section{Skills}\n\\tailorcvSkills{" + escape(strings.Join(skills, ", ")) + "}"
 }
 
 func writeBullets(output *strings.Builder, bullets []domain.EvidenceBullet) {
 	if len(bullets) == 0 {
 		return
 	}
-	output.WriteString("\\begin{itemize}\n")
+	output.WriteString("\\tailorcvBulletsStart\n")
 	for _, bullet := range bullets {
-		fmt.Fprintf(output, "  \\item %s\n", escape(bullet.Text))
+		fmt.Fprintf(output, "  \\tailorcvBullet{%s}\n", escape(bullet.Text))
 	}
-	output.WriteString("\\end{itemize}\n")
+	output.WriteString("\\tailorcvBulletsEnd\n")
+}
+
+var monthNames = []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
+
+// displayMonth turns YYYY-MM into "Jan 2024"; anything else is kept as is.
+func displayMonth(value string) string {
+	var year, month int
+	if _, err := fmt.Sscanf(value, "%4d-%2d", &year, &month); err != nil || month < 1 || month > 12 || len(value) != 7 {
+		return value
+	}
+	return fmt.Sprintf("%s %d", monthNames[month-1], year)
 }
 
 func dateRange(start, end string, current bool) string {
+	start, end = displayMonth(start), displayMonth(end)
 	if current {
 		end = "Present"
 	}
-	if start == "" {
+	if start == "" || start == end {
 		return end
 	}
 	if end == "" {
@@ -214,4 +281,17 @@ func fallback(value, fallbackValue string) string {
 		return fallbackValue
 	}
 	return value
+}
+
+// pdfTeX-only lines common in downloaded templates (Jake's resume among them).
+// Tectonic runs XeTeX, which already writes Unicode text, so they are unneeded.
+var pdfTeXOnlyLine = regexp.MustCompile(`(?m)^[ \t]*(\\input\{glyphtounicode\}|\\pdfgentounicode\s*=\s*1)[ \t]*(\r?)$`)
+
+// CommentOutPDFTeXOnly replaces those lines with a note and reports how many
+// it changed. The note holds no backslash, because the Windows safety scan
+// reads comments too and would refuse a commented-out \input.
+func CommentOutPDFTeXOnly(source string) (string, int) {
+	count := len(pdfTeXOnlyLine.FindAllStringIndex(source, -1))
+	// $2 keeps a Windows line ending (\r) when the file has one.
+	return pdfTeXOnlyLine.ReplaceAllString(source, "% TailorCV removed a pdfTeX-only line (glyphtounicode setup); Tectonic does not need it.$2"), count
 }

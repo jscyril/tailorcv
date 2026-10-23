@@ -10,6 +10,10 @@ export function AnalyzeJobDescription(arg1) {
   return window['go']['main']['App']['AnalyzeJobDescription'](arg1);
 }
 
+export function ApplyResumeImport(arg1) {
+  return window['go']['main']['App']['ApplyResumeImport'](arg1);
+}
+
 export function CancelAITailoring() {
   return window['go']['main']['App']['CancelAITailoring']();
 }
@@ -196,6 +200,10 @@ export function ListResumeTemplates() {
 
 export function OpenResumeVersion(arg1) {
   return window['go']['main']['App']['OpenResumeVersion'](arg1);
+}
+
+export function PreviewResumeImport() {
+  return window['go']['main']['App']['PreviewResumeImport']();
 }
 
 export function RenameResume(arg1) {
