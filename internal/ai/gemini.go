@@ -150,28 +150,43 @@ func (provider *Gemini) Generate(ctx context.Context, model string, input Reques
 	return []byte(text), nil
 }
 
-// generateContent posts one generateContent request and returns the raw body.
+// geminiRetryDelays are the waits before retrying an overloaded (429/503)
+// request; Gemini's demand spikes are usually brief.
+var geminiRetryDelays = []time.Duration{2 * time.Second, 5 * time.Second}
+
+// generateContent posts one generateContent request and returns the raw body,
+// retrying when Gemini reports it is overloaded.
 func (provider *Gemini) generateContent(ctx context.Context, model string, payload []byte) ([]byte, error) {
 	path := provider.endpoint + "/models/" + url.PathEscape(model) + ":generateContent"
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, path, bytes.NewReader(payload))
-	if err != nil {
-		return nil, fmt.Errorf("create Gemini generation request: %w", err)
+	for attempt := 0; ; attempt++ {
+		request, err := http.NewRequestWithContext(ctx, http.MethodPost, path, bytes.NewReader(payload))
+		if err != nil {
+			return nil, fmt.Errorf("create Gemini generation request: %w", err)
+		}
+		request.Header.Set("Content-Type", "application/json")
+		provider.authorize(request)
+		response, err := provider.client.Do(request)
+		if err != nil {
+			return nil, fmt.Errorf("generate with Gemini: %w", err)
+		}
+		data, err := readLimited(response.Body, "Gemini")
+		response.Body.Close()
+		if err != nil {
+			return nil, err
+		}
+		if response.StatusCode == http.StatusOK {
+			return data, nil
+		}
+		overloaded := response.StatusCode == http.StatusServiceUnavailable || response.StatusCode == http.StatusTooManyRequests
+		if !overloaded || attempt >= len(geminiRetryDelays) {
+			return nil, geminiStatusError(response.Status, data, provider.apiKey)
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(geminiRetryDelays[attempt]):
+		}
 	}
-	request.Header.Set("Content-Type", "application/json")
-	provider.authorize(request)
-	response, err := provider.client.Do(request)
-	if err != nil {
-		return nil, fmt.Errorf("generate with Gemini: %w", err)
-	}
-	defer response.Body.Close()
-	data, err := readLimited(response.Body, "Gemini")
-	if err != nil {
-		return nil, err
-	}
-	if response.StatusCode != http.StatusOK {
-		return nil, geminiStatusError(response.Status, data, provider.apiKey)
-	}
-	return data, nil
 }
 
 func (provider *Gemini) authorize(request *http.Request) {

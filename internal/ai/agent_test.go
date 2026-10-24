@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func agentTestRequest() Request {
@@ -66,5 +67,30 @@ func TestGeminiAgentStopsWithoutToolCall(t *testing.T) {
 	provider, _ := newGemini("key", server.URL, server.Client())
 	if _, err := RunProposalAgent(context.Background(), provider, "m", agentTestRequest()); err == nil {
 		t.Fatal("expected error when the model never calls a tool")
+	}
+}
+
+func TestGeminiRetriesOverloadedRequests(t *testing.T) {
+	delays := geminiRetryDelays
+	geminiRetryDelays = []time.Duration{time.Millisecond, time.Millisecond}
+	defer func() { geminiRetryDelays = delays }()
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts < 3 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(`{"error":{"message":"high demand"}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+	provider, _ := newGemini("key", server.URL, server.Client())
+	if _, err := provider.generateContent(context.Background(), "m", []byte(`{}`)); err != nil || attempts != 3 {
+		t.Fatalf("generateContent() error = %v after %d attempts", err, attempts)
+	}
+	attempts = -10 // every response is now a 503
+	if _, err := provider.generateContent(context.Background(), "m", []byte(`{}`)); err == nil || !strings.Contains(err.Error(), "503") {
+		t.Fatalf("generateContent() error = %v, want the 503 after retries run out", err)
 	}
 }
