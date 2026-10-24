@@ -633,6 +633,24 @@ export namespace domain {
 	        this.message = source["message"];
 	    }
 	}
+	export class DraftFollowUpInput {
+	    applicationId: string;
+	    provider: string;
+	    model: string;
+	    endpoint: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DraftFollowUpInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.applicationId = source["applicationId"];
+	        this.provider = source["provider"];
+	        this.model = source["model"];
+	        this.endpoint = source["endpoint"];
+	    }
+	}
 	export class Education {
 	    id: string;
 	    institution: string;
@@ -852,6 +870,24 @@ export namespace domain {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.path = source["path"];
 	        this.cancelled = source["cancelled"];
+	    }
+	}
+	export class FixLatexInput {
+	    source: string;
+	    provider: string;
+	    model: string;
+	    endpoint: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FixLatexInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source = source["source"];
+	        this.provider = source["provider"];
+	        this.model = source["model"];
+	        this.endpoint = source["endpoint"];
 	    }
 	}
 	export class GenerateAITailoringInput {
@@ -1085,6 +1121,38 @@ export namespace domain {
 	        this.versionId = source["versionId"];
 	        this.savedAt = source["savedAt"];
 	    }
+	}
+	export class LatexFixResult {
+	    source: string;
+	    result: CompileResult;
+	
+	    static createFrom(source: any = {}) {
+	        return new LatexFixResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source = source["source"];
+	        this.result = this.convertValues(source["result"], CompileResult);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class Profile {
 	    name: string;
@@ -1407,6 +1475,24 @@ export namespace domain {
 		    return a;
 		}
 	}
+	export class ResumeImportAIInput {
+	    fileName: string;
+	    provider: string;
+	    model: string;
+	    endpoint: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ResumeImportAIInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.fileName = source["fileName"];
+	        this.provider = source["provider"];
+	        this.model = source["model"];
+	        this.endpoint = source["endpoint"];
+	    }
+	}
 	export class ResumeImportResult {
 	    experiences: number;
 	    projects: number;
@@ -1533,6 +1619,24 @@ export namespace domain {
 	    }
 	}
 	
+	export class SuggestEvidenceInput {
+	    jobId: string;
+	    provider: string;
+	    model: string;
+	    endpoint: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SuggestEvidenceInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.jobId = source["jobId"];
+	        this.provider = source["provider"];
+	        this.model = source["model"];
+	        this.endpoint = source["endpoint"];
+	    }
+	}
 	export class UpdateApplicationDetailsInput {
 	    applicationId: string;
 	    appliedOn: string;

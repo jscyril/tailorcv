@@ -15,6 +15,8 @@ export type CoverLetterHandlers = {
   busyId: string;
   draft: (application: Application) => Promise<string | null>;
   generate: (application: Application) => Promise<string | null>;
+  // Set only when the provider can run agents.
+  followUp?: (application: Application) => Promise<string | null>;
   save: (application: Application, text: string) => Promise<boolean>;
   export: (application: Application, text: string) => void;
 };
@@ -77,7 +79,7 @@ export function WorkspaceOverview({ profile, completion, experiences, projects, 
           </div>
           <details className="resume-versions">
             <summary>Track application</summary>
-            <ApplicationTracker application={application} title={title} busy={statusBusy} onStatusChange={(status) => onStatusChange(status, application)} onSave={(details) => onSaveDetails(application, details)} />
+            <ApplicationTracker application={application} title={title} busy={statusBusy} onStatusChange={(status) => onStatusChange(status, application)} onSave={(details) => onSaveDetails(application, details)} drafting={coverLetters.busyId === application.id} onDraftFollowUp={coverLetters.followUp && application.jobId ? () => coverLetters.followUp!(application) : undefined} />
           </details>
           {job && <details className="resume-versions">
             <summary>Cover letter{application.coverLetter ? "" : " (none yet)"}</summary>

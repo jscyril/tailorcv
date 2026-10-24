@@ -59,7 +59,10 @@ type App struct {
 	aiCancel                 context.CancelFunc
 	aiGeneration             uint64
 	aiProviderFactory        func(string, string) (ai.Provider, error)
-	credentials              credentials.Store
+	// lastImportSource lets the AI re-read the file from the last import preview.
+	importMu         sync.Mutex
+	lastImportSource string
+	credentials      credentials.Store
 }
 
 func NewApp() *App {
@@ -630,16 +633,7 @@ func (a *App) CreateResumeVersion(input domain.CreateResumeVersionInput) (domain
 }
 
 func (a *App) rankSelectedEvidence(job domain.Job, profile domain.Profile, experiences []domain.Experience, projects []domain.Project, selectedFactIDs []string) ([]domain.EvidenceMatch, error) {
-	input := domain.JobAnalysisInput{ID: job.ID, Company: job.Company, Role: job.Role, Description: job.Description}
-	analysis, err := domain.AnalyzeCareerEvidence(input, profile.Skills, experiences, projects)
-	if err != nil {
-		return nil, err
-	}
-	searchHits, err := a.store.SearchEvidence(a.appContext(), analysis.SearchTerms, 50)
-	if err != nil {
-		return nil, err
-	}
-	analysis, err = domain.AnalyzeCareerEvidenceWithSearch(input, profile.Skills, experiences, projects, searchHits)
+	analysis, err := a.analyzeJob(job, profile, experiences, projects)
 	if err != nil {
 		return nil, err
 	}
@@ -654,6 +648,20 @@ func (a *App) rankSelectedEvidence(job domain.Job, profile domain.Profile, exper
 		}
 	}
 	return ranking, nil
+}
+
+// analyzeJob ranks profile evidence for a saved job, including full-text search hits.
+func (a *App) analyzeJob(job domain.Job, profile domain.Profile, experiences []domain.Experience, projects []domain.Project) (domain.JobAnalysis, error) {
+	input := domain.JobAnalysisInput{ID: job.ID, Company: job.Company, Role: job.Role, Description: job.Description}
+	analysis, err := domain.AnalyzeCareerEvidence(input, profile.Skills, experiences, projects)
+	if err != nil {
+		return domain.JobAnalysis{}, err
+	}
+	searchHits, err := a.store.SearchEvidence(a.appContext(), analysis.SearchTerms, 50)
+	if err != nil {
+		return domain.JobAnalysis{}, err
+	}
+	return domain.AnalyzeCareerEvidenceWithSearch(input, profile.Skills, experiences, projects, searchHits)
 }
 
 // SaveResumeVersionEdit appends the current edited source as a new immutable

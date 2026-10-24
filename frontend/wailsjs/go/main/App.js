@@ -86,6 +86,10 @@ export function DraftCoverLetter(arg1) {
   return window['go']['main']['App']['DraftCoverLetter'](arg1);
 }
 
+export function DraftFollowUpEmail(arg1) {
+  return window['go']['main']['App']['DraftFollowUpEmail'](arg1);
+}
+
 export function DuplicateResume(arg1) {
   return window['go']['main']['App']['DuplicateResume'](arg1);
 }
@@ -104,6 +108,10 @@ export function ExportLatexSource(arg1, arg2) {
 
 export function ExportProfileBackup() {
   return window['go']['main']['App']['ExportProfileBackup']();
+}
+
+export function FixLatexWithAI(arg1) {
+  return window['go']['main']['App']['FixLatexWithAI'](arg1);
 }
 
 export function GenerateAITailoring(arg1) {
@@ -206,6 +214,10 @@ export function PreviewResumeImport() {
   return window['go']['main']['App']['PreviewResumeImport']();
 }
 
+export function PreviewResumeImportWithAI(arg1) {
+  return window['go']['main']['App']['PreviewResumeImportWithAI'](arg1);
+}
+
 export function RenameResume(arg1) {
   return window['go']['main']['App']['RenameResume'](arg1);
 }
@@ -268,6 +280,10 @@ export function SaveResumeVersionEdit(arg1) {
 
 export function SelectResumeTemplate(arg1) {
   return window['go']['main']['App']['SelectResumeTemplate'](arg1);
+}
+
+export function SuggestEvidenceWithAI(arg1) {
+  return window['go']['main']['App']['SuggestEvidenceWithAI'](arg1);
 }
 
 export function UpdateApplicationDetails(arg1) {

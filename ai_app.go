@@ -139,9 +139,7 @@ func (a *App) GenerateAITailoring(input domain.GenerateAITailoringInput) (domain
 		SelectedFactIDs:  append([]string(nil), validated.SelectedFactIDs...),
 		ValidationErrors: []string{}, Proposals: []domain.AIProposal{},
 	}
-	ctx, done := a.beginAIRequest()
-	defer done()
-	raw, generateErr := provider.Generate(ctx, validated.Model, request)
+	raw, generateErr := a.generateProposals(provider, validated.Model, request)
 	if generateErr != nil {
 		run.FailureCategory = "provider"
 		run.ValidationErrors = []string{"provider request failed: " + generateErr.Error()}
@@ -190,9 +188,7 @@ func (a *App) GenerateProjectReadmeBullets(input domain.GenerateProjectReadmeBul
 		return domain.ProjectReadmeBulletsResult{}, err
 	}
 	request := ai.ProjectReadmeBulletsRequest(project)
-	ctx, done := a.beginAIRequest()
-	defer done()
-	raw, err := provider.Generate(ctx, validated.Model, request)
+	raw, err := a.generateProposals(provider, validated.Model, request)
 	if err != nil {
 		return domain.ProjectReadmeBulletsResult{}, fmt.Errorf("generate README bullets: %w", err)
 	}
@@ -211,10 +207,23 @@ func (a *App) GenerateProjectReadmeBullets(input domain.GenerateProjectReadmeBul
 	return result, nil
 }
 
+// generateProposals runs the validate-and-revise agent when the provider can
+// call tools, and a single structured request otherwise.
+func (a *App) generateProposals(provider ai.Provider, model string, request ai.Request) ([]byte, error) {
+	if agent, ok := provider.(ai.AgentProvider); ok {
+		ctx, done := a.beginAIRequest(4 * time.Minute)
+		defer done()
+		return ai.RunProposalAgent(ctx, agent, model, request)
+	}
+	ctx, done := a.beginAIRequest(90 * time.Second)
+	defer done()
+	return provider.Generate(ctx, model, request)
+}
+
 // beginAIRequest cancels any running AI request and returns a context that
 // CancelAITailoring can stop. Call done when the request finishes.
-func (a *App) beginAIRequest() (context.Context, func()) {
-	ctx, cancel := context.WithTimeout(a.appContext(), 90*time.Second)
+func (a *App) beginAIRequest(timeout time.Duration) (context.Context, func()) {
+	ctx, cancel := context.WithTimeout(a.appContext(), timeout)
 	a.aiMu.Lock()
 	if a.aiCancel != nil {
 		a.aiCancel()
@@ -253,9 +262,7 @@ func (a *App) GenerateCoverLetter(input domain.GenerateCoverLetterInput) (string
 		return "", err
 	}
 	request.Task = ai.CoverLetterTask
-	ctx, done := a.beginAIRequest()
-	defer done()
-	raw, err := provider.Generate(ctx, validated.Model, request)
+	raw, err := a.generateProposals(provider, validated.Model, request)
 	if err != nil {
 		return "", fmt.Errorf("generate cover letter: %w", err)
 	}
@@ -592,4 +599,156 @@ func sameStringSet(left, right []string) bool {
 		}
 	}
 	return true
+}
+
+// FixLatexWithAI lets an agent edit failing LaTeX until the local compiler
+// accepts it. The fix is returned as an unsaved draft for the editor.
+func (a *App) FixLatexWithAI(input domain.FixLatexInput) (domain.LatexFixResult, error) {
+	if err := a.ready(); err != nil {
+		return domain.LatexFixResult{}, err
+	}
+	validated, err := input.Validate()
+	if err != nil {
+		return domain.LatexFixResult{}, err
+	}
+	provider, err := a.newAIProvider(validated.Provider, validated.Endpoint)
+	if err != nil {
+		return domain.LatexFixResult{}, err
+	}
+	agent, ok := provider.(ai.AgentProvider)
+	if !ok {
+		return domain.LatexFixResult{}, fmt.Errorf("AI fixes need a provider that can call tools; switch to Gemini")
+	}
+	ctx, done := a.beginAIRequest(4 * time.Minute)
+	defer done()
+	initial, _, err := a.compile(ctx, validated.Source)
+	if err != nil {
+		return domain.LatexFixResult{}, err
+	}
+	if initial.Success {
+		return domain.LatexFixResult{}, fmt.Errorf("this source already compiles")
+	}
+	var last domain.CompileResult
+	var lastPDF []byte
+	compile := func(ctx context.Context, source string) (bool, string, error) {
+		result, pdf, err := a.compile(ctx, source)
+		if err != nil {
+			return false, "", err
+		}
+		last, lastPDF = result, pdf
+		return result.Success, compileReport(result), nil
+	}
+	fixed, err := ai.RunLatexFixAgent(ctx, agent, validated.Model, validated.Source, compileReport(initial), compile)
+	if err != nil {
+		return domain.LatexFixResult{}, fmt.Errorf("fix LaTeX: %w", err)
+	}
+	a.setLastPDF(lastPDF)
+	return domain.LatexFixResult{Source: fixed, Result: last}, nil
+}
+
+// compileReport gives the model diagnostics plus the end of the log, where
+// TeX reports the error that stopped compilation.
+func compileReport(result domain.CompileResult) string {
+	lines := make([]string, 0, len(result.Diagnostics)+1)
+	for _, diagnostic := range result.Diagnostics {
+		lines = append(lines, fmt.Sprintf("line %d %s: %s", diagnostic.Line, diagnostic.Severity, diagnostic.Message))
+	}
+	log := result.Log
+	if len(log) > 4000 {
+		log = log[len(log)-4000:]
+	}
+	return strings.Join(append(lines, log), "\n")
+}
+
+// SuggestEvidenceWithAI lets an agent choose evidence for a job. It sees only
+// the selectable facts in the job's ranked list, which the job screen already shows.
+func (a *App) SuggestEvidenceWithAI(input domain.SuggestEvidenceInput) ([]string, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	validated, err := input.Validate()
+	if err != nil {
+		return nil, err
+	}
+	job, err := a.store.GetJob(a.appContext(), validated.JobID)
+	if err != nil {
+		return nil, err
+	}
+	profile, err := a.store.GetProfile(a.appContext())
+	if err != nil {
+		return nil, err
+	}
+	experiences, err := a.store.ListExperiences(a.appContext())
+	if err != nil {
+		return nil, err
+	}
+	projects, err := a.store.ListProjects(a.appContext())
+	if err != nil {
+		return nil, err
+	}
+	analysis, err := a.analyzeJob(job, profile, experiences, projects)
+	if err != nil {
+		return nil, err
+	}
+	candidates := make([]ai.Fact, 0, len(analysis.RankedEvidence))
+	for _, evidence := range analysis.RankedEvidence {
+		if evidence.Selectable {
+			candidates = append(candidates, ai.Fact{ID: evidence.FactID, SourceType: evidence.SourceType, SourceLabel: evidence.SourceLabel, Text: evidence.Text, Technologies: evidence.MatchedSkills})
+		}
+	}
+	provider, err := a.newAIProvider(validated.Provider, validated.Endpoint)
+	if err != nil {
+		return nil, err
+	}
+	agent, ok := provider.(ai.AgentProvider)
+	if !ok {
+		return nil, fmt.Errorf("AI evidence selection needs a provider that can call tools; switch to Gemini")
+	}
+	ctx, done := a.beginAIRequest(4 * time.Minute)
+	defer done()
+	selected, err := ai.RunEvidenceSelectionAgent(ctx, agent, validated.Model, ai.NewRequest(analysis, nil).Job, candidates, 8)
+	if err != nil {
+		return nil, fmt.Errorf("choose evidence: %w", err)
+	}
+	return selected, nil
+}
+
+// DraftFollowUpEmail drafts an unsaved follow-up email from the application's
+// job and selected evidence. Application notes are never sent.
+func (a *App) DraftFollowUpEmail(input domain.DraftFollowUpInput) (string, error) {
+	if err := a.ready(); err != nil {
+		return "", err
+	}
+	validated, err := input.Validate()
+	if err != nil {
+		return "", err
+	}
+	application, err := a.store.GetApplication(a.appContext(), validated.ApplicationID)
+	if err != nil {
+		return "", err
+	}
+	job, request, err := a.coverLetterRequest(application.ID)
+	if err != nil {
+		return "", err
+	}
+	profile, err := a.store.GetProfile(a.appContext())
+	if err != nil {
+		return "", err
+	}
+	provider, err := a.newAIProvider(validated.Provider, validated.Endpoint)
+	if err != nil {
+		return "", err
+	}
+	agent, ok := provider.(ai.AgentProvider)
+	if !ok {
+		return "", fmt.Errorf("AI follow-ups need a provider that can call tools; switch to Gemini")
+	}
+	ctx, done := a.beginAIRequest(4 * time.Minute)
+	defer done()
+	followUp := ai.FollowUp{Company: job.Company, Role: job.Role, AppliedOn: application.AppliedOn, Sender: profile.Name}
+	email, err := ai.RunFollowUpAgent(ctx, agent, validated.Model, followUp, request.Facts)
+	if err != nil {
+		return "", fmt.Errorf("draft follow-up: %w", err)
+	}
+	return email, nil
 }

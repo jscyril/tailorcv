@@ -4,9 +4,12 @@ import { domain } from "../../../wailsjs/go/models";
 type Section = "experiences" | "projects" | "educations";
 
 // Shows what was read from a resume file and lets the user choose what to add.
-export function ResumeImportDialog({ data, busy, onImport, onCancel }: {
+export function ResumeImportDialog({ data, busy, onImport, onCancel, aiBusy = false, onReadWithAI }: {
   data: domain.ResumeImport;
   busy: boolean;
+  aiBusy?: boolean;
+  // Set only when an agent-capable provider is ready.
+  onReadWithAI?: () => void;
   onImport: (selected: domain.ResumeImport) => void;
   onCancel: () => void;
 }) {
@@ -48,6 +51,7 @@ export function ResumeImportDialog({ data, busy, onImport, onCancel }: {
       </div>
       <footer>
         <button type="button" className="text-button" onClick={onCancel}>Cancel</button>
+        {onReadWithAI && <button type="button" className="secondary-button" disabled={busy || aiBusy} title="Sends this file to Gemini; entries must match the file word for word" onClick={onReadWithAI}>{aiBusy ? "Reading…" : "Read with AI instead"}</button>}
         <button type="button" className="primary-button" disabled={busy || (count === 0 && skills.length === 0 && contact.length === 0)} onClick={() => onImport(domain.ResumeImport.createFrom(selected))}>{busy ? "Importing…" : `Import ${count} entr${count === 1 ? "y" : "ies"}`}</button>
       </footer>
     </section>

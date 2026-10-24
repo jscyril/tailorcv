@@ -172,3 +172,9 @@ func hrefTargets(source string) []string {
 	}
 	return urls
 }
+
+// PlainText is the readable text of a LaTeX document, used to check that
+// AI-extracted entries appear in the original.
+func PlainText(source string) string {
+	return toText(stripComments(source))
+}

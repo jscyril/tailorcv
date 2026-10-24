@@ -168,3 +168,89 @@ func (input GenerateCoverLetterInput) Validate() (GenerateCoverLetterInput, erro
 	}
 	return input, nil
 }
+
+// FixLatexInput asks an agent to repair LaTeX that fails to compile. The
+// whole source is sent to the provider.
+type FixLatexInput struct {
+	Source   string `json:"source"`
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+	Endpoint string `json:"endpoint"`
+}
+
+func (input FixLatexInput) Validate() (FixLatexInput, error) {
+	if strings.TrimSpace(input.Source) == "" {
+		return FixLatexInput{}, fmt.Errorf("there is no LaTeX source to fix")
+	}
+	if len(input.Source) > 256<<10 {
+		return FixLatexInput{}, fmt.Errorf("LaTeX source is too large for an AI fix")
+	}
+	var err error
+	if input.Provider, input.Model, input.Endpoint, err = validateProviderChoice(input.Provider, input.Model, input.Endpoint); err != nil {
+		return FixLatexInput{}, err
+	}
+	return input, nil
+}
+
+// LatexFixResult is a proposed source that compiled, returned as an unsaved draft.
+type LatexFixResult struct {
+	Source string        `json:"source"`
+	Result CompileResult `json:"result"`
+}
+
+// SuggestEvidenceInput asks an agent to choose evidence for a saved job from
+// its top ranked facts.
+type SuggestEvidenceInput struct {
+	JobID    string `json:"jobId"`
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+	Endpoint string `json:"endpoint"`
+}
+
+func (input SuggestEvidenceInput) Validate() (SuggestEvidenceInput, error) {
+	input.JobID = strings.TrimSpace(input.JobID)
+	if input.JobID == "" {
+		return SuggestEvidenceInput{}, fmt.Errorf("analyze a job before asking AI to choose evidence")
+	}
+	var err error
+	if input.Provider, input.Model, input.Endpoint, err = validateProviderChoice(input.Provider, input.Model, input.Endpoint); err != nil {
+		return SuggestEvidenceInput{}, err
+	}
+	return input, nil
+}
+
+// DraftFollowUpInput asks an agent for a follow-up email about an application.
+type DraftFollowUpInput struct {
+	ApplicationID string `json:"applicationId"`
+	Provider      string `json:"provider"`
+	Model         string `json:"model"`
+	Endpoint      string `json:"endpoint"`
+}
+
+func (input DraftFollowUpInput) Validate() (DraftFollowUpInput, error) {
+	input.ApplicationID = strings.TrimSpace(input.ApplicationID)
+	if input.ApplicationID == "" {
+		return DraftFollowUpInput{}, fmt.Errorf("choose an application to follow up on")
+	}
+	var err error
+	if input.Provider, input.Model, input.Endpoint, err = validateProviderChoice(input.Provider, input.Model, input.Endpoint); err != nil {
+		return DraftFollowUpInput{}, err
+	}
+	return input, nil
+}
+
+// ResumeImportAIInput asks an agent to re-read the last previewed resume file.
+type ResumeImportAIInput struct {
+	FileName string `json:"fileName"`
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+	Endpoint string `json:"endpoint"`
+}
+
+func (input ResumeImportAIInput) Validate() (ResumeImportAIInput, error) {
+	var err error
+	if input.Provider, input.Model, input.Endpoint, err = validateProviderChoice(input.Provider, input.Model, input.Endpoint); err != nil {
+		return ResumeImportAIInput{}, err
+	}
+	return input, nil
+}

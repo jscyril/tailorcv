@@ -15,13 +15,8 @@ import (
 const defaultGeminiEndpoint = "https://generativelanguage.googleapis.com/v1beta"
 
 // Gemini accepts a documented subset of JSON Schema. Contract validation
-// below still enforces text lengths and unique citations after generation.
-var geminiOutputSchema = json.RawMessage(`{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-    "schemaVersion": {"type": "string", "enum": ["tailorcv.ai.tailoring.v1"]},
-    "proposals": {
+// still enforces text lengths and unique citations after generation.
+const proposalsSchema = `{
       "type": "array",
       "maxItems": 20,
       "items": {
@@ -34,7 +29,14 @@ var geminiOutputSchema = json.RawMessage(`{
         },
         "required": ["targetFactId", "supportingFactIds", "text"]
       }
-    }
+    }`
+
+var geminiOutputSchema = json.RawMessage(`{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {"type": "string", "enum": ["tailorcv.ai.tailoring.v1"]},
+    "proposals": ` + proposalsSchema + `
   },
   "required": ["schemaVersion", "proposals"]
 }`)
@@ -122,24 +124,9 @@ func (provider *Gemini) Generate(ctx context.Context, model string, input Reques
 	if err != nil {
 		return nil, fmt.Errorf("encode Gemini generation request: %w", err)
 	}
-	path := provider.endpoint + "/models/" + url.PathEscape(model) + ":generateContent"
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, path, bytes.NewReader(payload))
-	if err != nil {
-		return nil, fmt.Errorf("create Gemini generation request: %w", err)
-	}
-	request.Header.Set("Content-Type", "application/json")
-	provider.authorize(request)
-	response, err := provider.client.Do(request)
-	if err != nil {
-		return nil, fmt.Errorf("generate with Gemini: %w", err)
-	}
-	defer response.Body.Close()
-	data, err := readLimited(response.Body, "Gemini")
+	data, err := provider.generateContent(ctx, model, payload)
 	if err != nil {
 		return nil, err
-	}
-	if response.StatusCode != http.StatusOK {
-		return nil, geminiStatusError(response.Status, data, provider.apiKey)
 	}
 	var result struct {
 		Candidates []struct {
@@ -161,6 +148,30 @@ func (provider *Gemini) Generate(ctx context.Context, model string, input Reques
 		return nil, fmt.Errorf("Gemini returned an empty or oversized structured response")
 	}
 	return []byte(text), nil
+}
+
+// generateContent posts one generateContent request and returns the raw body.
+func (provider *Gemini) generateContent(ctx context.Context, model string, payload []byte) ([]byte, error) {
+	path := provider.endpoint + "/models/" + url.PathEscape(model) + ":generateContent"
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, path, bytes.NewReader(payload))
+	if err != nil {
+		return nil, fmt.Errorf("create Gemini generation request: %w", err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	provider.authorize(request)
+	response, err := provider.client.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("generate with Gemini: %w", err)
+	}
+	defer response.Body.Close()
+	data, err := readLimited(response.Body, "Gemini")
+	if err != nil {
+		return nil, err
+	}
+	if response.StatusCode != http.StatusOK {
+		return nil, geminiStatusError(response.Status, data, provider.apiKey)
+	}
+	return data, nil
 }
 
 func (provider *Gemini) authorize(request *http.Request) {

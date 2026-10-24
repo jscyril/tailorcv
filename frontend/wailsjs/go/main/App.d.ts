@@ -44,6 +44,8 @@ export function DeleteResumeTemplate(arg1:string):Promise<void>;
 
 export function DraftCoverLetter(arg1:string):Promise<string>;
 
+export function DraftFollowUpEmail(arg1:domain.DraftFollowUpInput):Promise<string>;
+
 export function DuplicateResume(arg1:string):Promise<domain.Application>;
 
 export function ExportCompiledPDF(arg1:string):Promise<domain.FileResult>;
@@ -53,6 +55,8 @@ export function ExportCoverLetterPDF(arg1:string,arg2:string):Promise<domain.Fil
 export function ExportLatexSource(arg1:string,arg2:string):Promise<domain.FileResult>;
 
 export function ExportProfileBackup():Promise<domain.BackupResult>;
+
+export function FixLatexWithAI(arg1:domain.FixLatexInput):Promise<domain.LatexFixResult>;
 
 export function GenerateAITailoring(arg1:domain.GenerateAITailoringInput):Promise<domain.AIRun>;
 
@@ -104,6 +108,8 @@ export function OpenResumeVersion(arg1:string):Promise<domain.ResumeVersionWorks
 
 export function PreviewResumeImport():Promise<domain.ResumeImport>;
 
+export function PreviewResumeImportWithAI(arg1:domain.ResumeImportAIInput):Promise<domain.ResumeImport>;
+
 export function RenameResume(arg1:domain.RenameResumeInput):Promise<domain.Application>;
 
 export function RenderResumeTemplate(arg1:string,arg2:Array<string>):Promise<string>;
@@ -135,6 +141,8 @@ export function SaveResumeTemplate(arg1:domain.ResumeTemplateInput):Promise<doma
 export function SaveResumeVersionEdit(arg1:domain.SaveResumeVersionEditInput):Promise<domain.ResumeVersion>;
 
 export function SelectResumeTemplate(arg1:string):Promise<domain.ResumeTemplate>;
+
+export function SuggestEvidenceWithAI(arg1:domain.SuggestEvidenceInput):Promise<Array<string>>;
 
 export function UpdateApplicationDetails(arg1:domain.UpdateApplicationDetailsInput):Promise<domain.Application>;
 
