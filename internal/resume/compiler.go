@@ -26,10 +26,12 @@ const (
 
 type Compiler struct {
 	executable string
+	// extras holds files fetched from the online bundle; empty disables fetching.
+	extras string
 }
 
 func NewCompiler(executable string) *Compiler {
-	return &Compiler{executable: executable}
+	return &Compiler{executable: executable, extras: defaultExtrasDirectory()}
 }
 
 func (compiler *Compiler) Compile(ctx context.Context, source string) (domain.CompileResult, []byte, error) {
@@ -62,6 +64,42 @@ func (compiler *Compiler) Compile(ctx context.Context, source string) (domain.Co
 			return domain.CompileResult{Engine: "Tectonic", Log: reason, Diagnostics: []domain.CompileDiagnostic{{Severity: "error", Message: reason}}}, nil, nil
 		}
 	}
+	// Files missing from the offline bundle are fetched once into the extras
+	// cache, then the compile is retried with them beside the source.
+	tried := make(map[string]struct{})
+	for round := 0; ; round++ {
+		result, pdf, err := compiler.run(ctx, executable, bundle, source, sandboxed)
+		if err != nil || result.Success || compiler.extras == "" || round == maxFetchRounds {
+			return result, pdf, err
+		}
+		names := make([]string, 0)
+		for _, name := range missingBundleFiles(result.Log) {
+			if _, done := tried[name]; !done {
+				tried[name] = struct{}{}
+				names = append(names, name)
+			}
+		}
+		if len(names) == 0 {
+			return result, pdf, nil
+		}
+		fetched := false
+		var fetchErr error
+		for _, name := range names {
+			if err := fetchBundleFile(ctx, executable, compiler.extras, name); err != nil {
+				fetchErr = err
+			} else {
+				fetched = true
+			}
+		}
+		if !fetched {
+			result.Diagnostics = append(result.Diagnostics, domain.CompileDiagnostic{Severity: "warning", Message: fmt.Sprintf("Could not download %s: %v", strings.Join(names, ", "), fetchErr)})
+			return result, pdf, nil
+		}
+	}
+}
+
+// run compiles source once in a fresh sandboxed workspace.
+func (compiler *Compiler) run(ctx context.Context, executable, bundle, source string, sandboxed bool) (domain.CompileResult, []byte, error) {
 	workspace, err := os.MkdirTemp("", "tailorcv-compile-*")
 	if err != nil {
 		return domain.CompileResult{}, nil, fmt.Errorf("create isolated compile workspace: %w", err)
@@ -70,6 +108,9 @@ func (compiler *Compiler) Compile(ctx context.Context, source string) (domain.Co
 	inputPath := filepath.Join(workspace, "resume.tex")
 	if err := os.WriteFile(inputPath, []byte(source), 0o600); err != nil {
 		return domain.CompileResult{}, nil, fmt.Errorf("write isolated LaTeX source: %w", err)
+	}
+	if err := copyExtras(compiler.extras, workspace); err != nil {
+		return domain.CompileResult{}, nil, err
 	}
 	compileContext, cancel := context.WithTimeout(ctx, compileTimeout)
 	defer cancel()

@@ -122,16 +122,34 @@ jobs:
           path: ${{ matrix.runtime_dir }}
           key: tectonic-${{ matrix.target_os }}-${{ matrix.target_arch }}-${{ hashFiles('cmd/packagetectonic/**', 'build/tectonic/fixtures/**') }}
 
+      # Downloaded TeX files persist across attempts and runs, so a rebuild
+      # (new fixture, packager change, or a rate-limited try) only fetches
+      # what is still missing instead of hundreds of files again.
+      - name: Restore TeX resource downloads
+        if: steps.tectonic-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/tectonic-downloads
+          key: tectonic-downloads-${{ matrix.target_os }}-${{ github.run_id }}
+          restore-keys: tectonic-downloads-${{ matrix.target_os }}-
+
       - name: Package pinned offline Tectonic runtime
         if: steps.tectonic-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          for attempt in 1 2 3; do
-            go run ./cmd/packagetectonic -goos ${{ matrix.target_os }} -goarch ${{ matrix.target_arch }} -destination ${{ matrix.runtime_dir }} && exit 0
-            echo "Packaging attempt $attempt failed; the TeX resource server may be rate-limiting. Retrying in 90 seconds."
+          for attempt in 1 2 3 4; do
+            go run ./cmd/packagetectonic -goos ${{ matrix.target_os }} -goarch ${{ matrix.target_arch }} -destination ${{ matrix.runtime_dir }} -cache "${{ runner.temp }}/tectonic-downloads" && exit 0
+            echo "Packaging attempt $attempt failed; the TeX resource server may be rate-limiting. Retrying in 90 seconds with the files downloaded so far."
             sleep 90
           done
           exit 1
+
+      - name: Save TeX resource downloads
+        if: always() && steps.tectonic-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/tectonic-downloads
+          key: tectonic-downloads-${{ matrix.target_os }}-${{ github.run_id }}
 
       - name: Save pinned offline Tectonic runtime
         if: steps.tectonic-cache.outputs.cache-hit != 'true'
