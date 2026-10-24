@@ -24,6 +24,7 @@ import (
 
 const (
 	tectonicVersion = "0.16.9"
+	// bundleSourceURL must match onlineBundleURL in internal/resume.
 	bundleSourceURL = "https://data1.fullyjustified.net/tlextras-2022.0r0.tar"
 	bundleDigest    = "6ffe055852f8faf66c0acbe1a7fb27f87b869a90bad1204f3bf4d9683f597c7c"
 	bundleFilename  = "tectonic-resources.zip"
@@ -64,6 +65,7 @@ func main() {
 	targetArch := flag.String("goarch", runtime.GOARCH, "target architecture")
 	destination := flag.String("destination", "", "directory placed beside the packaged application executable")
 	fixtures := flag.String("fixtures", filepath.FromSlash("build/tectonic/fixtures"), "directory containing offline LaTeX fixtures")
+	downloadCache := flag.String("cache", "", "directory that keeps downloaded TeX resources between runs, so a rate-limited run can resume (default: a temporary directory)")
 	flag.Parse()
 
 	if strings.TrimSpace(*destination) == "" {
@@ -77,13 +79,13 @@ func main() {
 	if err != nil {
 		fatalf("load offline fixtures: %v", err)
 	}
-	if err := packageRuntime(asset, *destination, fixturePaths); err != nil {
+	if err := packageRuntime(asset, *destination, fixturePaths, *downloadCache); err != nil {
 		fatalf("package Tectonic: %v", err)
 	}
 	fmt.Printf("Packaged Tectonic %s and %s for %s/%s in %s\n", tectonicVersion, bundleFilename, *targetOS, *targetArch, *destination)
 }
 
-func packageRuntime(asset releaseAsset, destination string, fixtures []string) error {
+func packageRuntime(asset releaseAsset, destination string, fixtures []string, downloadCache string) error {
 	temporary, err := os.MkdirTemp("", "tailorcv-tectonic-package-*")
 	if err != nil {
 		return err
@@ -106,7 +108,11 @@ func packageRuntime(asset releaseAsset, destination string, fixtures []string) e
 		return fmt.Errorf("install executable: %w", err)
 	}
 
-	resourceDirectory, err := hydrateResources(packagedExecutable, temporary, fixtures)
+	cacheRoot := filepath.Join(temporary, "online-cache")
+	if strings.TrimSpace(downloadCache) != "" {
+		cacheRoot = downloadCache
+	}
+	resourceDirectory, err := hydrateResources(packagedExecutable, temporary, cacheRoot, fixtures)
 	if err != nil {
 		return err
 	}
@@ -243,8 +249,10 @@ func extractExecutableFromZIP(archivePath, executableName, destination string) e
 	return fmt.Errorf("%s is missing from the release archive", executableName)
 }
 
-func hydrateResources(executable, temporary string, fixtures []string) (string, error) {
-	cacheRoot := filepath.Join(temporary, "online-cache")
+// hydrateResources compiles each fixture online so Tectonic downloads the
+// files it needs into cacheRoot. A persistent cacheRoot may also hold files
+// from older fixtures; they are bundled too, which only costs space.
+func hydrateResources(executable, temporary, cacheRoot string, fixtures []string) (string, error) {
 	for index, fixture := range fixtures {
 		outputDirectory := filepath.Join(temporary, fmt.Sprintf("online-output-%d", index))
 		if err := os.MkdirAll(outputDirectory, 0o700); err != nil {
