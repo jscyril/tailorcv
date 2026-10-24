@@ -6,7 +6,7 @@ import { Field } from "../../components/ui";
 import { type Job, type JobAnalysis } from "../ai/AIWorkspace";
 import { type ApplicationStatus, ApplicationStatusControl } from "../applications/ApplicationStatusControl";
 
-export function JobTailor({ job, jobs, application, analysis, selectedFactIDs, busy, versionBusy, statusBusy, hasEvidence, templateName, onChange, onNew, onOpen, onDelete, onToggleEvidence, onCreateVersion, onOpenVersion, onStatusChange, onSubmit, onProfile }: {
+export function JobTailor({ job, jobs, application, analysis, selectedFactIDs, busy, versionBusy, statusBusy, hasEvidence, templateName, onChange, onNew, onOpen, onDelete, onToggleEvidence, onCreateVersion, onOpenVersion, onStatusChange, onSubmit, onProfile, aiReady = false, suggesting = false, onSuggestEvidence }: {
   job: Job;
   jobs: Job[];
   application?: Application;
@@ -27,6 +27,9 @@ export function JobTailor({ job, jobs, application, analysis, selectedFactIDs, b
   onStatusChange: (status: ApplicationStatus) => void;
   onSubmit: (event: FormEvent) => void;
   onProfile: () => void;
+  aiReady?: boolean;
+  suggesting?: boolean;
+  onSuggestEvidence?: () => void;
 }) {
   return (
     <section className="page form-page">
@@ -41,7 +44,7 @@ export function JobTailor({ job, jobs, application, analysis, selectedFactIDs, b
           <div className="job-actions"><small>{job.description.length.toLocaleString()} characters · saved locally when analyzed</small><button className="primary-button" disabled={busy} type="submit">{busy ? "Ranking…" : "Save & rank evidence"}</button></div>
         </form>
         <section className="analysis-card">
-          <div className="card-heading"><span className="step-pill muted">Step 2</span><h2>Review the evidence</h2></div>
+          <div className="card-heading"><span className="step-pill muted">Step 2</span><h2>Review the evidence</h2>{analysis && onSuggestEvidence && <button className="secondary-button" disabled={!aiReady || suggesting} title={aiReady ? "Sends the ranked facts below and the job requirements to Gemini" : "Connect Gemini and pick a model on the AI screen"} onClick={onSuggestEvidence}>{suggesting ? "Choosing…" : "Choose with AI"}</button>}</div>
           {!analysis ? <div className="analysis-empty"><div className="radar">✦</div><strong>Your ranked evidence will appear here</strong><p>TailorCV shows skill, term, importance, and recency signals with a reason for every suggested fact.</p></div> : <AnalysisResult analysis={analysis} selectedFactIDs={selectedFactIDs} onToggle={onToggleEvidence} />}
           {analysis && <div className="version-action"><div><strong>{selectedFactIDs.length} facts selected</strong><span>Render with {templateName} and preserve an immutable job snapshot.</span></div><button className="primary-button" disabled={versionBusy || selectedFactIDs.length === 0} onClick={onCreateVersion}>{versionBusy ? "Saving version…" : "Save resume version"}</button></div>}
         </section>

@@ -12,17 +12,20 @@ export function followUpDue(application: Application): boolean {
   return Boolean(application.followUpOn) && application.followUpOn! <= today() && (application.status === "submitted" || application.status === "interviewing");
 }
 
-export function ApplicationTracker({ application, title, busy, onStatusChange, onSave }: {
+export function ApplicationTracker({ application, title, busy, onStatusChange, onSave, drafting = false, onDraftFollowUp }: {
   application: Application;
   title: string;
   busy: boolean;
   onStatusChange: (status: ApplicationStatus) => void;
   onSave: (details: ApplicationDetails) => Promise<boolean>;
+  drafting?: boolean;
+  onDraftFollowUp?: () => Promise<string | null>;
 }) {
   const saved: ApplicationDetails = { appliedOn: application.appliedOn ?? "", followUpOn: application.followUpOn ?? "", postingUrl: application.postingUrl ?? "", notes: application.notes ?? "" };
   // Only fields the user edited are kept here, so values the app changes
   // (like the applied date set on submit) still show through.
   const [edits, setEdits] = useState<Partial<ApplicationDetails>>({});
+  const [followUpEmail, setFollowUpEmail] = useState("");
   const draft = { ...saved, ...edits };
   const dirty = (Object.keys(saved) as Array<keyof ApplicationDetails>).some((key) => draft[key] !== saved[key]);
   const field = (key: keyof ApplicationDetails) => ({ value: draft[key], onChange: (event: { target: { value: string } }) => setEdits({ ...edits, [key]: event.target.value }) });
@@ -41,6 +44,7 @@ export function ApplicationTracker({ application, title, busy, onStatusChange, o
       </label>
       <label htmlFor={`notes-${id}`} className="wide">Notes<textarea id={`notes-${id}`} rows={3} maxLength={10000} placeholder="Recruiter, interview dates, salary range…" {...field("notes")} /></label>
     </div>
-    <footer><button className="primary-button" type="submit" disabled={busy || !dirty}>Save tracking</button>{dirty && <button className="text-button" type="button" onClick={() => setEdits({})}>Undo changes</button>}</footer>
+    <footer><button className="primary-button" type="submit" disabled={busy || !dirty}>Save tracking</button>{dirty && <button className="text-button" type="button" onClick={() => setEdits({})}>Undo changes</button>}{onDraftFollowUp && <button className="secondary-button" type="button" disabled={drafting} title="Sends the job and this resume's selected evidence to Gemini; notes stay local" onClick={async () => setFollowUpEmail(await onDraftFollowUp() ?? followUpEmail)}>{drafting ? "Drafting…" : followUpDue(application) ? "Draft follow-up (due)" : "Draft follow-up"}</button>}</footer>
+    {followUpEmail && <label htmlFor={`follow-up-email-${id}`} className="wide">Follow-up email draft (not saved)<textarea id={`follow-up-email-${id}`} rows={8} value={followUpEmail} onChange={(event) => setFollowUpEmail(event.target.value)} /><button type="button" className="text-button" onClick={() => void navigator.clipboard.writeText(followUpEmail)}>Copy</button></label>}
   </form>;
 }

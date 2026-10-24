@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/jscyril/tailorcv/internal/ai"
 	"github.com/jscyril/tailorcv/internal/domain"
 	"github.com/jscyril/tailorcv/internal/resumeimport"
 )
@@ -19,8 +21,49 @@ func (a *App) PreviewResumeImport() (domain.ResumeImport, error) {
 	if err != nil || path == "" {
 		return domain.ResumeImport{}, err
 	}
+	a.importMu.Lock()
+	a.lastImportSource = string(data)
+	a.importMu.Unlock()
 	result := resumeimport.Parse(string(data))
 	result.FileName = filepath.Base(path)
+	return result, nil
+}
+
+// PreviewResumeImportWithAI re-reads the file from the last import preview
+// with an agent, for resumes the rule-based parser could not fully read.
+// The whole file is sent to the provider; nothing is saved.
+func (a *App) PreviewResumeImportWithAI(input domain.ResumeImportAIInput) (domain.ResumeImport, error) {
+	if err := a.ready(); err != nil {
+		return domain.ResumeImport{}, err
+	}
+	validated, err := input.Validate()
+	if err != nil {
+		return domain.ResumeImport{}, err
+	}
+	a.importMu.Lock()
+	source := a.lastImportSource
+	a.importMu.Unlock()
+	if strings.TrimSpace(source) == "" {
+		return domain.ResumeImport{}, fmt.Errorf("choose a resume file to import first")
+	}
+	if len(source) > 256<<10 {
+		return domain.ResumeImport{}, fmt.Errorf("resume file is too large for AI import")
+	}
+	provider, err := a.newAIProvider(validated.Provider, validated.Endpoint)
+	if err != nil {
+		return domain.ResumeImport{}, err
+	}
+	agent, ok := provider.(ai.AgentProvider)
+	if !ok {
+		return domain.ResumeImport{}, fmt.Errorf("AI import needs a provider that can call tools; switch to Gemini")
+	}
+	ctx, done := a.beginAIRequest(4 * time.Minute)
+	defer done()
+	result, err := ai.RunResumeImportAgent(ctx, agent, validated.Model, source, resumeimport.PlainText(source))
+	if err != nil {
+		return domain.ResumeImport{}, fmt.Errorf("read resume with AI: %w", err)
+	}
+	result.FileName = validated.FileName
 	return result, nil
 }
 
