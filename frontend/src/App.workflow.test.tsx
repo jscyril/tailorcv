@@ -14,11 +14,13 @@ const bindings = vi.hoisted(() => ({
   ImportResumeTemplate: vi.fn(), ListAchievements: vi.fn(), ListAIRuns: vi.fn(), ListApplications: vi.fn(), ListCertifications: vi.fn(), ListEducations: vi.fn(),
   ListExperiences: vi.fn(), ListJobs: vi.fn(), ListProjects: vi.fn(), ListResumeTemplates: vi.fn(), OpenResumeVersion: vi.fn(), RenderResumeTemplate: vi.fn(), SaveAchievement: vi.fn(),
   SaveAISettings: vi.fn(), SaveCertification: vi.fn(), SaveEducation: vi.fn(), SaveExperience: vi.fn(), SaveGeminiAPIKey: vi.fn(), SaveProfile: vi.fn(),
-  SaveProject: vi.fn(), SaveResumeTemplate: vi.fn(), SaveResumeVersionEdit: vi.fn(), SelectResumeTemplate: vi.fn(), UpdateApplicationStatus: vi.fn(), UpdateApplicationDetails: vi.fn(), KeywordCoverage: vi.fn(), DraftCoverLetter: vi.fn(), GenerateCoverLetter: vi.fn(), SaveCoverLetter: vi.fn(), ExportCoverLetterPDF: vi.fn(), PreviewResumeImport: vi.fn(), ApplyResumeImport: vi.fn(),
+  SaveProject: vi.fn(), SaveResumeTemplate: vi.fn(), SaveResumeVersionEdit: vi.fn(), SelectResumeTemplate: vi.fn(), UpdateApplicationStatus: vi.fn(), UpdateApplicationDetails: vi.fn(), KeywordCoverage: vi.fn(), DraftCoverLetter: vi.fn(), GenerateCoverLetter: vi.fn(), SaveCoverLetter: vi.fn(), ExportCoverLetterPDF: vi.fn(), PreviewResumeImport: vi.fn(), PreviewResumeImportWithAI: vi.fn(), ApplyResumeImport: vi.fn(),
   ListAutomaticBackups: vi.fn(), RestoreAutomaticBackup: vi.fn(), GetLatexDraft: vi.fn(), SaveLatexDraft: vi.fn(), ClearLatexDraft: vi.fn(),
 }));
 
 vi.mock("../wailsjs/go/main/App", () => bindings);
+const pdfText = vi.hoisted(() => vi.fn());
+vi.mock("./features/preview/ResumePreview", async (original) => ({ ...(await original<object>()), pdfPlainText: pdfText }));
 
 if (!Range.prototype.getClientRects) {
   Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
@@ -467,6 +469,40 @@ describe("App Wails workflow integration", () => {
     await waitFor(() => expect(bindings.ListAutomaticBackups).toHaveBeenCalledTimes(2));
   });
 
+  it("reads an imported PDF resume with AI using the text extracted in the UI", async () => {
+    const empty = {
+      name: "", headline: "", email: "", phone: "", location: "", website: "", githubUsername: "", linkedInUrl: "",
+      summary: "", skills: [], contactLinks: [], updatedAt: "",
+    };
+    bindings.GetProfile.mockResolvedValue(empty);
+    bindings.ListExperiences.mockResolvedValue([]);
+    bindings.GetAISettings.mockResolvedValue({ provider: "gemini", ollamaEndpoint: "", ollamaModel: "", geminiModel: "gemini-test" });
+    bindings.PreviewResumeImport.mockResolvedValue({ fileName: "resume.pdf", pdfBase64: "JVBERi0=", profile: empty, experiences: [], projects: [], educations: [], warnings: ["PDF resumes can only be read with AI."] });
+    pdfText.mockResolvedValue("Casey Fictional\nExample Systems");
+    bindings.PreviewResumeImportWithAI.mockResolvedValue({ fileName: "resume.pdf", profile: { ...empty, name: "Casey Fictional" }, experiences: [], projects: [], educations: [], warnings: [] });
+
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Import existing resume (.tex or .pdf)" }));
+    const dialog = await screen.findByRole("dialog", { name: "Review what was found in resume.pdf" });
+    expect(pdfText).toHaveBeenCalledWith("JVBERi0=");
+    await user.click(within(dialog).getByRole("button", { name: "Read with AI" }));
+    await waitFor(() => expect(bindings.PreviewResumeImportWithAI).toHaveBeenCalledWith(expect.objectContaining({ fileName: "resume.pdf", text: "Casey Fictional\nExample Systems" })));
+    expect(await within(dialog).findByText("Casey Fictional")).toBeTruthy();
+  });
+
+  it("explains when an imported PDF has no selectable text", async () => {
+    bindings.GetProfile.mockResolvedValue({ name: "", headline: "", email: "", phone: "", location: "", website: "", githubUsername: "", linkedInUrl: "", summary: "", skills: [], contactLinks: [], updatedAt: "" });
+    bindings.ListExperiences.mockResolvedValue([]);
+    bindings.PreviewResumeImport.mockResolvedValue({ fileName: "scan.pdf", pdfBase64: "JVBERi0=", profile: {}, experiences: [], projects: [], educations: [], warnings: [] });
+    pdfText.mockResolvedValue("  ");
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Import existing resume (.tex or .pdf)" }));
+    expect(await screen.findByText(/no selectable text/)).toBeTruthy();
+    expect(screen.queryByRole("dialog", { name: /scan\.pdf/ })).toBeNull();
+  });
+
   it("imports an existing resume from onboarding after review", async () => {
     const empty = {
       name: "", headline: "", email: "", phone: "", location: "", website: "", githubUsername: "", linkedInUrl: "",
@@ -486,7 +522,7 @@ describe("App Wails workflow integration", () => {
 
     const user = userEvent.setup();
     render(<App />);
-    await user.click(await screen.findByRole("button", { name: "Import existing resume (.tex)" }));
+    await user.click(await screen.findByRole("button", { name: "Import existing resume (.tex or .pdf)" }));
     const dialog = await screen.findByRole("dialog", { name: "Review what was found in resume.tex" });
     expect(within(dialog).getByText(/Leadership/)).toBeTruthy();
     expect(within(dialog).getByText("Casey Fictional · casey@example.com")).toBeTruthy();

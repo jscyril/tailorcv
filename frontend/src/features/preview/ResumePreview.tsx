@@ -37,7 +37,7 @@ export function joinPDFText(pages: TextItem[][]): string {
 
 const decodePDF = (data: string) => Uint8Array.from(atob(data), (character) => character.charCodeAt(0));
 
-async function pdfPlainText(data: string): Promise<string> {
+export async function pdfPlainText(data: string): Promise<string> {
   const { getDocument, GlobalWorkerOptions } = await import("pdfjs-dist");
   GlobalWorkerOptions.workerSrc = pdfWorkerURL;
   const task = getDocument({ data: decodePDF(data) });

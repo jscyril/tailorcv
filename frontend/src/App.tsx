@@ -19,7 +19,7 @@ import { type ApplicationDetails } from "./features/applications/ApplicationTrac
 import { JobTailor } from "./features/jobs/JobTailor";
 import { Onboarding } from "./features/onboarding/Onboarding";
 import { ResumeImportDialog } from "./features/onboarding/ResumeImportDialog";
-import { ResumePreview } from "./features/preview/ResumePreview";
+import { ResumePreview, pdfPlainText } from "./features/preview/ResumePreview";
 import { CredentialsWorkspace, EducationWorkspace, ProfileWorkspace, SkillsWorkspace } from "./features/profile/ProfileWorkspaces";
 import { ProjectWorkspace } from "./features/projects/ProjectWorkspace";
 import { TemplatesWorkspace } from "./features/templates/TemplatesWorkspace";
@@ -307,12 +307,21 @@ export default function App() {
 
   const [resumeImport, setResumeImport] = useState<domain.ResumeImport | null>(null);
   const [resumeImportBusy, setResumeImportBusy] = useState(false);
+  // Text extracted from an imported PDF; only the AI import can read it.
+  const [resumeImportText, setResumeImportText] = useState("");
   const previewResumeImport = async () => {
     setError("");
     setMessage("");
     try {
       const preview = await PreviewResumeImport();
-      if (preview.fileName) setResumeImport(preview);
+      if (!preview.fileName) return;
+      let text = "";
+      if (preview.pdfBase64) {
+        text = await pdfPlainText(preview.pdfBase64);
+        if (!text.trim()) throw new Error("This PDF has no selectable text, so it cannot be read. It may be a scanned image.");
+      }
+      setResumeImportText(text);
+      setResumeImport(domain.ResumeImport.createFrom({ ...preview, pdfBase64: undefined }));
     } catch (reason) {
       setError(errorMessage(reason));
     }
@@ -324,7 +333,7 @@ export default function App() {
     setError("");
     setMessage("");
     try {
-      setResumeImport(await PreviewResumeImportWithAI({ fileName: resumeImport.fileName, provider: aiProvider, model: geminiModel, endpoint: "" }));
+      setResumeImport(await PreviewResumeImportWithAI({ fileName: resumeImport.fileName, provider: aiProvider, model: geminiModel, endpoint: "", text: resumeImportText }));
       setMessage("Read with AI. Review every entry before importing.");
     } catch (reason) {
       setError(errorMessage(reason));

@@ -795,29 +795,33 @@ func (a *App) ImportResumeTemplate() (domain.ResumeTemplate, error) {
 // chooseTexFile asks for a .tex file and reads it. An empty path means the
 // user cancelled.
 func (a *App) chooseTexFile(title string) (string, []byte, error) {
-	path, err := a.chooseOpenFile(a.appContext(), runtime.OpenDialogOptions{
-		Title:   title,
-		Filters: []runtime.FileFilter{{DisplayName: "LaTeX file (*.tex)", Pattern: "*.tex"}},
-	})
+	return a.chooseFile(title, runtime.FileFilter{DisplayName: "LaTeX file (*.tex)", Pattern: "*.tex"}, map[string]int64{".tex": domain.MaxTemplateSourceBytes})
+}
+
+// chooseFile asks for a file with one of the allowed extensions, each with its
+// own size limit. An empty path means the user cancelled.
+func (a *App) chooseFile(title string, filter runtime.FileFilter, limits map[string]int64) (string, []byte, error) {
+	path, err := a.chooseOpenFile(a.appContext(), runtime.OpenDialogOptions{Title: title, Filters: []runtime.FileFilter{filter}})
 	if err != nil {
-		return "", nil, fmt.Errorf("choose LaTeX file: %w", err)
+		return "", nil, fmt.Errorf("choose file: %w", err)
 	}
 	if path == "" {
 		return "", nil, nil
 	}
-	if !strings.EqualFold(filepath.Ext(path), ".tex") {
-		return "", nil, fmt.Errorf("the file must use the .tex extension")
+	limit, ok := limits[strings.ToLower(filepath.Ext(path))]
+	if !ok {
+		return "", nil, fmt.Errorf("choose a %s file", filter.DisplayName)
 	}
 	info, err := os.Stat(path)
 	if err != nil {
-		return "", nil, fmt.Errorf("inspect LaTeX file: %w", err)
+		return "", nil, fmt.Errorf("inspect file: %w", err)
 	}
-	if info.Size() > domain.MaxTemplateSourceBytes {
-		return "", nil, fmt.Errorf("the LaTeX file exceeds the 1 MiB size limit")
+	if info.Size() > limit {
+		return "", nil, fmt.Errorf("the file exceeds the %d MiB size limit", limit>>20)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", nil, fmt.Errorf("read LaTeX file: %w", err)
+		return "", nil, fmt.Errorf("read file: %w", err)
 	}
 	return path, data, nil
 }

@@ -1442,6 +1442,7 @@ export namespace domain {
 	    projects: ProjectInput[];
 	    educations: EducationInput[];
 	    warnings: string[];
+	    pdfBase64?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ResumeImport(source);
@@ -1455,6 +1456,7 @@ export namespace domain {
 	        this.projects = this.convertValues(source["projects"], ProjectInput);
 	        this.educations = this.convertValues(source["educations"], EducationInput);
 	        this.warnings = source["warnings"];
+	        this.pdfBase64 = source["pdfBase64"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1480,6 +1482,7 @@ export namespace domain {
 	    provider: string;
 	    model: string;
 	    endpoint: string;
+	    text: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ResumeImportAIInput(source);
@@ -1491,6 +1494,7 @@ export namespace domain {
 	        this.provider = source["provider"];
 	        this.model = source["model"];
 	        this.endpoint = source["endpoint"];
+	        this.text = source["text"];
 	    }
 	}
 	export class ResumeImportResult {

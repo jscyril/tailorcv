@@ -10,6 +10,8 @@ type ResumeImport struct {
 	Projects    []ProjectInput    `json:"projects"`
 	Educations  []EducationInput  `json:"educations"`
 	Warnings    []string          `json:"warnings"`
+	// PDFBase64 is set only when previewing a PDF, for the UI to extract text.
+	PDFBase64 string `json:"pdfBase64,omitempty"`
 }
 
 // ResumeImportResult counts what an import added and skipped.
