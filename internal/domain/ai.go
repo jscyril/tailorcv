@@ -245,6 +245,8 @@ type ResumeImportAIInput struct {
 	Provider string `json:"provider"`
 	Model    string `json:"model"`
 	Endpoint string `json:"endpoint"`
+	// Text is the text the UI extracted from a PDF; empty for a .tex import.
+	Text string `json:"text"`
 }
 
 func (input ResumeImportAIInput) Validate() (ResumeImportAIInput, error) {

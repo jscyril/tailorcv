@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -9,17 +10,30 @@ import (
 	"github.com/jscyril/tailorcv/internal/ai"
 	"github.com/jscyril/tailorcv/internal/domain"
 	"github.com/jscyril/tailorcv/internal/resumeimport"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// PreviewResumeImport asks for an existing .tex resume and reads it without
-// saving anything. An empty FileName means the user cancelled.
+// PreviewResumeImport asks for an existing .tex or .pdf resume and reads it
+// without saving anything. An empty FileName means the user cancelled. A PDF
+// is returned as-is for the UI to extract text from; only AI can read it.
 func (a *App) PreviewResumeImport() (domain.ResumeImport, error) {
 	if err := a.ready(); err != nil {
 		return domain.ResumeImport{}, err
 	}
-	path, data, err := a.chooseTexFile("Import your existing resume (.tex)")
+	path, data, err := a.chooseFile("Import your existing resume", runtime.FileFilter{DisplayName: "Resume (*.tex, *.pdf)", Pattern: "*.tex;*.pdf"},
+		map[string]int64{".tex": domain.MaxTemplateSourceBytes, ".pdf": 10 << 20})
 	if err != nil || path == "" {
 		return domain.ResumeImport{}, err
+	}
+	if strings.EqualFold(filepath.Ext(path), ".pdf") {
+		a.importMu.Lock()
+		a.lastImportSource = ""
+		a.importMu.Unlock()
+		return domain.ResumeImport{
+			FileName: filepath.Base(path), PDFBase64: base64.StdEncoding.EncodeToString(data),
+			Experiences: []domain.ExperienceInput{}, Projects: []domain.ProjectInput{}, Educations: []domain.EducationInput{},
+			Warnings: []string{"PDF resumes can only be read with AI. Choose Read with AI; it needs Gemini set up in AI settings."},
+		}, nil
 	}
 	a.importMu.Lock()
 	a.lastImportSource = string(data)
@@ -40,9 +54,14 @@ func (a *App) PreviewResumeImportWithAI(input domain.ResumeImportAIInput) (domai
 	if err != nil {
 		return domain.ResumeImport{}, err
 	}
-	a.importMu.Lock()
-	source := a.lastImportSource
-	a.importMu.Unlock()
+	// A PDF arrives as text the UI extracted; a .tex file is the last preview.
+	source, plain := validated.Text, validated.Text
+	if source == "" {
+		a.importMu.Lock()
+		source = a.lastImportSource
+		a.importMu.Unlock()
+		plain = resumeimport.PlainText(source)
+	}
 	if strings.TrimSpace(source) == "" {
 		return domain.ResumeImport{}, fmt.Errorf("choose a resume file to import first")
 	}
@@ -59,7 +78,7 @@ func (a *App) PreviewResumeImportWithAI(input domain.ResumeImportAIInput) (domai
 	}
 	ctx, done := a.beginAIRequest(4 * time.Minute)
 	defer done()
-	result, err := ai.RunResumeImportAgent(ctx, agent, validated.Model, source, resumeimport.PlainText(source))
+	result, err := ai.RunResumeImportAgent(ctx, agent, validated.Model, source, plain)
 	if err != nil {
 		return domain.ResumeImport{}, fmt.Errorf("read resume with AI: %w", err)
 	}

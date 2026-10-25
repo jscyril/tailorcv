@@ -131,7 +131,8 @@ In priority order. Reliability comes first because losing data in a daily tool i
 ### Bringing an existing resume
 
 - [x] Import a Jake-format `.tex` resume into the profile forms after review; downloaded Jake's templates compile offline, and the built-in Jake's Resume uses Jake's real layout.
-- [ ] Import other formats (PDF, other LaTeX layouts), likely with AI-assisted extraction and the same review step.
+- [x] Import other LaTeX layouts and PDF resumes with AI (Gemini) and the same review step. Entries must appear word for word in the file; PDF text is extracted locally with PDF.js.
+- [ ] Read scanned (image-only) PDFs. These are rejected today because they have no selectable text.
 - [ ] Turn an imported custom template into a form-driven one by replacing its body with TailorCV markers.
 
 ### Writing help

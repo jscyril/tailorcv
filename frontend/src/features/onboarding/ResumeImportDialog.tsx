@@ -51,7 +51,7 @@ export function ResumeImportDialog({ data, busy, onImport, onCancel, aiBusy = fa
       </div>
       <footer>
         <button type="button" className="text-button" onClick={onCancel}>Cancel</button>
-        {onReadWithAI && <button type="button" className="secondary-button" disabled={busy || aiBusy} title="Sends this file to Gemini; entries must match the file word for word" onClick={onReadWithAI}>{aiBusy ? "Reading…" : "Read with AI instead"}</button>}
+        {onReadWithAI && <button type="button" className="secondary-button" disabled={busy || aiBusy} title="Sends this file to Gemini; entries must match the file word for word" onClick={onReadWithAI}>{aiBusy ? "Reading…" : (data.fileName.toLowerCase().endsWith(".pdf") ? "Read with AI" : "Read with AI instead")}</button>}
         <button type="button" className="primary-button" disabled={busy || (count === 0 && skills.length === 0 && contact.length === 0)} onClick={() => onImport(domain.ResumeImport.createFrom(selected))}>{busy ? "Importing…" : `Import ${count} entr${count === 1 ? "y" : "ies"}`}</button>
       </footer>
     </section>
